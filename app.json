@@ -39,7 +39,13 @@
           "color": "#10B981"
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Adhan Time needs your location to compute the Qibla direction (toward the Kaaba) and show the bearing on a compass."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
