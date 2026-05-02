@@ -1,11 +1,11 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing } from './Theme';
+import { colors, fonts, radius, spacing } from './Theme';
 
 type Props = {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'ghost';
   loading?: boolean;
   disabled?: boolean;
 };
@@ -18,18 +18,31 @@ export function Button({ title, onPress, variant = 'primary', loading, disabled 
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.base,
-        variant === 'primary' ? styles.primary : styles.secondary,
+        variant === 'primary' && styles.primary,
+        variant === 'secondary' && styles.secondary,
+        variant === 'ghost' && styles.ghost,
         isDisabled && styles.disabled,
         pressed && !isDisabled && styles.pressed,
       ]}
     >
       <View style={styles.row}>
         {loading ? (
-          <ActivityIndicator color={variant === 'primary' ? '#0F172A' : colors.text} />
+          <ActivityIndicator color={variant === 'primary' ? colors.ink : colors.primary} />
         ) : (
-          <Text style={[styles.text, variant === 'primary' ? styles.primaryText : styles.secondaryText]}>
-            {title}
-          </Text>
+          <>
+            {variant === 'primary' && <Text style={styles.lead}>·</Text>}
+            <Text
+              style={[
+                styles.text,
+                variant === 'primary' && styles.primaryText,
+                variant === 'secondary' && styles.secondaryText,
+                variant === 'ghost' && styles.ghostText,
+              ]}
+            >
+              {title}
+            </Text>
+            {variant === 'primary' && <Text style={styles.lead}>·</Text>}
+          </>
         )}
       </View>
     </Pressable>
@@ -37,13 +50,47 @@ export function Button({ title, onPress, variant = 'primary', loading, disabled 
 }
 
 const styles = StyleSheet.create({
-  base: { borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginVertical: spacing.xs },
-  row: { alignItems: 'center', justifyContent: 'center', minHeight: 24 },
-  primary: { backgroundColor: colors.primary },
-  secondary: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
-  disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.85 },
-  text: { fontSize: 16, fontWeight: '600' },
-  primaryText: { color: '#0F172A' },
-  secondaryText: { color: colors.text },
+  base: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md + 2,
+    marginVertical: spacing.xs,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 26,
+  },
+  primary: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.full,
+  },
+  secondary: {
+    backgroundColor: 'transparent',
+    borderRadius: radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.primary,
+  },
+  ghost: {
+    backgroundColor: 'transparent',
+    paddingHorizontal: spacing.md,
+  },
+  disabled: { opacity: 0.4 },
+  pressed: { opacity: 0.78 },
+  text: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 13,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+  },
+  lead: {
+    fontFamily: fonts.serif,
+    fontSize: 16,
+    color: colors.ink,
+    marginHorizontal: spacing.sm,
+    opacity: 0.6,
+  },
+  primaryText: { color: colors.ink },
+  secondaryText: { color: colors.primary },
+  ghostText: { color: colors.textDim, letterSpacing: 2 },
 });

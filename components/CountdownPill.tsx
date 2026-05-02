@@ -1,10 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing } from './Theme';
+import { colors, fonts, spacing } from './Theme';
 
 import type { PrayerKey } from '@/constants/prayers';
-
 
 type Props = {
   prayerKey: PrayerKey;
@@ -16,27 +15,103 @@ export function CountdownPill({ prayerKey, remainingMs }: Props) {
   const totalMin = Math.max(0, Math.floor(remainingMs / 60000));
   const hours = Math.floor(totalMin / 60);
   const minutes = totalMin % 60;
+  const accent = colors.prayer[prayerKey] ?? colors.primary;
+  const hh = String(hours).padStart(2, '0');
+  const mm = String(minutes).padStart(2, '0');
+
   return (
-    <View style={styles.pill}>
-      <Text style={styles.label}>{t('screens.home.nextPrayer')}</Text>
-      <Text style={styles.title}>{t(`prayer.${prayerKey}.title`)}</Text>
-      <Text style={styles.remaining}>
-        {hours > 0 ? `${hours}s ` : ''}
-        {minutes}dk {t('screens.home.remaining')}
+    <View style={styles.wrap}>
+      <View style={[styles.accentLine, { backgroundColor: accent }]} />
+      <Text style={styles.eyebrow}>· {t('screens.home.nextPrayer')} ·</Text>
+      <View style={styles.timeRow}>
+        <Text style={styles.numeralLg}>{hh}</Text>
+        <Text style={styles.colon}>:</Text>
+        <Text style={styles.numeralLg}>{mm}</Text>
+      </View>
+      <View style={styles.tag}>
+        <View style={[styles.dot, { backgroundColor: accent }]} />
+        <Text style={styles.until}>
+          <Text style={styles.untilDim}>until </Text>
+          <Text style={styles.untilName}>{t(`prayer.${prayerKey}.title`)}</Text>
+        </Text>
+      </View>
+      <Text style={styles.remainingLabel}>
+        {hours > 0 ? `${hours}h ` : ''}
+        {minutes}m {t('screens.home.remaining')}
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pill: {
-    backgroundColor: colors.cardElevated,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    alignItems: 'center',
-    marginVertical: spacing.lg,
+  wrap: {
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
-  label: { color: colors.textDim, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase' },
-  title: { color: colors.primary, fontSize: 32, fontWeight: '800', marginTop: spacing.xs },
-  remaining: { color: colors.text, fontSize: 16, marginTop: spacing.xs },
+  accentLine: {
+    width: 28,
+    height: 2,
+    marginBottom: spacing.md,
+    opacity: 0.85,
+  },
+  eyebrow: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 10,
+    letterSpacing: 3.2,
+    textTransform: 'uppercase',
+    color: colors.textDim,
+    marginBottom: spacing.lg,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  numeralLg: {
+    fontFamily: fonts.serif,
+    fontSize: 96,
+    color: colors.cream,
+    letterSpacing: -3,
+    fontVariant: ['tabular-nums'],
+    lineHeight: 96,
+  },
+  colon: {
+    fontFamily: fonts.serif,
+    fontSize: 88,
+    color: colors.primary,
+    marginHorizontal: 4,
+    lineHeight: 96,
+    fontStyle: 'italic',
+  },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: spacing.sm,
+  },
+  until: {
+    fontFamily: fonts.serif,
+    fontSize: 20,
+  },
+  untilDim: {
+    color: colors.textDim,
+    fontStyle: 'italic',
+  },
+  untilName: {
+    color: colors.cream,
+    fontStyle: 'italic',
+  },
+  remainingLabel: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    color: colors.textFaint,
+    marginTop: spacing.xs,
+    letterSpacing: 1.2,
+    textTransform: 'lowercase',
+  },
 });

@@ -96,7 +96,7 @@ function computeTargets(
     const entry = findEntryForDate(cache.entries, dateIso);
     if (!entry) continue;
     for (const key of enabled) {
-      const value = entry[key];
+      const value = entry.times?.[key];
       if (!value) continue;
       const fireAt = parsePrayerTime(value, dateIso, tz);
       if (fireAt.getTime() <= now.getTime()) continue;

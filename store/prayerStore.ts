@@ -22,8 +22,14 @@ export const usePrayerStore = create<State & Actions>()(
     }),
     {
       name: 'prayer',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => AsyncStorage),
+      migrate: (persisted, version) => {
+        // v1 cache stored times at the entry top-level (entry.imsak); v2 expects entry.times.imsak.
+        // Discard old cache so the next app open triggers a fresh yearly fetch.
+        if (version < 2) return { cache: null };
+        return persisted as { cache: null };
+      },
     },
   ),
 );

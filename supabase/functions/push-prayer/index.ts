@@ -22,12 +22,14 @@ type Device = {
 
 type PrayerEntry = {
   date: string;
-  imsak: string;
-  gunes: string;
-  ogle: string;
-  ikindi: string;
-  aksam: string;
-  yatsi: string;
+  times: {
+    imsak: string;
+    gunes: string;
+    ogle: string;
+    ikindi: string;
+    aksam: string;
+    yatsi: string;
+  };
 };
 
 type ExpoMessage = {
@@ -63,7 +65,7 @@ Deno.serve(async () => {
         const minuteInTz = formatInTz(new Date(), dev.timezone, 'HH:mm');
         for (const key of PRAYER_KEYS) {
           if (!dev.enabled_prayers.includes(key)) continue;
-          if (entry[key] !== minuteInTz) continue;
+          if (entry.times?.[key] !== minuteInTz) continue;
           messages.push({
             to: dev.expo_push_token,
             title: titleFor(key, dev.locale),

@@ -17,6 +17,6 @@ export function useTodayPrayers(): TodayPrayers {
   if (!entry) return null;
   return {
     dateIso,
-    rows: PRAYER_KEYS.map((key) => ({ key, time: entry[key] })),
+    rows: PRAYER_KEYS.map((key) => ({ key, time: entry.times[key] })),
   };
 }

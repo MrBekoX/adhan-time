@@ -15,20 +15,27 @@ export type District = State & {
   url?: string;
 };
 
-export type PrayerTime = {
-  date: string; // ISO yyyy-MM-ddT00:00:00.000Z
+export type PrayerTimes = {
   imsak: string; // HH:MM
   gunes: string;
   ogle: string;
   ikindi: string;
   aksam: string;
   yatsi: string;
-  hijri?: {
+};
+
+export type PrayerTime = {
+  date: string; // ISO yyyy-MM-ddT00:00:00.000Z
+  times: PrayerTimes;
+  hijri_date?: {
     day: number;
     month: number;
     month_name: string;
+    month_name_en?: string;
     year: number;
+    full_date?: string;
   };
+  meta?: { source?: string };
 };
 
 export type YearlyPrayerCache = {

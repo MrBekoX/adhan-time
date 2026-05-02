@@ -34,7 +34,7 @@ export function useNextPrayer(): NextPrayer | null {
     if (!entry) continue;
     for (const key of PRAYER_KEYS) {
       if (!enabled.includes(key)) continue;
-      const value = entry[key];
+      const value = entry.times?.[key];
       if (!value) continue;
       const fireAt = parsePrayerTime(value, dateIso, tz);
       if (fireAt.getTime() > now) {
