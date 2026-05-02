@@ -191,10 +191,12 @@ describe('qiblaBearing', () => {
 });
 
 describe('distanceToKaabaKm', () => {
+  // Reference values cross-checked against distance.to / prokerala / travelmath
+  // (great-circle distance, R = 6371 km).
   it.each([
-    { city: 'Istanbul', lat: 41.0082, lon: 28.9784, expected: 2470 },
-    { city: 'New York', lat: 40.7128, lon: -74.006, expected: 10310 },
-    { city: 'Sydney', lat: -33.8688, lon: 151.2093, expected: 12200 },
+    { city: 'Istanbul', lat: 41.0082, lon: 28.9784, expected: 2405 },
+    { city: 'New York', lat: 40.7128, lon: -74.006, expected: 10306 },
+    { city: 'Sydney', lat: -33.8688, lon: 151.2093, expected: 13236 },
   ])('returns ~$expected km for $city', ({ lat, lon, expected }) => {
     const actual = distanceToKaabaKm(lat, lon);
     // 1% tolerance for Earth-radius approximation differences across references.
