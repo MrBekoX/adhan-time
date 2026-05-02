@@ -11,12 +11,18 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.adhantime.app",
       "infoPlist": {
-        "UIBackgroundModes": ["fetch", "remote-notification"]
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification"
+        ]
       }
     },
     "android": {
       "package": "com.adhantime.app",
-      "permissions": ["RECEIVE_BOOT_COMPLETED", "VIBRATE"]
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -37,8 +43,12 @@
     },
     "extra": {
       "eas": {
-        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+        "projectId": "0c7ed0e3-6aad-490f-b042-0616031622b9"
+      },
+      "router": {
+        "origin": false
       }
-    }
+    },
+    "owner": "mrbeko"
   }
 }
