@@ -40,6 +40,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="qibla"
+        options={{
+          tabBarLabel: t('screens.qibla.tabLabel'),
+          tabBarIcon: ({ color }) => <TabGlyph color={color}>◆</TabGlyph>,
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           tabBarLabel: t('screens.settings.title'),
