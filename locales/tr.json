@@ -66,12 +66,35 @@
       "soundDefault": "Varsayılan",
       "soundAdhanShort": "Kısa Ezan"
     },
+    "qibla": {
+      "tabLabel": "Kıble",
+      "eyebrow": "kıble",
+      "bearingLabel": "Yön",
+      "distanceLabel": "Mesafe",
+      "statusLocation": "Konum: ±{{meters}} m",
+      "statusCompass": "Pusula: ±{{degrees}}°",
+      "statusCompassUnknown": "Pusula: kalibre ediliyor",
+      "atKaaba": "Kabe'desin",
+      "permissionTitle": "Konum izni gerekli",
+      "permissionBody": "Kıble yönünü göstermek için cihazın konumuna ihtiyacımız var.",
+      "openSettings": "Ayarları aç",
+      "locationServicesOff": "Konum servisleri kapalı. Lütfen sistem ayarlarından aç.",
+      "acquiringLocation": "Konum alınıyor",
+      "sensorMissing": "Bu cihazda pusula sensörü bulunmuyor.",
+      "headingFallbackNote": "Hassas konum izni verirseniz daha doğru gösterilebilir.",
+      "calibrationTitle": "Pusula kalibrasyonu",
+      "calibrationBody": "Telefonu havada 8 hareketi çiz.",
+      "calibrationUnreliable": "Pusula güvenilir değil — etrafında metal/elektronik cihaz var mı?"
+    },
     "placeholder": "..."
   },
   "units": {
     "hour_one": "{{count}} saat",
     "hour_other": "{{count}} saat",
     "minute_one": "{{count}} dakika",
-    "minute_other": "{{count}} dakika"
+    "minute_other": "{{count}} dakika",
+    "km": "{{value}} km",
+    "degrees": "{{value}}°",
+    "meters": "{{value}} m"
   }
 }

@@ -66,12 +66,35 @@
       "soundDefault": "Default",
       "soundAdhanShort": "Short Adhan"
     },
+    "qibla": {
+      "tabLabel": "Qibla",
+      "eyebrow": "qibla",
+      "bearingLabel": "Bearing",
+      "distanceLabel": "Distance",
+      "statusLocation": "Location: ±{{meters}} m",
+      "statusCompass": "Compass: ±{{degrees}}°",
+      "statusCompassUnknown": "Compass: calibrating",
+      "atKaaba": "You are at the Kaaba",
+      "permissionTitle": "Location permission required",
+      "permissionBody": "We need your location to show the direction of the Kaaba.",
+      "openSettings": "Open settings",
+      "locationServicesOff": "Location services are off. Please enable them in system settings.",
+      "acquiringLocation": "Acquiring location",
+      "sensorMissing": "This device has no compass sensor.",
+      "headingFallbackNote": "Granting precise location may improve accuracy.",
+      "calibrationTitle": "Compass calibration",
+      "calibrationBody": "Wave the phone in a figure-8 motion.",
+      "calibrationUnreliable": "Compass is unreliable — are there metal or electronic devices nearby?"
+    },
     "placeholder": "..."
   },
   "units": {
     "hour_one": "{{count}} hour",
     "hour_other": "{{count}} hours",
     "minute_one": "{{count}} minute",
-    "minute_other": "{{count}} minutes"
+    "minute_other": "{{count}} minutes",
+    "km": "{{value}} km",
+    "degrees": "{{value}}°",
+    "meters": "{{value}} m"
   }
 }
