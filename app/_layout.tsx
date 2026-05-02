@@ -1,4 +1,4 @@
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { I18nextProvider } from 'react-i18next';
@@ -12,12 +12,8 @@ import { setupForegroundHandler } from '@/services/notificationScheduler';
 import { useLocationStore } from '@/store/locationStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
-
 export default function RootLayout() {
-  const router = useRouter();
-  const segments = useSegments();
   const hydrated = useLocationStore((s) => s.hydrated);
-  const onboardingDone = useSettingsStore((s) => s.onboardingCompleted);
   const locale = useSettingsStore((s) => s.locale);
 
   useEffect(() => {
@@ -27,16 +23,6 @@ export default function RootLayout() {
   useEffect(() => {
     if (i18n.language !== locale) void i18n.changeLanguage(locale);
   }, [locale]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    const inOnboarding = segments[0] === 'onboarding';
-    if (!onboardingDone && !inOnboarding) {
-      router.replace('/onboarding');
-    } else if (onboardingDone && inOnboarding) {
-      router.replace('/(tabs)/home');
-    }
-  }, [hydrated, onboardingDone, segments, router]);
 
   if (!hydrated) {
     return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
@@ -55,6 +41,7 @@ export default function RootLayout() {
               headerShadowVisible: false,
             }}
           >
+            <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />
           </Stack>

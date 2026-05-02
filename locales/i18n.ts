@@ -17,6 +17,8 @@ void i18n.use(initReactI18next).init({
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
   returnNull: false,
+  // Hermes runtime'da Intl.PluralRules her zaman tam değil; v3 formatına geri düş.
+  compatibilityJSON: 'v3',
 });
 
 export { i18n };
