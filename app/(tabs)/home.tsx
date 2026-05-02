@@ -19,11 +19,11 @@ export default function Home() {
   const location = useLocationStore((s) => s.selected);
   useAppLifecycle();
 
-  const todayLabel = formatTodayLabel(new Date());
+  const months = t('screens.home.monthsShort', { returnObjects: true }) as string[];
+  const todayLabel = formatTodayLabel(new Date(), months);
 
   return (
     <View style={styles.root}>
-      <View style={[styles.atmosphere, next && { backgroundColor: tintFor(next.key) }]} />
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -42,7 +42,7 @@ export default function Home() {
         </View>
 
         <View style={styles.cityBlock}>
-          <Text style={styles.cityEyebrow}>· observing from ·</Text>
+          <Text style={styles.cityEyebrow}>· {t('screens.home.observingFrom')} ·</Text>
           <Text style={styles.cityName}>{location?.districtName ?? '—'}</Text>
           {location?.countryName && (
             <Text style={styles.cityCountry}>{location.countryName}</Text>
@@ -55,7 +55,7 @@ export default function Home() {
 
         <View style={styles.listHeader}>
           <Text style={styles.listEyebrow}>{t('screens.home.today')}</Text>
-          <Text style={styles.listEyebrowDim}>· six stations</Text>
+          <Text style={styles.listEyebrowDim}>· {t('screens.home.sixStations')}</Text>
         </View>
 
         <View style={styles.list}>
@@ -77,32 +77,19 @@ export default function Home() {
         )}
 
         <HorizonRule variant="short" marginVertical={spacing.xl} />
-        <Text style={styles.footer}>· may your prayers be accepted ·</Text>
+        <Text style={styles.footer}>· {t('screens.home.footerBlessing')} ·</Text>
       </ScrollView>
     </View>
   );
 }
 
-function tintFor(key: keyof typeof colors.prayer): string {
-  return colors.prayer[key];
-}
-
-function formatTodayLabel(d: Date): string {
+function formatTodayLabel(d: Date, months: string[]): string {
   const dd = String(d.getDate()).padStart(2, '0');
-  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   return `${dd} · ${months[d.getMonth()]} · ${d.getFullYear()}`;
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  atmosphere: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 320,
-    opacity: 0.07,
-  },
   scroll: { paddingHorizontal: spacing.lg },
   header: {
     flexDirection: 'row',

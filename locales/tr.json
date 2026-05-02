@@ -40,15 +40,23 @@
       "permissions": "Bildirim izni",
       "permissionsBody": "Vaktinde bildirim alabilmen için izin gerekli.",
       "grantPermission": "İzin Ver",
-      "finish": "Bitir"
+      "finish": "Bitir",
+      "est": "Kuruluş 2026"
     },
     "home": {
       "nextPrayer": "Sıradaki Vakit",
       "remaining": "kaldı",
-      "today": "Bugün"
+      "today": "Bugün",
+      "observingFrom": "Bulunduğun yer",
+      "sixStations": "altı vakit",
+      "nowApproaching": "yaklaşıyor",
+      "untilPrefix": "",
+      "footerBlessing": "duaların kabul olsun",
+      "monthsShort": ["OCA", "ŞUB", "MAR", "NİS", "MAY", "HAZ", "TEM", "AĞU", "EYL", "EKİ", "KAS", "ARA"]
     },
     "settings": {
       "title": "Ayarlar",
+      "preferences": "Tercihler",
       "language": "Dil",
       "sound": "Ses",
       "enabledPrayers": "Aktif Vakitler",

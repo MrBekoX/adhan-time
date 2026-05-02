@@ -40,15 +40,23 @@
       "permissions": "Notification permission",
       "permissionsBody": "We need permission to deliver prayer time alerts.",
       "grantPermission": "Grant",
-      "finish": "Finish"
+      "finish": "Finish",
+      "est": "est. 2026"
     },
     "home": {
       "nextPrayer": "Next Prayer",
       "remaining": "remaining",
-      "today": "Today"
+      "today": "Today",
+      "observingFrom": "observing from",
+      "sixStations": "six stations",
+      "nowApproaching": "now approaching",
+      "untilPrefix": "until ",
+      "footerBlessing": "may your prayers be accepted",
+      "monthsShort": ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
     },
     "settings": {
       "title": "Settings",
+      "preferences": "preferences",
       "language": "Language",
       "sound": "Sound",
       "enabledPrayers": "Enabled Prayers",

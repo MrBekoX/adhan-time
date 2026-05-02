@@ -49,8 +49,8 @@ export default function Settings() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>· preferences ·</Text>
-        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.eyebrow}>· {t('screens.settings.preferences')} ·</Text>
+        <Text style={styles.title}>{t('screens.settings.title')}</Text>
       </View>
 
       <Section title={t('screens.settings.city')} ordinal="i">
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   spacer: { height: spacing.md },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm as unknown as number },
+  row: { flexDirection: 'row', flexWrap: 'wrap' },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',

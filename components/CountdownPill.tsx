@@ -12,7 +12,7 @@ type Props = {
 
 export function CountdownPill({ prayerKey, remainingMs }: Props) {
   const { t } = useTranslation();
-  const totalMin = Math.max(0, Math.floor(remainingMs / 60000));
+  const totalMin = Math.max(0, Math.ceil(remainingMs / 60000));
   const hours = Math.floor(totalMin / 60);
   const minutes = totalMin % 60;
   const accent = colors.prayer[prayerKey] ?? colors.primary;
@@ -31,7 +31,9 @@ export function CountdownPill({ prayerKey, remainingMs }: Props) {
       <View style={styles.tag}>
         <View style={[styles.dot, { backgroundColor: accent }]} />
         <Text style={styles.until}>
-          <Text style={styles.untilDim}>until </Text>
+          {t('screens.home.untilPrefix') ? (
+            <Text style={styles.untilDim}>{t('screens.home.untilPrefix')}</Text>
+          ) : null}
           <Text style={styles.untilName}>{t(`prayer.${prayerKey}.title`)}</Text>
         </Text>
       </View>

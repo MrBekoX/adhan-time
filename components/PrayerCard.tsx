@@ -25,7 +25,7 @@ export function PrayerCard({ prayerKey, time, highlight }: Props) {
         <Text style={[styles.label, highlight && styles.labelHighlight]}>
           {t(`prayer.${prayerKey}.title`)}
         </Text>
-        {highlight && <Text style={styles.activeMark}>· now approaching</Text>}
+        {highlight && <Text style={styles.activeMark}>· {t('screens.home.nowApproaching')}</Text>}
       </View>
       <Text style={[styles.time, highlight && styles.timeHighlight]}>{time}</Text>
     </View>
