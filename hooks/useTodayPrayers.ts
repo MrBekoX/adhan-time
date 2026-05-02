@@ -5,7 +5,7 @@ import { isoDateInTz } from '@/utils/time';
 
 export type TodayPrayers = {
   dateIso: string;
-  rows: Array<{ key: PrayerKey; time: string }>;
+  rows: { key: PrayerKey; time: string }[];
 } | null;
 
 export function useTodayPrayers(): TodayPrayers {

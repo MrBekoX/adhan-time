@@ -43,8 +43,12 @@ create table if not exists public.push_log (
 
 create index if not exists push_log_sent_idx on public.push_log(sent_at);
 
--- RLS: tüm tablolar kapalı; mobile sadece edge function üzerinden yazar.
+-- RLS strategy (intentional):
+-- All three tables enable RLS but expose NO policies. This makes them effectively
+-- default-deny for anon/authenticated callers. All writes happen from edge
+-- functions using SUPABASE_SERVICE_ROLE_KEY (which bypasses RLS).
+-- Supabase advisor will report `rls_enabled_no_policy` (INFO level); that is by
+-- design — do not "fix" it by adding permissive policies for anon.
 alter table public.devices enable row level security;
 alter table public.prayer_cache enable row level security;
 alter table public.push_log enable row level security;
--- (no policies → default deny for anon; service_role bypasses RLS)

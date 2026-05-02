@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { LOCATION_CACHE_TTL_MS } from '@/constants/api';
 
 import { ezanvakti } from './ezanvaktiClient';
 import type { Country, District, State } from './types';
+
+import { LOCATION_CACHE_TTL_MS } from '@/constants/api';
 
 type Cached<T> = { fetchedAt: number; data: T };
 

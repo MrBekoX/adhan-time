@@ -1,17 +1,17 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { I18nextProvider } from 'react-i18next';
-import { StatusBar } from 'expo-status-bar';
+import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View } from 'react-native';
 
+import { colors } from '@/components/Theme';
 import { i18n } from '@/locales/i18n';
 import { setupForegroundHandler } from '@/services/notificationScheduler';
 import { useLocationStore } from '@/store/locationStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
-import { colors } from '@/components/Theme';
 
 export default function RootLayout() {
   const router = useRouter();

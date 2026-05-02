@@ -1,7 +1,3 @@
-import { API_PATHS, BASE_URL } from '@/constants/api';
-import { isApiResponse, type ApiResponse } from '@/utils/envelope';
-import { logger } from '@/utils/logger';
-
 import {
   ApiError,
   ApiNotFoundError,
@@ -10,6 +6,11 @@ import {
   NetworkError,
 } from './errors';
 import type { Country, District, PrayerTime, State } from './types';
+
+import { API_PATHS, BASE_URL } from '@/constants/api';
+import { isApiResponse, type ApiResponse } from '@/utils/envelope';
+import { logger } from '@/utils/logger';
+
 
 async function get<T>(path: string): Promise<T> {
   const url = `${BASE_URL}${path}`;

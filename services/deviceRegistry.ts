@@ -1,7 +1,8 @@
-import { logger } from '@/utils/logger';
 
 import { getExpoPushToken } from './pushService';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './supabaseClient';
+
+import { logger } from '@/utils/logger';
 
 type RegisterPayload = {
   expoPushToken: string;

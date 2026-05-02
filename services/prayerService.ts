@@ -1,12 +1,13 @@
+import { ezanvakti } from './ezanvaktiClient';
+import { ensureAndroidChannel, reconcile } from './notificationScheduler';
+import type { YearlyPrayerCache } from './types';
+
 import { PRAYER_CACHE_TTL_MS } from '@/constants/api';
 import type { PrayerKey } from '@/constants/prayers';
 import { usePrayerStore } from '@/store/prayerStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { logger } from '@/utils/logger';
 
-import { ezanvakti } from './ezanvaktiClient';
-import { ensureAndroidChannel, reconcile } from './notificationScheduler';
-import type { YearlyPrayerCache } from './types';
 
 export async function syncYearly(
   districtId: string,

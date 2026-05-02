@@ -1,7 +1,9 @@
 import * as Notifications from 'expo-notifications';
 import { SchedulableTriggerInputTypes } from 'expo-notifications';
+import { Platform } from 'react-native';
 
-import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
+import type { PrayerTime, ScheduledPrayer, YearlyPrayerCache } from './types';
+
 import {
   ANDROID_CHANNEL_ID,
   ANDROID_CHANNEL_NAME,
@@ -9,12 +11,12 @@ import {
   buildNotificationId,
   isPrayerNotificationId,
 } from '@/constants/notifications';
-import { addDays, getDateComponentsInTz, isoDateInTz, parsePrayerTime } from '@/utils/time';
-import { logger } from '@/utils/logger';
+import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
 import { i18n } from '@/locales/i18n';
-import { Platform } from 'react-native';
+import { logger } from '@/utils/logger';
+import { addDays, getDateComponentsInTz, isoDateInTz, parsePrayerTime } from '@/utils/time';
 
-import type { PrayerTime, ScheduledPrayer, YearlyPrayerCache } from './types';
+
 
 type ReconcileOptions = {
   windowDays?: number;
@@ -148,6 +150,7 @@ async function scheduleOne(
 export async function setupForegroundHandler(): Promise<void> {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
+      shouldShowAlert: true,
       shouldShowBanner: true,
       shouldPlaySound: true,
       shouldSetBadge: false,

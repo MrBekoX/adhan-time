@@ -7,10 +7,14 @@ export function resolveTimezone(countryId: string, stateId?: string | null): str
   const entry = COUNTRY_TZ[countryId];
   if (typeof entry === 'string') return entry;
   if (entry && typeof entry === 'object') {
-    if (stateId && entry.states && entry.states[stateId]) return entry.states[stateId];
+    if (stateId && entry.states) {
+      const stateTz = entry.states[stateId];
+      if (stateTz) return stateTz;
+    }
     return entry.default;
   }
-  const deviceTz = Localization.getCalendars()[0]?.timeZone ?? 'Europe/Istanbul';
+  const calendar = Localization.getCalendars()[0];
+  const deviceTz = calendar?.timeZone ?? 'Europe/Istanbul';
   logger.warn('tz fallback', { countryId, stateId, deviceTz });
   return deviceTz;
 }

@@ -1,7 +1,5 @@
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 
-import type { PrayerKey } from '@/constants/prayers';
-
 /**
  * "HH:MM" + ISO date + IANA tz → real Date (UTC instant).
  * Date string'in saat kısmı yok sayılır; sadece YYYY-MM-DD kullanılır.
@@ -36,9 +34,9 @@ export type DateComponents = {
  */
 export function getDateComponentsInTz(date: Date, tz: string): DateComponents {
   const formatted = formatInTimeZone(date, tz, "yyyy-MM-dd'T'HH:mm");
-  const [datePart, timePart] = formatted.split('T');
-  const [y, mo, d] = datePart.split('-').map(Number);
-  const [h, mi] = timePart.split(':').map(Number);
+  const [datePart = '', timePart = ''] = formatted.split('T');
+  const [y = 0, mo = 0, d = 0] = datePart.split('-').map(Number);
+  const [h = 0, mi = 0] = timePart.split(':').map(Number);
   return { year: y, month: mo, day: d, hour: h, minute: mi };
 }
 

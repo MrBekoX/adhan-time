@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { colors, radius, spacing } from './Theme';
+
 import type { PrayerKey } from '@/constants/prayers';
 
-import { colors, radius, spacing } from './Theme';
 
 type Props = {
   prayerKey: PrayerKey;
