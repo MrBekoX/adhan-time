@@ -5,11 +5,13 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "adhantime",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0D18",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.adhantime.app",
+      "backgroundColor": "#0A0D18",
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
@@ -19,6 +21,7 @@
     },
     "android": {
       "package": "com.adhantime.app",
+      "backgroundColor": "#0A0D18",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE"

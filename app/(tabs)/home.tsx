@@ -25,6 +25,7 @@ export default function Home() {
   return (
     <View style={styles.root}>
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={[
           styles.scroll,
           { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl },
@@ -90,6 +91,7 @@ function formatTodayLabel(d: Date, months: string[]): string {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  scrollView: { backgroundColor: colors.bg },
   scroll: { paddingHorizontal: spacing.lg },
   header: {
     flexDirection: 'row',

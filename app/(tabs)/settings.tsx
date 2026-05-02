@@ -42,6 +42,7 @@ export default function Settings() {
 
   return (
     <ScrollView
+      style={styles.scrollView}
       contentContainerStyle={[
         styles.root,
         { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl },
@@ -176,6 +177,7 @@ function Chip({
 }
 
 const styles = StyleSheet.create({
+  scrollView: { backgroundColor: colors.bg },
   root: { paddingHorizontal: spacing.lg, backgroundColor: colors.bg },
   header: { paddingBottom: spacing.lg },
   eyebrow: {
