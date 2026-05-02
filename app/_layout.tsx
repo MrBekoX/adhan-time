@@ -1,0 +1,65 @@
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { useEffect } from 'react';
+import { I18nextProvider } from 'react-i18next';
+import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { View } from 'react-native';
+
+import { i18n } from '@/locales/i18n';
+import { setupForegroundHandler } from '@/services/notificationScheduler';
+import { useLocationStore } from '@/store/locationStore';
+import { useSettingsStore } from '@/store/settingsStore';
+
+import { colors } from '@/components/Theme';
+
+export default function RootLayout() {
+  const router = useRouter();
+  const segments = useSegments();
+  const hydrated = useLocationStore((s) => s.hydrated);
+  const onboardingDone = useSettingsStore((s) => s.onboardingCompleted);
+  const locale = useSettingsStore((s) => s.locale);
+
+  useEffect(() => {
+    void setupForegroundHandler();
+  }, []);
+
+  useEffect(() => {
+    if (i18n.language !== locale) void i18n.changeLanguage(locale);
+  }, [locale]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const inOnboarding = segments[0] === 'onboarding';
+    if (!onboardingDone && !inOnboarding) {
+      router.replace('/onboarding');
+    } else if (onboardingDone && inOnboarding) {
+      router.replace('/(tabs)/home');
+    }
+  }, [hydrated, onboardingDone, segments, router]);
+
+  if (!hydrated) {
+    return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
+  }
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
+      <SafeAreaProvider>
+        <I18nextProvider i18n={i18n}>
+          <StatusBar style="light" />
+          <Stack
+            screenOptions={{
+              headerStyle: { backgroundColor: colors.bg },
+              headerTintColor: colors.text,
+              contentStyle: { backgroundColor: colors.bg },
+              headerShadowVisible: false,
+            }}
+          >
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+          </Stack>
+        </I18nextProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}

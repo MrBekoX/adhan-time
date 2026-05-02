@@ -1,0 +1,69 @@
+{
+  "common": {
+    "next": "Next",
+    "back": "Back",
+    "save": "Save",
+    "cancel": "Cancel",
+    "tryAgain": "Try again",
+    "loading": "Loading",
+    "search": "Search",
+    "done": "Done"
+  },
+  "prayer": {
+    "imsak": { "title": "Fajr", "body": "Fajr time has started.", "bodyWithCity": "Fajr time has started in {{city}}." },
+    "gunes": { "title": "Sunrise", "body": "Sun has risen.", "bodyWithCity": "Sun has risen in {{city}}." },
+    "ogle": { "title": "Dhuhr", "body": "Dhuhr time has started.", "bodyWithCity": "Dhuhr time has started in {{city}}." },
+    "ikindi": { "title": "Asr", "body": "Asr time has started.", "bodyWithCity": "Asr time has started in {{city}}." },
+    "aksam": { "title": "Maghrib", "body": "Maghrib time has started.", "bodyWithCity": "Maghrib time has started in {{city}}." },
+    "yatsi": { "title": "Isha", "body": "Isha time has started.", "bodyWithCity": "Isha time has started in {{city}}." }
+  },
+  "errors": {
+    "api": {
+      "rateLimit": "Too fast! Try again in {{seconds}}s.",
+      "network": "No internet connection.",
+      "server": "Server error. Please try again later.",
+      "notFound": "Not found."
+    },
+    "notification": {
+      "permissionDenied": "Notification permission is required."
+    },
+    "unknown": "An unexpected error occurred."
+  },
+  "screens": {
+    "onboarding": {
+      "welcome": "Welcome to Adhan Time",
+      "welcomeBody": "Adhan notifications, anywhere in the world.",
+      "selectLanguage": "Choose a language",
+      "selectCountry": "Select a country",
+      "selectState": "Select a state",
+      "selectDistrict": "Select a district",
+      "permissions": "Notification permission",
+      "permissionsBody": "We need permission to deliver prayer time alerts.",
+      "grantPermission": "Grant",
+      "finish": "Finish"
+    },
+    "home": {
+      "nextPrayer": "Next Prayer",
+      "remaining": "remaining",
+      "today": "Today"
+    },
+    "settings": {
+      "title": "Settings",
+      "language": "Language",
+      "sound": "Sound",
+      "enabledPrayers": "Enabled Prayers",
+      "city": "City",
+      "changeCity": "Change City",
+      "version": "Version",
+      "soundDefault": "Default",
+      "soundAdhanShort": "Short Adhan"
+    },
+    "placeholder": "..."
+  },
+  "units": {
+    "hour_one": "{{count}} hour",
+    "hour_other": "{{count}} hours",
+    "minute_one": "{{count}} minute",
+    "minute_other": "{{count}} minutes"
+  }
+}

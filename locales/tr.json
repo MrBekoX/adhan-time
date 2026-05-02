@@ -1,0 +1,69 @@
+{
+  "common": {
+    "next": "İleri",
+    "back": "Geri",
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "tryAgain": "Tekrar Dene",
+    "loading": "Yükleniyor",
+    "search": "Ara",
+    "done": "Tamam"
+  },
+  "prayer": {
+    "imsak": { "title": "İmsak", "body": "İmsak vakti girdi.", "bodyWithCity": "{{city}} için imsak vakti girdi." },
+    "gunes": { "title": "Güneş", "body": "Güneş doğdu.", "bodyWithCity": "{{city}} için güneş doğdu." },
+    "ogle": { "title": "Öğle", "body": "Öğle vakti girdi.", "bodyWithCity": "{{city}} için öğle vakti girdi." },
+    "ikindi": { "title": "İkindi", "body": "İkindi vakti girdi.", "bodyWithCity": "{{city}} için ikindi vakti girdi." },
+    "aksam": { "title": "Akşam", "body": "Akşam vakti girdi.", "bodyWithCity": "{{city}} için akşam vakti girdi." },
+    "yatsi": { "title": "Yatsı", "body": "Yatsı vakti girdi.", "bodyWithCity": "{{city}} için yatsı vakti girdi." }
+  },
+  "errors": {
+    "api": {
+      "rateLimit": "Çok hızlı! {{seconds}} saniye sonra tekrar dene.",
+      "network": "İnternet bağlantısı yok.",
+      "server": "Sunucu hatası. Daha sonra tekrar dene.",
+      "notFound": "Aradığın bulunamadı."
+    },
+    "notification": {
+      "permissionDenied": "Bildirimler için izin gerekiyor."
+    },
+    "unknown": "Beklenmeyen bir hata oluştu."
+  },
+  "screens": {
+    "onboarding": {
+      "welcome": "Adhan Time'a hoş geldin",
+      "welcomeBody": "Dünyanın her yerinden ezan vakti bildirimleri.",
+      "selectLanguage": "Dil seç",
+      "selectCountry": "Ülke seç",
+      "selectState": "İl seç",
+      "selectDistrict": "İlçe seç",
+      "permissions": "Bildirim izni",
+      "permissionsBody": "Vaktinde bildirim alabilmen için izin gerekli.",
+      "grantPermission": "İzin Ver",
+      "finish": "Bitir"
+    },
+    "home": {
+      "nextPrayer": "Sıradaki Vakit",
+      "remaining": "kaldı",
+      "today": "Bugün"
+    },
+    "settings": {
+      "title": "Ayarlar",
+      "language": "Dil",
+      "sound": "Ses",
+      "enabledPrayers": "Aktif Vakitler",
+      "city": "Şehir",
+      "changeCity": "Şehri Değiştir",
+      "version": "Sürüm",
+      "soundDefault": "Varsayılan",
+      "soundAdhanShort": "Kısa Ezan"
+    },
+    "placeholder": "..."
+  },
+  "units": {
+    "hour_one": "{{count}} saat",
+    "hour_other": "{{count}} saat",
+    "minute_one": "{{count}} dakika",
+    "minute_other": "{{count}} dakika"
+  }
+}
