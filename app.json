@@ -4,7 +4,6 @@
     "slug": "adhan-time",
     "version": "0.1.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
     "scheme": "adhantime",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,25 +15,19 @@
       }
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0F172A"
-      },
       "package": "com.adhantime.app",
       "permissions": ["RECEIVE_BOOT_COMPLETED", "VIBRATE"]
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "output": "static"
     },
     "plugins": [
       "expo-router",
       [
         "expo-notifications",
         {
-          "color": "#10B981",
-          "sounds": ["./assets/sounds/adhan_short.wav"]
+          "color": "#10B981"
         }
       ],
       "expo-localization"
