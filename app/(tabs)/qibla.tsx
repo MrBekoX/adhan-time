@@ -31,7 +31,9 @@ export default function QiblaScreen() {
   );
 
   const location = useUserLocation({ enabled: active });
-  const heading = useDeviceHeading({ enabled: active });
+  // Heading sensor needs location permission (Android computes trueHeading from
+  // GPS-derived declination). Wait until location is ready before subscribing.
+  const heading = useDeviceHeading({ enabled: active && location.kind === 'ready' });
 
   const qibla = useMemo(() => {
     if (location.kind !== 'ready') return null;
