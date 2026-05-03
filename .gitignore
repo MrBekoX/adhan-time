@@ -47,6 +47,10 @@ yarn-error.*
 # ── AI Assistants Config ───────────────────────
 .claude/
 .opencode/
+.sisyphus/
+
+# ── Docs / Audit Reports (local, not committed) ──
+docs/
 
 # ── TypeScript ─────────────────────────────────
 *.tsbuildinfo
