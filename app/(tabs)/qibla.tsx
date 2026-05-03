@@ -1,21 +1,22 @@
+import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, StyleSheet, Text, TouchableOpacity, View, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CalibrationBanner } from '@/components/CalibrationBanner';
 import { HorizonRule } from '@/components/HorizonRule';
 import { QiblaCompass } from '@/components/QiblaCompass';
 import { colors, fonts, spacing } from '@/components/Theme';
-import { AT_KAABA_RADIUS_KM } from '@/constants/qibla';
+import { ALIGN_ENTER_DEG, ALIGN_EXIT_DEG, AT_KAABA_RADIUS_KM } from '@/constants/qibla';
 import { useDeviceHeading } from '@/hooks/useDeviceHeading';
 import { useUserLocation } from '@/hooks/useUserLocation';
 import { useLocationStore } from '@/store/locationStore';
 import { distanceToKaabaKm, qiblaBearing } from '@/utils/geo';
+import { signedDelta } from '@/utils/heading';
 
 const COMPASS_SIZE = 280;
-const ALIGNMENT_TOLERANCE_DEG = 3;
 
 export default function QiblaScreen() {
   const { t } = useTranslation();
@@ -67,6 +68,18 @@ type QiblaData = { bearing: number; distanceKm: number; accuracyM: number } | nu
 function Body({ location, heading, qibla }: { location: LocationStatus; heading: HeadingStatus; qibla: QiblaData }) {
   const { t } = useTranslation();
 
+  // Hooks must run unconditionally — compute defensively so the alignment state machine
+  // sees stable input even before location/heading are ready.
+  const ready = location.kind === 'ready' && heading.kind === 'ready' && qibla !== null;
+  const delta =
+    ready && heading.kind === 'ready' && qibla
+      ? signedDelta(heading.heading, qibla.bearing)
+      : 0;
+  const atKaaba = qibla ? qibla.distanceKm < AT_KAABA_RADIUS_KM : false;
+  const unreliable = heading.kind === 'ready' && heading.quality === 'unreliable';
+  const aligned = useAlignment(delta, atKaaba || !ready);
+  useAlignmentHaptic(aligned, unreliable || atKaaba || !ready);
+
   if (location.kind === 'denied') return <PermissionCard />;
   if (location.kind === 'servicesOff') return <Centered text={t('screens.qibla.locationServicesOff')} />;
   if (location.kind === 'error') return <Centered text={t('errors.unknown')} />;
@@ -79,10 +92,6 @@ function Body({ location, heading, qibla }: { location: LocationStatus; heading:
     return <Centered text={t('screens.qibla.acquiringLocation') + '…'} />;
   }
 
-  const atKaaba = qibla.distanceKm < AT_KAABA_RADIUS_KM;
-  const delta = signedDelta(heading.heading, qibla.bearing);
-  const aligned = !atKaaba && Math.abs(delta) < ALIGNMENT_TOLERANCE_DEG;
-  const unreliable = heading.quality === 'unreliable';
   const showCalibration = heading.quality === 'medium' || heading.quality === 'low' || unreliable;
 
   return (
@@ -106,6 +115,10 @@ function Body({ location, heading, qibla }: { location: LocationStatus; heading:
           />
         )}
       </View>
+
+      {!atKaaba && (
+        <Instruction delta={delta} aligned={aligned} unreliable={unreliable} />
+      )}
 
       {!atKaaba && (
         <View style={styles.readout}>
@@ -144,6 +157,40 @@ function Body({ location, heading, qibla }: { location: LocationStatus; heading:
   );
 }
 
+function Instruction({
+  delta,
+  aligned,
+  unreliable,
+}: {
+  delta: number;
+  aligned: boolean;
+  unreliable: boolean;
+}) {
+  const { t } = useTranslation();
+  const absDeg = Math.max(1, Math.round(Math.abs(delta)));
+
+  let text: string;
+  let toneStyle: TextStyle = styles.instructionDirective;
+
+  if (unreliable) {
+    text = t('screens.qibla.instructionUnreliable');
+    toneStyle = styles.instructionUnreliable;
+  } else if (aligned) {
+    text = t('screens.qibla.instructionAligned');
+    toneStyle = styles.instructionAligned;
+  } else if (delta > 0) {
+    text = t('screens.qibla.instructionTurnLeft', { degrees: absDeg });
+  } else {
+    text = t('screens.qibla.instructionTurnRight', { degrees: absDeg });
+  }
+
+  return (
+    <View style={styles.instructionWrap}>
+      <Text style={[styles.instruction, toneStyle]}>{text}</Text>
+    </View>
+  );
+}
+
 function ReadoutItem({ label, value, unreliable }: { label: string; value: string; unreliable: boolean }) {
   return (
     <View style={styles.readoutItem}>
@@ -174,10 +221,46 @@ function Centered({ text }: { text: string }) {
   );
 }
 
-function signedDelta(a: number, b: number): number {
-  let d = ((a - b + 540) % 360) - 180;
-  if (d <= -180) d += 360;
-  return d;
+/**
+ * Fires a single success-haptic when the user enters the qibla alignment band.
+ *
+ * Suppressed when the heading is unreliable or we're at the Kaaba — in those cases the
+ * `aligned` flag isn't a meaningful "you're facing qibla" signal.
+ */
+function useAlignmentHaptic(aligned: boolean, suppress: boolean): void {
+  const wasAligned = useRef(false);
+  useEffect(() => {
+    if (suppress) {
+      wasAligned.current = false;
+      return;
+    }
+    if (aligned && !wasAligned.current) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }
+    wasAligned.current = aligned;
+  }, [aligned, suppress]);
+}
+
+/**
+ * Hysteresis around the alignment indicator.
+ *
+ * A single threshold (e.g. 3°) flickers because compass noise (±3°) and EMA jitter cross
+ * the boundary continuously. We enter "aligned" when |delta| < ALIGN_ENTER_DEG and only
+ * leave when it exceeds ALIGN_EXIT_DEG, giving a stable band where the user gets steady
+ * positive feedback while their hand inevitably drifts.
+ */
+function useAlignment(delta: number, atKaaba: boolean): boolean {
+  const [aligned, setAligned] = useState(false);
+  useEffect(() => {
+    if (atKaaba) {
+      if (aligned) setAligned(false);
+      return;
+    }
+    const abs = Math.abs(delta);
+    if (aligned && abs > ALIGN_EXIT_DEG) setAligned(false);
+    else if (!aligned && abs < ALIGN_ENTER_DEG) setAligned(true);
+  }, [delta, atKaaba, aligned]);
+  return aligned;
 }
 
 function formatKm(km: number): string {
@@ -205,6 +288,21 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   bannerWrap: { marginBottom: spacing.md },
   compassArea: { alignItems: 'center', justifyContent: 'center', flexGrow: 1 },
+  instructionWrap: {
+    alignItems: 'center',
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  instruction: {
+    fontFamily: fonts.serif,
+    fontStyle: 'italic',
+    fontSize: 22,
+    letterSpacing: 0.3,
+    textAlign: 'center',
+  },
+  instructionDirective: { color: colors.cream },
+  instructionAligned: { color: colors.primary },
+  instructionUnreliable: { color: colors.danger },
   atKaaba: {
     fontFamily: fonts.serif,
     fontStyle: 'italic',

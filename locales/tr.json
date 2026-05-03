@@ -84,7 +84,11 @@
       "headingFallbackNote": "Hassas konum izni verirseniz daha doğru gösterilebilir.",
       "calibrationTitle": "Pusula kalibrasyonu",
       "calibrationBody": "Telefonu havada 8 hareketi çiz.",
-      "calibrationUnreliable": "Pusula güvenilir değil — etrafında metal/elektronik cihaz var mı?"
+      "calibrationUnreliable": "Pusula güvenilir değil — etrafında metal/elektronik cihaz var mı?",
+      "instructionTurnLeft": "Telefonu {{degrees}}° sola çevir",
+      "instructionTurnRight": "Telefonu {{degrees}}° sağa çevir",
+      "instructionAligned": "Kıbleye dönüksün",
+      "instructionUnreliable": "Pusulayı kalibre et"
     },
     "placeholder": "..."
   },

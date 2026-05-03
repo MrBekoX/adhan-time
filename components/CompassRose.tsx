@@ -21,6 +21,15 @@ export function CompassRose({ size }: Props) {
       {Array.from({ length: TICK_COUNT }).map((_, i) => {
         const angle = (360 / TICK_COUNT) * i;
         const isMajor = i % 3 === 0;
+        const tickH = isMajor ? 12 : 6;
+        const tickW = isMajor ? 2 : 1;
+        // Place tick CENTER directly via sin/cos (same approach as cardinals)
+        // so it sits on a circle concentric with the border. Distance is chosen so
+        // the tick's outer end sits 2px inside the border ring.
+        const dist = radius - 2 - tickH / 2;
+        const rad = (angle * Math.PI) / 180;
+        const cx = radius + Math.sin(rad) * dist;
+        const cy = radius - Math.cos(rad) * dist;
         return (
           <View
             key={i}
@@ -28,13 +37,9 @@ export function CompassRose({ size }: Props) {
               styles.tick,
               isMajor ? styles.tickMajor : styles.tickMinor,
               {
-                top: radius - (isMajor ? 14 : 8),
-                left: radius - (isMajor ? 1 : 0.5),
-                transform: [
-                  { translateY: -radius + (isMajor ? 14 : 8) },
-                  { rotate: `${angle}deg` },
-                  { translateY: radius - (isMajor ? 14 : 8) },
-                ],
+                left: cx - tickW / 2,
+                top: cy - tickH / 2,
+                transform: [{ rotate: `${angle}deg` }],
               },
             ]}
           />

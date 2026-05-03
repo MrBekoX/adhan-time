@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { HEADING_ACCURACY, HEADING_EMA_ALPHA } from '@/constants/qibla';
+import { applyEma } from '@/utils/heading';
 import { logger } from '@/utils/logger';
 
 export type HeadingQuality = 'high' | 'medium' | 'low' | 'unreliable' | 'unknown';
@@ -73,22 +74,15 @@ export function useDeviceHeading({ enabled }: Options): HeadingStatus {
   return status;
 }
 
-function applyEma(prev: number | null, raw: number, alpha: number): number {
-  if (prev === null) return raw;
-  // Handle the 0/360 wrap by smoothing along the shortest arc.
-  let delta = raw - prev;
-  if (delta > 180) delta -= 360;
-  else if (delta < -180) delta += 360;
-  const next = prev + alpha * delta;
-  return (next + 360) % 360;
-}
-
 function normalizeAccuracy(value: number | null | undefined): number | null {
   if (value === null || value === undefined) return null;
+  // Both platforms surface a sentinel < 0 when the magnetometer is uncalibrated.
+  // iOS: CLHeading.headingAccuracy is -1 until first calibration.
+  // Android: expo-location passes through SensorManager accuracy where -1 means unknown.
+  if (value < 0) return null;
   if (Platform.OS === 'ios') return value; // iOS reports degrees directly
   // Android: Location.Accuracy levels — empirical mapping to a degree-equivalent scale.
-  // 3 (high) → 5°, 2 (medium) → 15°, 1 (low) → 30°, 0 (unreliable) → 50°, -1 → unknown.
-  if (value < 0) return null;
+  // 3 (high) → 5°, 2 (medium) → 15°, 1 (low) → 30°, 0 (unreliable) → 50°.
   if (value >= 3) return 5;
   if (value >= 2) return 15;
   if (value >= 1) return 30;

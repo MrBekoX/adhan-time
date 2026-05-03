@@ -84,7 +84,11 @@
       "headingFallbackNote": "Granting precise location may improve accuracy.",
       "calibrationTitle": "Compass calibration",
       "calibrationBody": "Wave the phone in a figure-8 motion.",
-      "calibrationUnreliable": "Compass is unreliable — are there metal or electronic devices nearby?"
+      "calibrationUnreliable": "Compass is unreliable — are there metal or electronic devices nearby?",
+      "instructionTurnLeft": "Turn the phone {{degrees}}° left",
+      "instructionTurnRight": "Turn the phone {{degrees}}° right",
+      "instructionAligned": "Facing the qibla",
+      "instructionUnreliable": "Calibrate the compass"
     },
     "placeholder": "..."
   },

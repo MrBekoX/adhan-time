@@ -23,5 +23,24 @@ export const HEADING_ACCURACY = {
 /** Inside this radius around the Kaaba we suppress bearing display. */
 export const AT_KAABA_RADIUS_KM = 0.1;
 
-/** Low-pass filter coefficient for heading smoothing. Higher = more responsive, lower = smoother. */
-export const HEADING_EMA_ALPHA = 0.15;
+/**
+ * Low-pass filter coefficient for heading smoothing. Higher = more responsive, lower = smoother.
+ * Tuned empirically:
+ *   0.15 was too laggy — user rotated phone to qibla, smoothed value lagged ~3 s and the
+ *   alignment indicator flickered while catching up. 0.30 converges within ~1 s and still
+ *   damps single-sample sensor noise enough that the needle is visually stable.
+ */
+export const HEADING_EMA_ALPHA = 0.3;
+
+/**
+ * Alignment thresholds (degrees) for "facing qibla" with hysteresis.
+ *
+ * Without hysteresis at a single 3° threshold the indicator flickered on/off when |delta|
+ * fluctuated around the boundary (sensor noise is ±3° in best case). The hysteresis band
+ * (5° to enter, 8° to exit) gives a stable "near-aligned" zone.
+ *
+ * Religiously, facing the general direction of the Kaaba (cihet) is sufficient when far
+ * from Mecca, so a 5° tolerance is well within the acceptable cone of qibla.
+ */
+export const ALIGN_ENTER_DEG = 5;
+export const ALIGN_EXIT_DEG = 8;
