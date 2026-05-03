@@ -1,0 +1,105 @@
+{
+  "common": {
+    "next": "下一步",
+    "back": "返回",
+    "save": "保存",
+    "cancel": "取消",
+    "tryAgain": "重试",
+    "loading": "加载中",
+    "search": "搜索",
+    "done": "完成"
+  },
+  "prayer": {
+    "imsak": { "title": "晨礼", "body": "晨礼时间已到。", "bodyWithCity": "{{city}} 晨礼时间已到。" },
+    "gunes": { "title": "日出", "body": "太阳已升起。", "bodyWithCity": "{{city}} 太阳已升起。" },
+    "ogle": { "title": "晌礼", "body": "晌礼时间已到。", "bodyWithCity": "{{city}} 晌礼时间已到。" },
+    "ikindi": { "title": "晡礼", "body": "晡礼时间已到。", "bodyWithCity": "{{city}} 晡礼时间已到。" },
+    "aksam": { "title": "昏礼", "body": "昏礼时间已到。", "bodyWithCity": "{{city}} 昏礼时间已到。" },
+    "yatsi": { "title": "宵礼", "body": "宵礼时间已到。", "bodyWithCity": "{{city}} 宵礼时间已到。" }
+  },
+  "errors": {
+    "api": {
+      "rateLimit": "请求过快!请在 {{seconds}} 秒后重试。",
+      "network": "无网络连接。",
+      "server": "服务器错误,请稍后再试。",
+      "notFound": "未找到。"
+    },
+    "notification": {
+      "permissionDenied": "需要通知权限。"
+    },
+    "unknown": "发生未知错误。"
+  },
+  "screens": {
+    "onboarding": {
+      "welcome": "欢迎使用 Adhan Time",
+      "welcomeBody": "为世界各地提供礼拜时间提醒。",
+      "selectLanguage": "选择语言",
+      "selectCountry": "选择国家",
+      "selectState": "选择省份",
+      "selectDistrict": "选择地区",
+      "permissions": "通知权限",
+      "permissionsBody": "我们需要权限以准时发送礼拜提醒。",
+      "grantPermission": "授予",
+      "finish": "完成",
+      "est": "建于 2026"
+    },
+    "home": {
+      "nextPrayer": "下次礼拜",
+      "remaining": "剩余",
+      "today": "今天",
+      "observingFrom": "观测地点",
+      "sixStations": "六站",
+      "nowApproaching": "即将开始",
+      "untilPrefix": "距 ",
+      "footerBlessing": "愿您的祈祷被接受",
+      "monthsShort": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"]
+    },
+    "settings": {
+      "title": "设置",
+      "preferences": "偏好",
+      "language": "语言",
+      "sound": "声音",
+      "enabledPrayers": "启用的礼拜",
+      "city": "城市",
+      "changeCity": "更改城市",
+      "version": "版本",
+      "soundDefault": "默认",
+      "soundAdhanShort": "短礼拜呼唤",
+      "restartRequired": "请重新启动应用以完成文字方向的更改。"
+    },
+    "qibla": {
+      "tabLabel": "朝向",
+      "eyebrow": "朝向",
+      "bearingLabel": "方位",
+      "distanceLabel": "距离",
+      "statusLocation": "位置:±{{meters}} 米",
+      "statusCompass": "指南针:±{{degrees}}°",
+      "statusCompassUnknown": "指南针:校准中",
+      "atKaaba": "您已在克尔白",
+      "permissionTitle": "需要位置权限",
+      "permissionBody": "我们需要您的位置来显示克尔白的方向。",
+      "openSettings": "打开设置",
+      "locationServicesOff": "位置服务已关闭。请在系统设置中启用。",
+      "acquiringLocation": "正在获取位置",
+      "sensorMissing": "此设备没有指南针传感器。",
+      "headingFallbackNote": "授予精确位置权限可以提高准确度。",
+      "calibrationTitle": "指南针校准",
+      "calibrationBody": "在空中摆动手机划出 8 字。",
+      "calibrationUnreliable": "指南针不可靠 — 附近是否有金属或电子设备?",
+      "instructionTurnLeft": "将手机向左转 {{degrees}}°",
+      "instructionTurnRight": "将手机向右转 {{degrees}}°",
+      "instructionAligned": "已朝向克尔白",
+      "instructionUnreliable": "请校准指南针"
+    },
+    "placeholder": "..."
+  },
+  "units": {
+    "hour": "{{count}} 小时",
+    "hour_plural": "{{count}} 小时",
+    "minute": "{{count}} 分钟",
+    "minute_plural": "{{count}} 分钟",
+    "km": "{{value}} 公里",
+    "degrees": "{{value}}°",
+    "meters": "{{value}} 米"
+  }
+}

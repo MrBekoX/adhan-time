@@ -2,7 +2,9 @@ import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BrandRow } from '@/components/BrandRow';
 import { CountdownPill } from '@/components/CountdownPill';
+import { GradientCanvas } from '@/components/GradientCanvas';
 import { HorizonRule } from '@/components/HorizonRule';
 import { PrayerCard } from '@/components/PrayerCard';
 import { colors, fonts, spacing } from '@/components/Theme';
@@ -10,6 +12,7 @@ import { useAppLifecycle } from '@/hooks/useAppLifecycle';
 import { useNextPrayer } from '@/hooks/useNextPrayer';
 import { useTodayPrayers } from '@/hooks/useTodayPrayers';
 import { useLocationStore } from '@/store/locationStore';
+import { useSettingsStore } from '@/store/settingsStore';
 
 export default function Home() {
   const { t } = useTranslation();
@@ -17,36 +20,29 @@ export default function Home() {
   const today = useTodayPrayers();
   const next = useNextPrayer();
   const location = useLocationStore((s) => s.selected);
+  const enabledPrayers = useSettingsStore((s) => s.enabledPrayers);
+  const togglePrayer = useSettingsStore((s) => s.togglePrayer);
   useAppLifecycle();
-
-  const months = t('screens.home.monthsShort', { returnObjects: true }) as string[];
-  const todayLabel = formatTodayLabel(new Date(), months);
 
   return (
     <View style={styles.root}>
+      <GradientCanvas />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl },
+          { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Text style={styles.wordmark}>
-            <Text style={styles.wordmarkLight}>adhan</Text>
-            <Text style={styles.wordmarkItalic}>time</Text>
-          </Text>
-          <View style={styles.headerRight}>
-            <Text style={styles.headerDate}>{todayLabel}</Text>
-          </View>
-        </View>
+        <BrandRow />
 
         <View style={styles.cityBlock}>
-          <Text style={styles.cityEyebrow}>· {t('screens.home.observingFrom')} ·</Text>
+          <View style={styles.cityRule} />
+          <Text style={styles.cityEyebrow}>{t('screens.home.observingFrom')}</Text>
           <Text style={styles.cityName}>{location?.districtName ?? '—'}</Text>
           {location?.countryName && (
-            <Text style={styles.cityCountry}>{location.countryName}</Text>
+            <Text style={styles.cityCountry}>{location.countryName.toLocaleLowerCase('tr')}</Text>
           )}
         </View>
 
@@ -66,6 +62,8 @@ export default function Home() {
               prayerKey={r.key}
               time={r.time}
               highlight={next?.key === r.key}
+              enabled={enabledPrayers.includes(r.key)}
+              onToggle={() => togglePrayer(r.key)}
             />
           ))}
         </View>
@@ -84,39 +82,20 @@ export default function Home() {
   );
 }
 
-function formatTodayLabel(d: Date, months: string[]): string {
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${dd} · ${months[d.getMonth()]} · ${d.getFullYear()}`;
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  scrollView: { backgroundColor: colors.bg },
+  scrollView: { flex: 1, backgroundColor: 'transparent' },
   scroll: { paddingHorizontal: spacing.lg },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: spacing.lg,
-  },
-  wordmark: {
-    fontFamily: fonts.serif,
-    fontSize: 18,
-    color: colors.cream,
-    letterSpacing: 0.5,
-  },
-  wordmarkLight: { fontStyle: 'italic', color: colors.textDim },
-  wordmarkItalic: { fontStyle: 'italic', color: colors.primary },
-  headerRight: {},
-  headerDate: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 10,
-    letterSpacing: 2.4,
-    color: colors.textDim,
-  },
   cityBlock: {
-    paddingTop: spacing.md,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
+  },
+  cityRule: {
+    width: 28,
+    height: StyleSheet.hairlineWidth * 2,
+    backgroundColor: colors.primary,
+    opacity: 0.7,
+    marginBottom: spacing.md,
   },
   cityEyebrow: {
     fontFamily: fonts.sansMedium,
@@ -129,21 +108,23 @@ const styles = StyleSheet.create({
   cityName: {
     fontFamily: fonts.serif,
     fontStyle: 'italic',
-    fontSize: 36,
+    fontSize: 38,
     color: colors.cream,
     letterSpacing: -0.6,
+    lineHeight: 42,
   },
   cityCountry: {
-    fontFamily: fonts.sans,
-    fontSize: 12,
+    fontFamily: fonts.serif,
+    fontStyle: 'italic',
+    fontSize: 14,
     color: colors.textDim,
-    marginTop: 2,
-    letterSpacing: 0.4,
+    marginTop: 4,
+    letterSpacing: 0.6,
   },
   listHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
   listEyebrow: {

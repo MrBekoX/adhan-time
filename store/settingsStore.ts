@@ -3,9 +3,10 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { DEFAULT_ENABLED_PRAYERS, type PrayerKey } from '@/constants/prayers';
+import type { Locale } from '@/locales/i18n';
 
 type State = {
-  locale: 'tr' | 'en';
+  locale: Locale;
   sound: 'default' | 'adhanShort';
   enabledPrayers: PrayerKey[];
   onboardingCompleted: boolean;

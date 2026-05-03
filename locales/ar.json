@@ -1,0 +1,105 @@
+{
+  "common": {
+    "next": "التالي",
+    "back": "رجوع",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "tryAgain": "حاول مرة أخرى",
+    "loading": "جارٍ التحميل",
+    "search": "بحث",
+    "done": "تم"
+  },
+  "prayer": {
+    "imsak": { "title": "الفجر", "body": "دخل وقت الفجر.", "bodyWithCity": "دخل وقت الفجر في {{city}}." },
+    "gunes": { "title": "الشروق", "body": "أشرقت الشمس.", "bodyWithCity": "أشرقت الشمس في {{city}}." },
+    "ogle": { "title": "الظهر", "body": "دخل وقت الظهر.", "bodyWithCity": "دخل وقت الظهر في {{city}}." },
+    "ikindi": { "title": "العصر", "body": "دخل وقت العصر.", "bodyWithCity": "دخل وقت العصر في {{city}}." },
+    "aksam": { "title": "المغرب", "body": "دخل وقت المغرب.", "bodyWithCity": "دخل وقت المغرب في {{city}}." },
+    "yatsi": { "title": "العشاء", "body": "دخل وقت العشاء.", "bodyWithCity": "دخل وقت العشاء في {{city}}." }
+  },
+  "errors": {
+    "api": {
+      "rateLimit": "أسرع من اللازم! حاول مجددًا بعد {{seconds}} ثانية.",
+      "network": "لا يوجد اتصال بالإنترنت.",
+      "server": "خطأ في الخادم. حاول لاحقًا.",
+      "notFound": "لم يتم العثور على ما تبحث عنه."
+    },
+    "notification": {
+      "permissionDenied": "الإذن بالإشعارات مطلوب."
+    },
+    "unknown": "حدث خطأ غير متوقع."
+  },
+  "screens": {
+    "onboarding": {
+      "welcome": "مرحبًا بك في Adhan Time",
+      "welcomeBody": "إشعارات أوقات الأذان من أي مكان في العالم.",
+      "selectLanguage": "اختر اللغة",
+      "selectCountry": "اختر الدولة",
+      "selectState": "اختر المحافظة",
+      "selectDistrict": "اختر المنطقة",
+      "permissions": "إذن الإشعارات",
+      "permissionsBody": "نحتاج إذنك لإرسال تنبيهات أوقات الصلاة.",
+      "grantPermission": "السماح",
+      "finish": "إنهاء",
+      "est": "تأسس 2026"
+    },
+    "home": {
+      "nextPrayer": "الصلاة القادمة",
+      "remaining": "متبقٍ",
+      "today": "اليوم",
+      "observingFrom": "موقع المراقبة",
+      "sixStations": "ست محطات",
+      "nowApproaching": "يقترب الآن",
+      "untilPrefix": "حتى ",
+      "footerBlessing": "تقبل الله دعاءك",
+      "monthsShort": ["ينا", "فبر", "مار", "أبر", "ماي", "يون", "يول", "أغس", "سبت", "أكت", "نوف", "ديس"]
+    },
+    "settings": {
+      "title": "الإعدادات",
+      "preferences": "التفضيلات",
+      "language": "اللغة",
+      "sound": "الصوت",
+      "enabledPrayers": "الصلوات المفعّلة",
+      "city": "المدينة",
+      "changeCity": "تغيير المدينة",
+      "version": "الإصدار",
+      "soundDefault": "افتراضي",
+      "soundAdhanShort": "أذان قصير",
+      "restartRequired": "أعد تشغيل التطبيق لإتمام تغيير اتجاه الكتابة."
+    },
+    "qibla": {
+      "tabLabel": "القبلة",
+      "eyebrow": "القبلة",
+      "bearingLabel": "الاتجاه",
+      "distanceLabel": "المسافة",
+      "statusLocation": "الموقع: ±{{meters}} م",
+      "statusCompass": "البوصلة: ±{{degrees}}°",
+      "statusCompassUnknown": "البوصلة: قيد المعايرة",
+      "atKaaba": "أنت عند الكعبة",
+      "permissionTitle": "إذن الموقع مطلوب",
+      "permissionBody": "نحتاج إلى موقعك لإظهار اتجاه الكعبة.",
+      "openSettings": "فتح الإعدادات",
+      "locationServicesOff": "خدمات الموقع متوقفة. فضلاً قم بتفعيلها من إعدادات النظام.",
+      "acquiringLocation": "جاري الحصول على الموقع",
+      "sensorMissing": "لا يوجد مستشعر بوصلة في هذا الجهاز.",
+      "headingFallbackNote": "منح إذن الموقع الدقيق قد يحسّن الدقة.",
+      "calibrationTitle": "معايرة البوصلة",
+      "calibrationBody": "حرّك الهاتف على شكل الرقم 8 في الهواء.",
+      "calibrationUnreliable": "البوصلة غير موثوقة — هل توجد أجهزة معدنية أو إلكترونية بالقرب منك؟",
+      "instructionTurnLeft": "أدر الهاتف {{degrees}}° إلى اليسار",
+      "instructionTurnRight": "أدر الهاتف {{degrees}}° إلى اليمين",
+      "instructionAligned": "أنت متجه نحو القبلة",
+      "instructionUnreliable": "قم بمعايرة البوصلة"
+    },
+    "placeholder": "..."
+  },
+  "units": {
+    "hour": "{{count}} ساعة",
+    "hour_plural": "{{count}} ساعات",
+    "minute": "{{count}} دقيقة",
+    "minute_plural": "{{count}} دقائق",
+    "km": "{{value}} كم",
+    "degrees": "{{value}}°",
+    "meters": "{{value}} م"
+  }
+}

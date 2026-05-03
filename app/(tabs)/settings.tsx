@@ -4,14 +4,25 @@ import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BrandRow } from '@/components/BrandRow';
 import { Button } from '@/components/Button';
+import { GradientCanvas } from '@/components/GradientCanvas';
 import { HorizonRule } from '@/components/HorizonRule';
 import { colors, fonts, radius, spacing } from '@/components/Theme';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
+import type { Locale } from '@/locales/i18n';
+import { applyLocale } from '@/services/localeService';
 import { cancelAllPrayerNotifications } from '@/services/notificationScheduler';
 import { syncYearly } from '@/services/prayerService';
 import { useLocationStore } from '@/store/locationStore';
 import { useSettingsStore } from '@/store/settingsStore';
+
+const LOCALE_OPTIONS: readonly { locale: Locale; label: string; shortLabel: string }[] = [
+  { locale: 'tr', label: 'Türkçe', shortLabel: 'tr' },
+  { locale: 'en', label: 'English', shortLabel: 'en' },
+  { locale: 'ar', label: 'العربية', shortLabel: 'ar' },
+  { locale: 'zh', label: '中文', shortLabel: 'zh' },
+];
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -41,87 +52,90 @@ export default function Settings() {
   };
 
   return (
-    <ScrollView
-      style={styles.scrollView}
-      contentContainerStyle={[
-        styles.root,
-        { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl },
-      ]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>· {t('screens.settings.preferences')} ·</Text>
-        <Text style={styles.title}>{t('screens.settings.title')}</Text>
-      </View>
+    <View style={styles.root}>
+      <GradientCanvas />
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <BrandRow />
 
-      <Section title={t('screens.settings.city')} ordinal="i">
-        <Text style={styles.value}>
-          {location ? `${location.districtName}` : '—'}
-        </Text>
-        {location?.countryName && (
-          <Text style={styles.subvalue}>{location.countryName}</Text>
-        )}
-        <View style={styles.spacer} />
-        <Button title={t('screens.settings.changeCity')} variant="secondary" onPress={onChangeCity} />
-      </Section>
+        <View style={styles.pageHead}>
+          <View style={styles.cityRule} />
+          <Text style={styles.eyebrow}>{t('screens.settings.preferences')}</Text>
+          <Text style={styles.title}>{t('screens.settings.title')}</Text>
+        </View>
 
-      <Section title={t('screens.settings.language')} ordinal="ii">
-        <Row>
-          <Chip
-            active={settings.locale === 'tr'}
-            label="Türkçe"
-            shortLabel="tr"
-            onPress={() => settings.setLocale('tr')}
-          />
-          <Chip
-            active={settings.locale === 'en'}
-            label="English"
-            shortLabel="en"
-            onPress={() => settings.setLocale('en')}
-          />
-        </Row>
-      </Section>
+        <HorizonRule variant="gold" marginVertical={spacing.lg} />
 
-      <Section title={t('screens.settings.sound')} ordinal="iii">
-        <Row>
-          <Chip
-            active={settings.sound === 'default'}
-            label={t('screens.settings.soundDefault')}
-            shortLabel="·"
-            onPress={() => void onSoundChange('default')}
-          />
-          <Chip
-            active={settings.sound === 'adhanShort'}
-            label={t('screens.settings.soundAdhanShort')}
-            shortLabel="♪"
-            onPress={() => void onSoundChange('adhanShort')}
-          />
-        </Row>
-      </Section>
+        <Section title={t('screens.settings.city')} ordinal="i">
+          <Text style={styles.value}>{location ? `${location.districtName}` : '—'}</Text>
+          {location?.countryName && (
+            <Text style={styles.subvalue}>{location.countryName}</Text>
+          )}
+          <View style={styles.spacer} />
+          <Button title={t('screens.settings.changeCity')} variant="secondary" onPress={onChangeCity} />
+        </Section>
 
-      <Section title={t('screens.settings.enabledPrayers')} ordinal="iv">
-        {PRAYER_KEYS.map((key, i) => (
-          <View key={key} style={[styles.toggleRow, i < PRAYER_KEYS.length - 1 && styles.toggleRowBorder]}>
-            <View style={styles.toggleLeft}>
-              <View style={[styles.toggleDot, { backgroundColor: colors.prayer[key] }]} />
-              <Text style={styles.toggleLabel}>{t(`prayer.${key}.title`)}</Text>
-            </View>
-            <Switch
-              value={settings.enabledPrayers.includes(key)}
-              onValueChange={() => void onTogglePrayer(key)}
-              trackColor={{ false: colors.border, true: colors.primaryDark }}
-              thumbColor={settings.enabledPrayers.includes(key) ? colors.primary : colors.cardElevated}
-              ios_backgroundColor={colors.border}
+        <Section title={t('screens.settings.language')} ordinal="ii">
+          <Row>
+            {LOCALE_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.locale}
+                active={settings.locale === opt.locale}
+                label={opt.label}
+                shortLabel={opt.shortLabel}
+                onPress={() => void applyLocale(opt.locale)}
+              />
+            ))}
+          </Row>
+        </Section>
+
+        <Section title={t('screens.settings.sound')} ordinal="iii">
+          <Row>
+            <Chip
+              active={settings.sound === 'default'}
+              label={t('screens.settings.soundDefault')}
+              shortLabel="·"
+              onPress={() => void onSoundChange('default')}
             />
-          </View>
-        ))}
-      </Section>
+            <Chip
+              active={settings.sound === 'adhanShort'}
+              label={t('screens.settings.soundAdhanShort')}
+              shortLabel="♪"
+              onPress={() => void onSoundChange('adhanShort')}
+            />
+          </Row>
+        </Section>
 
-      <HorizonRule variant="short" marginVertical={spacing.xl} />
-      <Text style={styles.version}>
-        {t('screens.settings.version')} · {Constants.expoConfig?.version ?? '0.0.0'}
-      </Text>
-    </ScrollView>
+        <Section title={t('screens.settings.enabledPrayers')} ordinal="iv">
+          {PRAYER_KEYS.map((key, i) => (
+            <View key={key} style={[styles.toggleRow, i < PRAYER_KEYS.length - 1 && styles.toggleRowBorder]}>
+              <View style={styles.toggleLeft}>
+                <View style={[styles.toggleDot, { backgroundColor: colors.prayer[key] }]} />
+                <Text style={styles.toggleLabel}>{t(`prayer.${key}.title`)}</Text>
+              </View>
+              <Switch
+                value={settings.enabledPrayers.includes(key)}
+                onValueChange={() => void onTogglePrayer(key)}
+                trackColor={{ false: colors.border, true: colors.primaryDark }}
+                thumbColor={settings.enabledPrayers.includes(key) ? colors.primary : colors.cardElevated}
+                ios_backgroundColor={colors.border}
+              />
+            </View>
+          ))}
+        </Section>
+
+        <HorizonRule variant="short" marginVertical={spacing.xl} />
+        <Text style={styles.version}>
+          {t('screens.settings.version')} · {Constants.expoConfig?.version ?? '0.0.0'}
+        </Text>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -177,24 +191,38 @@ function Chip({
 }
 
 const styles = StyleSheet.create({
-  scrollView: { backgroundColor: colors.bg },
-  root: { paddingHorizontal: spacing.lg, backgroundColor: colors.bg },
-  header: { paddingBottom: spacing.lg },
+  root: { flex: 1, backgroundColor: colors.bg },
+  scrollView: { flex: 1, backgroundColor: 'transparent' },
+  scroll: { paddingHorizontal: spacing.lg },
+
+  pageHead: {
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  cityRule: {
+    width: 28,
+    height: StyleSheet.hairlineWidth * 2,
+    backgroundColor: colors.primary,
+    opacity: 0.7,
+    marginBottom: spacing.md,
+  },
   eyebrow: {
     fontFamily: fonts.sansMedium,
-    fontSize: 10,
+    fontSize: 9,
     letterSpacing: 3,
     textTransform: 'uppercase',
-    color: colors.textDim,
+    color: colors.textFaint,
+    marginBottom: spacing.xs,
   },
   title: {
     fontFamily: fonts.serif,
     fontStyle: 'italic',
-    fontSize: 40,
+    fontSize: 38,
     color: colors.cream,
     letterSpacing: -0.6,
-    marginTop: spacing.xs,
+    lineHeight: 42,
   },
+
   section: {
     marginBottom: spacing.xl,
   },

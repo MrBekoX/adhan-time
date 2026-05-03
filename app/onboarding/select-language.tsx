@@ -4,18 +4,34 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, fonts, radius, spacing } from '@/components/Theme';
+import type { Locale } from '@/locales/i18n';
+import { applyLocale } from '@/services/localeService';
 import { useSettingsStore } from '@/store/settingsStore';
+
+type LanguageOptionData = {
+  ordinal: string;
+  locale: Locale;
+  label: string;
+  sublabel: string;
+  flag: string;
+};
+
+const OPTIONS: LanguageOptionData[] = [
+  { ordinal: 'i', locale: 'tr', label: 'Türkçe', sublabel: 'Turkish', flag: '·tr' },
+  { ordinal: 'ii', locale: 'en', label: 'English', sublabel: 'English', flag: '·en' },
+  { ordinal: 'iii', locale: 'ar', label: 'العربية', sublabel: 'Arabic', flag: '·ar' },
+  { ordinal: 'iv', locale: 'zh', label: '中文', sublabel: 'Chinese', flag: '·zh' },
+];
 
 export default function SelectLanguage() {
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const setLocale = useSettingsStore((s) => s.setLocale);
   const current = useSettingsStore((s) => s.locale);
 
-  const choose = (locale: 'tr' | 'en') => {
-    setLocale(locale);
-    router.push('/onboarding/select-country');
+  const choose = async (locale: Locale): Promise<void> => {
+    const proceed = await applyLocale(locale);
+    if (proceed) router.push('/onboarding/select-country');
   };
 
   return (
@@ -26,22 +42,17 @@ export default function SelectLanguage() {
       </View>
 
       <View style={styles.options}>
-        <LanguageOption
-          ordinal="i"
-          label="Türkçe"
-          sublabel="Turkish"
-          flag="·tr"
-          active={current === 'tr'}
-          onPress={() => choose('tr')}
-        />
-        <LanguageOption
-          ordinal="ii"
-          label="English"
-          sublabel="English"
-          flag="·en"
-          active={current === 'en'}
-          onPress={() => choose('en')}
-        />
+        {OPTIONS.map((opt) => (
+          <LanguageOption
+            key={opt.locale}
+            ordinal={opt.ordinal}
+            label={opt.label}
+            sublabel={opt.sublabel}
+            flag={opt.flag}
+            active={current === opt.locale}
+            onPress={() => void choose(opt.locale)}
+          />
+        ))}
       </View>
     </View>
   );

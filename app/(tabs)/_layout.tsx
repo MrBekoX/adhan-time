@@ -1,7 +1,8 @@
 import { Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet } from 'react-native';
 
+import { CrescentTabIcon, HizbStarTabIcon, KaabaTabIcon } from '@/components/TabIcons';
 import { colors, fonts } from '@/components/Theme';
 
 export default function TabsLayout() {
@@ -10,12 +11,14 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: colors.bg,
-          borderTopColor: colors.borderSoft,
+          backgroundColor: colors.bgInkBottom,
+          borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
-          height: 64,
-          paddingTop: 8,
-          paddingBottom: 12,
+          height: 72,
+          paddingTop: 12,
+          paddingBottom: 14,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textFaint,
@@ -25,6 +28,10 @@ export default function TabsLayout() {
           fontSize: 10,
           letterSpacing: 2.4,
           textTransform: 'uppercase',
+          marginTop: 4,
+        },
+        tabBarItemStyle: {
+          paddingTop: 2,
         },
         headerStyle: { backgroundColor: colors.bg },
         headerTintColor: colors.text,
@@ -36,38 +43,23 @@ export default function TabsLayout() {
         name="home"
         options={{
           tabBarLabel: t('screens.home.today'),
-          tabBarIcon: ({ color }) => <TabGlyph color={color}>·</TabGlyph>,
+          tabBarIcon: ({ color, focused }) => <CrescentTabIcon color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="qibla"
         options={{
           tabBarLabel: t('screens.qibla.tabLabel'),
-          tabBarIcon: ({ color }) => <TabGlyph color={color}>◆</TabGlyph>,
+          tabBarIcon: ({ color, focused }) => <KaabaTabIcon color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           tabBarLabel: t('screens.settings.title'),
-          tabBarIcon: ({ color }) => <TabGlyph color={color}>·</TabGlyph>,
+          tabBarIcon: ({ color, focused }) => <HizbStarTabIcon color={color} focused={focused} />,
         }}
       />
     </Tabs>
   );
 }
-
-function TabGlyph({ color, children }: { color: string; children: React.ReactNode }) {
-  return (
-    <Text style={[styles.glyph, { color }]}>{children}</Text>
-  );
-}
-
-const styles = StyleSheet.create({
-  glyph: {
-    fontFamily: fonts.serif,
-    fontSize: 22,
-    lineHeight: 22,
-    marginTop: -2,
-  },
-});

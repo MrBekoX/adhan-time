@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { colors, fonts, PRAYER_GLYPHS, radius, spacing } from './Theme';
 
@@ -9,25 +9,59 @@ type Props = {
   prayerKey: PrayerKey;
   time: string;
   highlight?: boolean;
+  enabled: boolean;
+  onToggle: (next: boolean) => void;
 };
 
-export function PrayerCard({ prayerKey, time, highlight }: Props) {
+export function PrayerCard({ prayerKey, time, highlight, enabled, onToggle }: Props) {
   const { t } = useTranslation();
   const accent = colors.prayer[prayerKey] ?? colors.primary;
+  const labelTone = enabled ? colors.cream : colors.textFaint;
+  const timeTone = enabled ? (highlight ? colors.primary : colors.text) : colors.textFaint;
 
   return (
     <View style={[styles.row, highlight && styles.rowHighlight]}>
-      <View style={[styles.bar, { backgroundColor: highlight ? colors.primary : accent }]} />
-      <Text style={[styles.numeral, highlight && styles.numeralHighlight]}>
+      <View
+        style={[
+          styles.bar,
+          { backgroundColor: highlight ? colors.primary : accent },
+          !enabled && styles.barOff,
+        ]}
+      />
+
+      <Text
+        style={[
+          styles.numeral,
+          highlight && styles.numeralHighlight,
+          !enabled && styles.numeralOff,
+        ]}
+      >
         {PRAYER_GLYPHS[prayerKey]}
       </Text>
+
       <View style={styles.center}>
-        <Text style={[styles.label, highlight && styles.labelHighlight]}>
+        <Text style={[styles.label, { color: labelTone }]}>
           {t(`prayer.${prayerKey}.title`)}
         </Text>
-        {highlight && <Text style={styles.activeMark}>· {t('screens.home.nowApproaching')}</Text>}
+        {highlight && enabled && (
+          <Text style={styles.activeMark}>· {t('screens.home.nowApproaching')}</Text>
+        )}
       </View>
-      <Text style={[styles.time, highlight && styles.timeHighlight]}>{time}</Text>
+
+      <Text style={[styles.time, { color: timeTone }, highlight && styles.timeHighlight]}>
+        {time}
+      </Text>
+
+      <View style={styles.switchWrap}>
+        <Switch
+          value={enabled}
+          onValueChange={onToggle}
+          trackColor={{ false: colors.border, true: colors.primaryEdge }}
+          thumbColor={enabled ? colors.primary : colors.textFaint}
+          ios_backgroundColor={colors.border}
+          style={Platform.OS === 'ios' ? styles.switchIos : styles.switchAndroid}
+        />
+      </View>
     </View>
   );
 }
@@ -36,7 +70,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md + 2,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderSoft,
@@ -46,31 +80,32 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderBottomColor: 'transparent',
     marginVertical: spacing.xxs,
+    paddingHorizontal: spacing.md,
   },
   bar: {
     width: 2,
-    height: 22,
+    height: 26,
     borderRadius: 1,
     marginRight: spacing.md,
   },
+  barOff: { opacity: 0.25 },
   numeral: {
     fontFamily: fonts.serif,
     fontStyle: 'italic',
     fontSize: 13,
     color: colors.textFaint,
-    width: 32,
+    width: 28,
     letterSpacing: 0.5,
   },
   numeralHighlight: { color: colors.primary },
+  numeralOff: { opacity: 0.4 },
   center: { flex: 1 },
   label: {
     fontFamily: fonts.serif,
     fontStyle: 'italic',
     fontSize: 22,
-    color: colors.cream,
     letterSpacing: -0.2,
   },
-  labelHighlight: { color: colors.cream },
   activeMark: {
     fontFamily: fonts.sans,
     fontSize: 10,
@@ -82,9 +117,15 @@ const styles = StyleSheet.create({
   time: {
     fontFamily: fonts.serif,
     fontVariant: ['tabular-nums'],
-    fontSize: 22,
-    color: colors.textDim,
+    fontSize: 20,
     letterSpacing: 1,
+    marginRight: spacing.md,
   },
-  timeHighlight: { color: colors.primary, fontWeight: '500' },
+  timeHighlight: { fontWeight: '500' },
+  switchWrap: {
+    width: 44,
+    alignItems: 'flex-end',
+  },
+  switchIos: { transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] },
+  switchAndroid: { transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }] },
 });

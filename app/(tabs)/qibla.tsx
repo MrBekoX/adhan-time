@@ -2,10 +2,12 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Linking, StyleSheet, Text, TouchableOpacity, View, type TextStyle } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BrandRow } from '@/components/BrandRow';
 import { CalibrationBanner } from '@/components/CalibrationBanner';
+import { GradientCanvas } from '@/components/GradientCanvas';
 import { HorizonRule } from '@/components/HorizonRule';
 import { QiblaCompass } from '@/components/QiblaCompass';
 import { colors, fonts, spacing } from '@/components/Theme';
@@ -16,12 +18,13 @@ import { useLocationStore } from '@/store/locationStore';
 import { distanceToKaabaKm, qiblaBearing } from '@/utils/geo';
 import { signedDelta } from '@/utils/heading';
 
-const COMPASS_SIZE = 280;
+const COMPASS_SIZE = 260;
 
 export default function QiblaScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const cityName = useLocationStore((s) => s.selected?.districtName ?? null);
+  const countryName = useLocationStore((s) => s.selected?.countryName ?? null);
 
   const [active, setActive] = useState(false);
   useFocusEffect(
@@ -46,17 +49,37 @@ export default function QiblaScreen() {
   }, [location]);
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl }]}>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>· {t('screens.qibla.eyebrow')} ·</Text>
-        {cityName && <Text style={styles.city}>{cityName}</Text>}
-      </View>
+    <View style={styles.root}>
+      <GradientCanvas />
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <BrandRow />
 
-      <Body
-        location={location}
-        heading={heading}
-        qibla={qibla}
-      />
+        <View style={styles.pageHead}>
+          <View style={styles.cityRule} />
+          <Text style={styles.eyebrow}>{t('screens.qibla.eyebrow')}</Text>
+          {cityName ? (
+            <>
+              <Text style={styles.cityName}>{cityName}</Text>
+              {countryName && (
+                <Text style={styles.cityCountry}>{countryName.toLocaleLowerCase('tr')}</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.cityName}>—</Text>
+          )}
+        </View>
+
+        <HorizonRule variant="gold" marginVertical={spacing.lg} />
+
+        <Body location={location} heading={heading} qibla={qibla} />
+      </ScrollView>
     </View>
   );
 }
@@ -204,7 +227,7 @@ function PermissionCard() {
   const { t } = useTranslation();
   return (
     <View style={styles.center}>
-      <Text style={styles.eyebrow}>· {t('screens.qibla.permissionTitle')} ·</Text>
+      <Text style={styles.eyebrowSm}>· {t('screens.qibla.permissionTitle')} ·</Text>
       <Text style={styles.permissionBody}>{t('screens.qibla.permissionBody')}</Text>
       <TouchableOpacity style={styles.button} onPress={() => Linking.openSettings()}>
         <Text style={styles.buttonText}>{t('screens.qibla.openSettings')}</Text>
@@ -269,25 +292,53 @@ function formatKm(km: number): string {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: spacing.lg },
-  header: { alignItems: 'center', paddingBottom: spacing.lg },
+  root: { flex: 1, backgroundColor: colors.bg },
+  scrollView: { flex: 1, backgroundColor: 'transparent' },
+  scroll: { paddingHorizontal: spacing.lg },
+
+  pageHead: {
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  cityRule: {
+    width: 28,
+    height: StyleSheet.hairlineWidth * 2,
+    backgroundColor: colors.primary,
+    opacity: 0.7,
+    marginBottom: spacing.md,
+  },
   eyebrow: {
     fontFamily: fonts.sansMedium,
-    fontSize: 10,
+    fontSize: 9,
     letterSpacing: 3,
     textTransform: 'uppercase',
     color: colors.textFaint,
+    marginBottom: spacing.xs,
   },
-  city: {
+  cityName: {
     fontFamily: fonts.serif,
     fontStyle: 'italic',
-    fontSize: 28,
+    fontSize: 38,
     color: colors.cream,
-    marginTop: spacing.xs,
+    letterSpacing: -0.6,
+    lineHeight: 42,
   },
-  body: { flex: 1 },
+  cityCountry: {
+    fontFamily: fonts.serif,
+    fontStyle: 'italic',
+    fontSize: 14,
+    color: colors.textDim,
+    marginTop: 4,
+    letterSpacing: 0.6,
+  },
+
+  body: { paddingTop: spacing.sm },
   bannerWrap: { marginBottom: spacing.md },
-  compassArea: { alignItems: 'center', justifyContent: 'center', flexGrow: 1 },
+  compassArea: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+  },
   instructionWrap: {
     alignItems: 'center',
     paddingTop: spacing.md,
@@ -355,8 +406,21 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     marginTop: spacing.xs,
   },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
+
+  center: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+  },
   centeredText: { fontFamily: fonts.serif, fontStyle: 'italic', color: colors.textDim, fontSize: 14 },
+  eyebrowSm: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 10,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    color: colors.textFaint,
+  },
   permissionBody: {
     fontFamily: fonts.sans,
     fontSize: 14,

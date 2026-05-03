@@ -38,8 +38,8 @@ export function CountdownPill({ prayerKey, remainingMs }: Props) {
         </Text>
       </View>
       <Text style={styles.remainingLabel}>
-        {hours > 0 ? `${hours}h ` : ''}
-        {minutes}m {t('screens.home.remaining')}
+        {hours > 0 ? `${t('units.hour', { count: hours })} ` : ''}
+        {t('units.minute', { count: minutes })} {t('screens.home.remaining')}
       </Text>
     </View>
   );

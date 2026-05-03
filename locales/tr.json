@@ -64,7 +64,8 @@
       "changeCity": "Şehri Değiştir",
       "version": "Sürüm",
       "soundDefault": "Varsayılan",
-      "soundAdhanShort": "Kısa Ezan"
+      "soundAdhanShort": "Kısa Ezan",
+      "restartRequired": "Yazı yönü değişikliğinin tamamlanması için uygulamayı yeniden başlat."
     },
     "qibla": {
       "tabLabel": "Kıble",
@@ -93,10 +94,10 @@
     "placeholder": "..."
   },
   "units": {
-    "hour_one": "{{count}} saat",
-    "hour_other": "{{count}} saat",
-    "minute_one": "{{count}} dakika",
-    "minute_other": "{{count}} dakika",
+    "hour": "{{count}} saat",
+    "hour_plural": "{{count}} saat",
+    "minute": "{{count}} dakika",
+    "minute_plural": "{{count}} dakika",
     "km": "{{value}} km",
     "degrees": "{{value}}°",
     "meters": "{{value}} m"
