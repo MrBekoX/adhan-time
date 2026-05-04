@@ -14,7 +14,7 @@ import {
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
 import { i18n } from '@/locales/i18n';
 import { logger } from '@/utils/logger';
-import { addDays, getDateComponentsInTz, isoDateInTz, parsePrayerTime } from '@/utils/time';
+import { addLocalDays, getDateComponentsInTz, isoDateInTz, parsePrayerTime } from '@/utils/time';
 
 
 
@@ -82,7 +82,7 @@ export async function cancelAllPrayerNotifications(): Promise<void> {
   }
 }
 
-function computeTargets(
+export function computeTargets(
   cache: YearlyPrayerCache,
   tz: string,
   now: Date,
@@ -90,9 +90,9 @@ function computeTargets(
   enabled: PrayerKey[],
 ): ScheduledPrayer[] {
   const out: ScheduledPrayer[] = [];
+  const todayIso = isoDateInTz(now, tz);
   for (let d = 0; d < windowDays; d++) {
-    const dayDate = addDays(now, d);
-    const dateIso = isoDateInTz(dayDate, tz);
+    const dateIso = addLocalDays(todayIso, d);
     const entry = findEntryForDate(cache.entries, dateIso);
     if (!entry) continue;
     for (const key of enabled) {
