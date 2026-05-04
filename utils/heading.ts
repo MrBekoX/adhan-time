@@ -5,6 +5,63 @@
  * the React/native sensor stack. See rules/01-architecture.md.
  */
 
+import { HEADING_ACCURACY } from '@/constants/qibla';
+
+export type HeadingQuality = 'high' | 'medium' | 'low' | 'unreliable' | 'unknown';
+
+/** OS string compatible with React Native's `Platform.OS`. We accept the union explicitly so utils stay free of `react-native` imports. */
+export type PlatformOS = 'ios' | 'android' | 'web' | 'windows' | 'macos';
+
+/**
+ * Bucket a normalized accuracy (degrees) into a qualitative band the UI can act on.
+ * `null` collapses to `'unknown'` — we never silently treat it as "high".
+ */
+export function classifyQuality(accuracyDeg: number | null): HeadingQuality {
+  if (accuracyDeg === null) return 'unknown';
+  if (accuracyDeg <= HEADING_ACCURACY.goodMaxDeg) return 'high';
+  if (accuracyDeg <= HEADING_ACCURACY.warnMaxDeg) return 'medium';
+  if (accuracyDeg <= HEADING_ACCURACY.lowMaxDeg) return 'low';
+  return 'unreliable';
+}
+
+/**
+ * Whether a heading quality should suppress alignment indicators (halo, haptic, ring).
+ * `'unknown'` is included: no signal is worse than a wrong "you are aligned" signal —
+ * see religious-accuracy memory.
+ */
+export function isUnreliable(quality: HeadingQuality): boolean {
+  return quality === 'unreliable' || quality === 'unknown';
+}
+
+/**
+ * Cross-platform normalization of the heading accuracy reading exposed by expo-location.
+ *
+ * iOS reports `CLHeading.headingAccuracy` directly in degrees (with -1 sentinel before first calibration).
+ * Android passes through `SensorManager` accuracy levels (0..3) where:
+ *   - 0 = SENSOR_STATUS_UNRELIABLE — must be surfaced as "unreliable", not "perfect 0°".
+ *   - 1 = LOW, 2 = MEDIUM, 3 = HIGH.
+ *
+ * Returning `null` means "do not show a quality value" (caller must classify as unknown).
+ */
+export function normalizeAccuracyForPlatform(
+  value: number | null | undefined,
+  platformOS: PlatformOS,
+): number | null {
+  if (value === null || value === undefined) return null;
+  if (platformOS === 'ios') {
+    if (value < 0) return null;
+    return value;
+  }
+  // Android (and any non-iOS) interprets value as a SENSOR_STATUS_* level.
+  if (value < 0) return null;
+  if (value >= 3) return 5;
+  if (value >= 2) return 15;
+  if (value >= 1) return 30;
+  // value === 0 → SENSOR_STATUS_UNRELIABLE. Force above lowMaxDeg so classifyQuality
+  // returns 'unreliable'. Without this the UI would treat it as the most precise reading.
+  return 999;
+}
+
 /**
  * Exponential moving average with shortest-arc handling for circular angles.
  *

@@ -16,7 +16,7 @@ import { useDeviceHeading } from '@/hooks/useDeviceHeading';
 import { useUserLocation } from '@/hooks/useUserLocation';
 import { useLocationStore } from '@/store/locationStore';
 import { distanceToKaabaKm, qiblaBearing } from '@/utils/geo';
-import { signedDelta } from '@/utils/heading';
+import { isUnreliable, signedDelta } from '@/utils/heading';
 
 const COMPASS_SIZE = 260;
 
@@ -99,8 +99,11 @@ function Body({ location, heading, qibla }: { location: LocationStatus; heading:
       ? signedDelta(heading.heading, qibla.bearing)
       : 0;
   const atKaaba = qibla ? qibla.distanceKm < AT_KAABA_RADIUS_KM : false;
-  const unreliable = heading.kind === 'ready' && heading.quality === 'unreliable';
-  const aligned = useAlignment(delta, atKaaba || !ready);
+  // SPEC-K3 + K3c: 'unknown' is unreliable too — a calibrating compass must never
+  // emit a positive alignment signal. Suppress alignment math itself so the band
+  // never latches.
+  const unreliable = heading.kind === 'ready' && isUnreliable(heading.quality);
+  const aligned = useAlignment(delta, atKaaba || !ready || unreliable);
   useAlignmentHaptic(aligned, unreliable || atKaaba || !ready);
 
   if (location.kind === 'denied') return <PermissionCard />;
@@ -115,7 +118,8 @@ function Body({ location, heading, qibla }: { location: LocationStatus; heading:
     return <Centered text={t('screens.qibla.acquiringLocation') + '…'} />;
   }
 
-  const showCalibration = heading.quality === 'medium' || heading.quality === 'low' || unreliable;
+  const showCalibration =
+    heading.quality === 'medium' || heading.quality === 'low' || unreliable;
 
   return (
     <View style={styles.body}>
