@@ -5,15 +5,22 @@ import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
  * Date string'in saat kısmı yok sayılır; sadece YYYY-MM-DD kullanılır.
  */
 export function parsePrayerTime(hhmm: string, dateIso: string, tz: string): Date {
+  if (typeof hhmm !== 'string' || !/^\d{1,2}:\d{2}$/.test(hhmm)) {
+    throw new Error(`Invalid prayer time: ${hhmm}`);
+  }
   const [hStr, mStr] = hhmm.split(':');
   const h = Number(hStr);
   const m = Number(mStr);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) {
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) {
     throw new Error(`Invalid prayer time: ${hhmm}`);
   }
   const dateOnly = dateIso.slice(0, 10);
   const localIso = `${dateOnly}T${pad(h)}:${pad(m)}:00`;
-  return fromZonedTime(localIso, tz);
+  const result = fromZonedTime(localIso, tz);
+  if (Number.isNaN(result.getTime())) {
+    throw new Error(`Invalid prayer time: ${hhmm} (${tz})`);
+  }
+  return result;
 }
 
 function pad(n: number): string {

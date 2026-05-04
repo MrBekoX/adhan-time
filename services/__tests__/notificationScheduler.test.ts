@@ -109,3 +109,50 @@ describe('computeTargets — V14 tz-aware rolling window', () => {
     expect(dates).toEqual(['2026-05-02', '2026-05-04']);
   });
 });
+
+describe('computeTargets — V11 defensive parsing', () => {
+  it('skips a single corrupt prayer time and keeps every other target', () => {
+    const now = new Date('2026-05-02T00:00:00Z');
+    const corrupt = entry('2026-05-02', { imsak: 'bogus' });
+    const cache = makeCache([corrupt, ...range('2026-05-03', 11)]);
+
+    const targets = computeTargets(cache, TZ, now, 10, [...PRAYER_KEYS]);
+
+    // Day 0 contributes 5 (imsak skipped); days 1..9 contribute 6 each = 54.
+    expect(targets).toHaveLength(5 + 9 * 6);
+    expect(targets.find((t) => t.dateIso === '2026-05-02' && t.prayerKey === 'imsak')).toBeUndefined();
+    expect(targets.find((t) => t.dateIso === '2026-05-02' && t.prayerKey === 'gunes')).toBeDefined();
+  });
+
+  it('does not throw when every prayer on a day is corrupt', () => {
+    const now = new Date('2026-05-02T00:00:00Z');
+    const allBad: PrayerTime = {
+      date: '2026-05-02T00:00:00.000Z',
+      times: {
+        imsak: 'xx:yy',
+        gunes: '',
+        ogle: 'noon',
+        ikindi: '25:99',
+        aksam: 'bad',
+        yatsi: '',
+      },
+    };
+    const cache = makeCache([allBad, ...range('2026-05-03', 11)]);
+
+    expect(() => computeTargets(cache, TZ, now, 10, [...PRAYER_KEYS])).not.toThrow();
+    const targets = computeTargets(cache, TZ, now, 10, [...PRAYER_KEYS]);
+    // Only days 1..9 contribute (day 0 entirely lost).
+    expect(targets).toHaveLength(9 * 6);
+  });
+
+  it('schedules 49 of 50 targets when one entry is corrupt (5 prayers × 10 days)', () => {
+    const now = new Date('2026-05-02T00:00:00Z');
+    const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+    const corruptDay = entry('2026-05-02', { aksam: '##:##' });
+    const cache = makeCache([corruptDay, ...range('2026-05-03', 11)]);
+
+    const targets = computeTargets(cache, TZ, now, 10, enabled);
+
+    expect(targets).toHaveLength(49);
+  });
+});

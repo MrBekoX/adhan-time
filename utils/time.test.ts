@@ -21,6 +21,23 @@ describe('parsePrayerTime', () => {
   it('throws on invalid format', () => {
     expect(() => parsePrayerTime('xx:yy', '2026-05-02', 'Europe/Istanbul')).toThrow();
   });
+
+  it('throws on out-of-range hour', () => {
+    expect(() => parsePrayerTime('25:00', '2026-05-02', 'Europe/Istanbul')).toThrow();
+  });
+
+  it('throws on out-of-range minute', () => {
+    expect(() => parsePrayerTime('05:99', '2026-05-02', 'Europe/Istanbul')).toThrow();
+  });
+
+  it('throws on empty string', () => {
+    expect(() => parsePrayerTime('', '2026-05-02', 'Europe/Istanbul')).toThrow();
+  });
+
+  it('accepts a single-digit hour like 5:54', () => {
+    const d = parsePrayerTime('5:54', '2026-05-02', 'Europe/Istanbul');
+    expect(d.toISOString()).toBe('2026-05-02T02:54:00.000Z');
+  });
 });
 
 describe('getDateComponentsInTz', () => {

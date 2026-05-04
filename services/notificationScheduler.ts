@@ -98,14 +98,19 @@ export function computeTargets(
     for (const key of enabled) {
       const value = entry.times?.[key];
       if (!value) continue;
-      const fireAt = parsePrayerTime(value, dateIso, tz);
-      if (fireAt.getTime() <= now.getTime()) continue;
-      out.push({
-        id: buildNotificationId(cache.districtId, dateIso, key),
-        prayerKey: key,
-        dateIso,
-        fireAt,
-      });
+      try {
+        const fireAt = parsePrayerTime(value, dateIso, tz);
+        if (fireAt.getTime() <= now.getTime()) continue;
+        out.push({
+          id: buildNotificationId(cache.districtId, dateIso, key),
+          prayerKey: key,
+          dateIso,
+          fireAt,
+        });
+      } catch (e) {
+        // V11: a single malformed entry must not abort the whole window.
+        logger.warn('parsePrayerTime-failed', { dateIso, key, value, error: String(e) });
+      }
     }
   }
   return out;
