@@ -17,7 +17,9 @@ export function CompassRose({ size }: Props) {
   const radius = size / 2;
 
   return (
-    <View style={[styles.wrap, { width: size, height: size, borderRadius: radius }]}>
+    // SPEC-K8: cardinals and ticks are placed via absolute left/top trig; pin
+    // this subtree to LTR so an RTL parent (Arabic locale) does not mirror it.
+    <View style={[styles.wrap, styles.ltrLock, { width: size, height: size, borderRadius: radius }]}>
       {Array.from({ length: TICK_COUNT }).map((_, i) => {
         const angle = (360 / TICK_COUNT) * i;
         const isMajor = i % 3 === 0;
@@ -74,6 +76,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: 'transparent',
   },
+  // SPEC-K8 — see CompassRose return: math-driven cardinal/tick placement must
+  // stay LTR even under I18nManager.forceRTL so east stays on the right.
+  ltrLock: { direction: 'ltr', writingDirection: 'ltr' },
   tick: { position: 'absolute', backgroundColor: colors.borderSoft },
   tickMinor: { width: 1, height: 6, opacity: 0.6 },
   tickMajor: { width: 2, height: 12, backgroundColor: colors.border },

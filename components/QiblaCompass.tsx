@@ -80,7 +80,12 @@ export function QiblaCompass({ size, deviceHeading, qiblaBearing, aligned, unrel
   const stemThickness = 3;
 
   return (
-    <View style={[styles.wrap, { width: size, height: size }]}>
+    // SPEC-K8: lock the compass coordinate system to LTR even when the app is
+    // running in RTL (Arabic). Cardinals (N/E/S/W) and the Kaaba marker are
+    // positioned via absolute left/top math; if the layout engine mirrored
+    // the subtree, east and west would swap and the qibla bearing would point
+    // the wrong way.
+    <View style={[styles.wrap, styles.ltrLock, { width: size, height: size }]}>
       <Animated.View
         style={[
           styles.halo,
@@ -168,6 +173,9 @@ export function QiblaCompass({ size, deviceHeading, qiblaBearing, aligned, unrel
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center', marginVertical: spacing.lg },
+  // SPEC-K8 — see QiblaCompass return: keep absolute-positioned compass geometry
+  // mathematically LTR regardless of I18nManager.forceRTL.
+  ltrLock: { direction: 'ltr', writingDirection: 'ltr' },
   halo: {
     position: 'absolute',
     borderWidth: 2,
