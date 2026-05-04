@@ -9,6 +9,7 @@ import {
   type PushLogRow,
   processBatchResponse,
 } from '../_shared/expo-push.ts';
+import { fetchPrayerYear, type PrayerEntry } from '../_shared/prayer-cache.ts';
 import {
   formatInTz,
   isWithinPrayerWindow,
@@ -38,10 +39,6 @@ type Device = {
   enabled_prayers: string[];
 };
 
-type PrayerEntry = {
-  date: string;
-  times: Record<PrayerKey, string>;
-};
 
 Deno.serve(async (req: Request) => {
   if (!verifyCronSecret(req, CRON_SECRET)) {
@@ -191,23 +188,22 @@ async function ensurePrayerCache(districtId: string, year: number): Promise<Pray
     return row.data as PrayerEntry[];
   }
 
-  const res = await fetch(
-    `https://ezanvakti.imsakiyem.com/api/prayer-times/${districtId}/yearly`,
-  );
-  if (!res.ok) throw new Error(`upstream-${res.status}`);
-  const json = (await res.json()) as { success?: boolean; data?: PrayerEntry[] };
-  if (!json?.success || !Array.isArray(json.data)) throw new Error('bad-envelope');
+  // F3: validate the upstream envelope BEFORE writing anything to cache.
+  // A single bad upsert (e.g. an HTML 502 page) would otherwise silence
+  // push notifications for the 30-day TTL window.
+  const result = await fetchPrayerYear(fetch, districtId);
+  if (!result.ok) throw new Error(result.reason);
 
   await supabase.from('prayer_cache').upsert(
     {
       district_id: districtId,
       year,
-      data: json.data,
+      data: result.data,
       fetched_at: new Date().toISOString(),
     },
     { onConflict: 'district_id,year' },
   );
-  return json.data;
+  return result.data;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
