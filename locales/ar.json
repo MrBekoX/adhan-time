@@ -27,6 +27,10 @@
     "notification": {
       "permissionDenied": "الإذن بالإشعارات مطلوب."
     },
+    "tzUnsupported": {
+      "title": "هذه المنطقة غير مدعومة بعد",
+      "body": "خريطة المنطقة الزمنية لـ {{country}} غير جاهزة. لا يمكن اختيار هذه الدولة لأننا لا نضمن وصول التنبيهات في الوقت الصحيح."
+    },
     "unknown": "حدث خطأ غير متوقع."
   },
   "screens": {
@@ -35,6 +39,34 @@
       "welcomeBody": "إشعارات أوقات الأذان من أي مكان في العالم.",
       "selectLanguage": "اختر اللغة",
       "selectCountry": "اختر الدولة",
+      "selectTimezone": {
+        "title": "اختر المنطقة الزمنية",
+        "options": {
+          "sydney": "سيدني (NSW/VIC/ACT/TAS، UTC+10)",
+          "brisbane": "بريسبان (QLD، UTC+10)",
+          "adelaide": "أديلايد (SA، UTC+9:30)",
+          "perth": "بيرث (WA، UTC+8)",
+          "darwin": "داروين (NT، UTC+9:30)",
+          "jakarta": "جاكرتا — الغرب (WIB، UTC+7)",
+          "makassar": "ماكاسار — الوسط (WITA، UTC+8)",
+          "jayapura": "جايابورا — الشرق (WIT، UTC+9)",
+          "saoPaulo": "ساو باولو (BRT، UTC-3)",
+          "manaus": "ماناوس (AMT، UTC-4)",
+          "rioBranco": "ريو برانكو (ACT، UTC-5)",
+          "noronha": "فرناندو دي نورونها (UTC-2)",
+          "kaliningrad": "كالينينغراد (UTC+2)",
+          "moscow": "موسكو (UTC+3)",
+          "samara": "سمارة (UTC+4)",
+          "yekaterinburg": "يكاترينبورغ (UTC+5)",
+          "omsk": "أومسك (UTC+6)",
+          "krasnoyarsk": "كراسنويارسك (UTC+7)",
+          "irkutsk": "إيركوتسك (UTC+8)",
+          "yakutsk": "ياكوتسك (UTC+9)",
+          "vladivostok": "فلاديفوستوك (UTC+10)",
+          "magadan": "ماغادان (UTC+11)",
+          "kamchatka": "كامتشاتكا (UTC+12)"
+        }
+      },
       "selectState": "اختر المحافظة",
       "selectDistrict": "اختر المنطقة",
       "permissions": "إذن الإشعارات",

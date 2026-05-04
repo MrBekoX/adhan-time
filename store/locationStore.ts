@@ -2,15 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-type Location = {
-  countryId: string;
-  countryName: string;
-  stateId: string;
-  stateName: string;
-  districtId: string;
-  districtName: string;
-  timezone: string;
-};
+import { migrateLocationState, type PersistedLocation } from './locationStore.migration';
+
+type Location = PersistedLocation;
 
 type State = {
   selected: Location | null;
@@ -34,9 +28,10 @@ export const useLocationStore = create<State & Actions>()(
     }),
     {
       name: 'location',
-      version: 1,
+      version: 3,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({ selected: s.selected }),
+      migrate: (persisted, version) => migrateLocationState(persisted, version),
       onRehydrateStorage: () => (state) => {
         state?.setHydrated(true);
       },

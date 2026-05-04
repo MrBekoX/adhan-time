@@ -1,12 +1,14 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LocationList, type LocationListItem } from '@/components/LocationList';
 import { colors, fonts, spacing } from '@/components/Theme';
+import { COUNTRIES_REQUIRING_TZ_SELECTION } from '@/constants/timezones';
 import { locationCache } from '@/services/locationCache';
+import { isCountrySupported } from '@/services/timezoneResolver';
 import { logger } from '@/utils/logger';
 
 export default function SelectCountry() {
@@ -43,12 +45,27 @@ export default function SelectCountry() {
       <LocationList
         items={items}
         loading={loading}
-        onSelect={(it) =>
+        onSelect={(it) => {
+          if (!isCountrySupported(it.id)) {
+            logger.warn('tz-resolver-unsupported-country', { countryId: it.id, name: it.name });
+            Alert.alert(
+              t('errors.tzUnsupported.title'),
+              t('errors.tzUnsupported.body', { country: it.name }),
+            );
+            return;
+          }
+          if (COUNTRIES_REQUIRING_TZ_SELECTION.has(it.id)) {
+            router.push({
+              pathname: '/onboarding/select-timezone',
+              params: { countryId: it.id, countryName: it.name },
+            });
+            return;
+          }
           router.push({
             pathname: '/onboarding/select-state',
             params: { countryId: it.id, countryName: it.name },
-          })
-        }
+          });
+        }}
       />
     </View>
   );

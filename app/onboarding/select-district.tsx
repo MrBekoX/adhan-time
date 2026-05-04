@@ -20,6 +20,7 @@ export default function SelectDistrict() {
     countryName: string;
     stateId: string;
     stateName: string;
+    userSelectedTimezone?: string;
   }>();
   const [items, setItems] = useState<LocationListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +55,7 @@ export default function SelectDistrict() {
         items={items}
         loading={loading}
         onSelect={(it) => {
-          const tz = resolveTimezone(params.countryId, params.stateId);
+          const tz = params.userSelectedTimezone ?? resolveTimezone(params.countryId, params.stateId);
           selectLocation({
             countryId: params.countryId,
             countryName: params.countryName,
@@ -63,6 +64,7 @@ export default function SelectDistrict() {
             districtId: it.id,
             districtName: it.name,
             timezone: tz,
+            userSelectedTimezone: params.userSelectedTimezone,
           });
           router.push('/onboarding/permissions');
         }}

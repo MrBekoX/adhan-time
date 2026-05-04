@@ -1,63 +1,40 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LocationList, type LocationListItem } from '@/components/LocationList';
 import { colors, fonts, spacing } from '@/components/Theme';
-import { locationCache } from '@/services/locationCache';
-import { logger } from '@/utils/logger';
+import { COUNTRY_TZ_OPTIONS } from '@/constants/timezones';
 
-export default function SelectState() {
+export default function SelectTimezone() {
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{
-    countryId: string;
-    countryName: string;
-    userSelectedTimezone?: string;
-  }>();
-  const [items, setItems] = useState<LocationListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const params = useLocalSearchParams<{ countryId: string; countryName: string }>();
+  const opts = COUNTRY_TZ_OPTIONS[params.countryId];
 
-  useEffect(() => {
-    if (!params.countryId) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await locationCache.states(params.countryId);
-        if (cancelled) return;
-        setItems(data.map((c) => ({ id: c._id, name: c.name, nameEn: c.name_en })));
-      } catch (e) {
-        logger.error('states fetch', { error: String(e) });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [params.countryId]);
+  const items: LocationListItem[] =
+    opts?.map((opt) => {
+      const label = t(`screens.onboarding.selectTimezone.options.${opt.labelKey}`);
+      return { id: opt.tz, name: label, nameEn: label };
+    }) ?? [];
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.lg }]}>
       <View style={styles.head}>
-        <Text style={styles.eyebrow}>· chapter iii · {params.countryName ?? ''}</Text>
-        <Text style={styles.title}>{t('screens.onboarding.selectState')}</Text>
+        <Text style={styles.eyebrow}>· {params.countryName ?? ''} ·</Text>
+        <Text style={styles.title}>{t('screens.onboarding.selectTimezone.title')}</Text>
       </View>
       <LocationList
         items={items}
-        loading={loading}
         onSelect={(it) =>
           router.push({
-            pathname: '/onboarding/select-district',
+            pathname: '/onboarding/select-state',
             params: {
               countryId: params.countryId,
               countryName: params.countryName,
-              stateId: it.id,
-              stateName: it.name,
-              userSelectedTimezone: params.userSelectedTimezone,
+              userSelectedTimezone: it.id,
             },
           })
         }

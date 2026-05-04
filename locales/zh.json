@@ -27,6 +27,10 @@
     "notification": {
       "permissionDenied": "需要通知权限。"
     },
+    "tzUnsupported": {
+      "title": "此地区尚不支持",
+      "body": "{{country}} 的时区映射尚未就绪。无法保证通知在正确的时间触发,因此此国家无法选择。"
+    },
     "unknown": "发生未知错误。"
   },
   "screens": {
@@ -35,6 +39,34 @@
       "welcomeBody": "为世界各地提供礼拜时间提醒。",
       "selectLanguage": "选择语言",
       "selectCountry": "选择国家",
+      "selectTimezone": {
+        "title": "选择时区",
+        "options": {
+          "sydney": "悉尼(NSW/VIC/ACT/TAS,UTC+10)",
+          "brisbane": "布里斯班(QLD,UTC+10)",
+          "adelaide": "阿德莱德(SA,UTC+9:30)",
+          "perth": "珀斯(WA,UTC+8)",
+          "darwin": "达尔文(NT,UTC+9:30)",
+          "jakarta": "雅加达 — 西部(WIB,UTC+7)",
+          "makassar": "望加锡 — 中部(WITA,UTC+8)",
+          "jayapura": "查亚普拉 — 东部(WIT,UTC+9)",
+          "saoPaulo": "圣保罗(BRT,UTC-3)",
+          "manaus": "马瑙斯(AMT,UTC-4)",
+          "rioBranco": "里约布兰科(ACT,UTC-5)",
+          "noronha": "费尔南多·迪诺罗尼亚(UTC-2)",
+          "kaliningrad": "加里宁格勒(UTC+2)",
+          "moscow": "莫斯科(UTC+3)",
+          "samara": "萨马拉(UTC+4)",
+          "yekaterinburg": "叶卡捷琳堡(UTC+5)",
+          "omsk": "鄂木斯克(UTC+6)",
+          "krasnoyarsk": "克拉斯诺亚尔斯克(UTC+7)",
+          "irkutsk": "伊尔库茨克(UTC+8)",
+          "yakutsk": "雅库茨克(UTC+9)",
+          "vladivostok": "符拉迪沃斯托克(UTC+10)",
+          "magadan": "马加丹(UTC+11)",
+          "kamchatka": "堪察加(UTC+12)"
+        }
+      },
       "selectState": "选择省份",
       "selectDistrict": "选择地区",
       "permissions": "通知权限",
