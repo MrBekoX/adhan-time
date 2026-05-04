@@ -1,6 +1,12 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+import {
+  formatInTz,
+  isWithinPrayerWindow,
+  localYearInTz,
+} from '../_shared/push-window.ts';
+
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -8,6 +14,7 @@ const supabase = createClient(
 const EXPO_TOKEN = Deno.env.get('EXPO_ACCESS_TOKEN');
 const STALE_DAYS = 5;
 const PRAYER_KEYS = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'] as const;
+type PrayerKey = (typeof PRAYER_KEYS)[number];
 
 type Device = {
   id: string;
@@ -22,14 +29,7 @@ type Device = {
 
 type PrayerEntry = {
   date: string;
-  times: {
-    imsak: string;
-    gunes: string;
-    ogle: string;
-    ikindi: string;
-    aksam: string;
-    yatsi: string;
-  };
+  times: Record<PrayerKey, string>;
 };
 
 type ExpoMessage = {
@@ -38,6 +38,13 @@ type ExpoMessage = {
   body: string;
   sound?: string | null;
   data?: Record<string, unknown>;
+};
+
+type PushLogRow = {
+  device_id: string;
+  prayer_key: string;
+  scheduled_for: string;
+  local_date: string;
 };
 
 Deno.serve(async () => {
@@ -53,19 +60,25 @@ Deno.serve(async () => {
       return jsonResponse({ sent: 0, reason: 'no_stale_devices' });
     }
 
+    const now = new Date();
     const messages: ExpoMessage[] = [];
-    const logs: Array<{ device_id: string; prayer_key: string; scheduled_for: string }> = [];
+    const logs: PushLogRow[] = [];
 
     for (const dev of devices as Device[]) {
       try {
-        const cache = await ensurePrayerCache(dev.district_id);
-        const todayInTz = formatInTz(new Date(), dev.timezone, 'yyyy-MM-dd');
+        const tz = dev.timezone;
+        const todayInTz = formatInTz(now, tz, 'yyyy-MM-dd');
+        const yearInTz = localYearInTz(now, tz);
+        const cache = await ensurePrayerCache(dev.district_id, yearInTz);
         const entry = cache.find((e) => e.date.startsWith(todayInTz));
         if (!entry) continue;
-        const minuteInTz = formatInTz(new Date(), dev.timezone, 'HH:mm');
+
         for (const key of PRAYER_KEYS) {
           if (!dev.enabled_prayers.includes(key)) continue;
-          if (entry.times?.[key] !== minuteInTz) continue;
+          const localTime = entry.times?.[key];
+          if (!localTime) continue;
+          if (!isWithinPrayerWindow(todayInTz, localTime, tz, now)) continue;
+
           messages.push({
             to: dev.expo_push_token,
             title: titleFor(key, dev.locale),
@@ -76,7 +89,8 @@ Deno.serve(async () => {
           logs.push({
             device_id: dev.id,
             prayer_key: key,
-            scheduled_for: new Date().toISOString(),
+            scheduled_for: now.toISOString(),
+            local_date: todayInTz,
           });
         }
       } catch (e) {
@@ -86,8 +100,7 @@ Deno.serve(async () => {
 
     if (messages.length === 0) return jsonResponse({ sent: 0 });
 
-    const chunks = chunk(messages, 100);
-    for (const c of chunks) {
+    for (const c of chunk(messages, 100)) {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (EXPO_TOKEN) headers.Authorization = `Bearer ${EXPO_TOKEN}`;
       await fetch('https://exp.host/--/api/v2/push/send', {
@@ -96,7 +109,13 @@ Deno.serve(async () => {
         body: JSON.stringify(c),
       });
     }
-    if (logs.length > 0) await supabase.from('push_log').insert(logs);
+    if (logs.length > 0) {
+      // V12: dedup at the DB layer — second insert for the same
+      // (device_id, prayer_key, local_date) tuple is silently dropped.
+      await supabase
+        .from('push_log')
+        .upsert(logs, { onConflict: 'device_id,prayer_key,local_date', ignoreDuplicates: true });
+    }
 
     return jsonResponse({ sent: messages.length });
   } catch (e) {
@@ -105,29 +124,36 @@ Deno.serve(async () => {
   }
 });
 
-async function ensurePrayerCache(districtId: string): Promise<PrayerEntry[]> {
+async function ensurePrayerCache(districtId: string, year: number): Promise<PrayerEntry[]> {
+  // V13: composite (district_id, year) lookup so the same district can hold
+  // data for both the current and the rolling-window-next year.
   const { data: row } = await supabase
     .from('prayer_cache')
     .select('*')
     .eq('district_id', districtId)
+    .eq('year', year)
     .maybeSingle();
-  const now = new Date();
   const TTL_MS = 30 * 86400_000;
-  if (
-    row &&
-    row.year === now.getUTCFullYear() &&
-    Date.now() - new Date(row.fetched_at).getTime() < TTL_MS
-  ) {
+  if (row && Date.now() - new Date(row.fetched_at).getTime() < TTL_MS) {
     return row.data as PrayerEntry[];
   }
-  const res = await fetch(`https://ezanvakti.imsakiyem.com/api/prayer-times/${districtId}/yearly`);
-  const json = (await res.json()) as { data: PrayerEntry[] };
-  await supabase.from('prayer_cache').upsert({
-    district_id: districtId,
-    year: now.getUTCFullYear(),
-    data: json.data,
-    fetched_at: now.toISOString(),
-  });
+
+  const res = await fetch(
+    `https://ezanvakti.imsakiyem.com/api/prayer-times/${districtId}/yearly`,
+  );
+  if (!res.ok) throw new Error(`upstream-${res.status}`);
+  const json = (await res.json()) as { success?: boolean; data?: PrayerEntry[] };
+  if (!json?.success || !Array.isArray(json.data)) throw new Error('bad-envelope');
+
+  await supabase.from('prayer_cache').upsert(
+    {
+      district_id: districtId,
+      year,
+      data: json.data,
+      fetched_at: new Date().toISOString(),
+    },
+    { onConflict: 'district_id,year' },
+  );
   return json.data;
 }
 
@@ -135,22 +161,6 @@ function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
-}
-
-function formatInTz(d: Date, tz: string, pattern: 'yyyy-MM-dd' | 'HH:mm'): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(d);
-  const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? '00';
-  if (pattern === 'yyyy-MM-dd') return `${get('year')}-${get('month')}-${get('day')}`;
-  const hh = get('hour') === '24' ? '00' : get('hour');
-  return `${hh}:${get('minute')}`;
 }
 
 const TR_TITLES: Record<string, string> = {
