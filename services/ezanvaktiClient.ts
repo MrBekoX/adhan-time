@@ -5,14 +5,18 @@ import {
   ApiServerError,
   NetworkError,
 } from './errors';
+import { withRetry } from './retry';
 import type { Country, District, PrayerTime, State } from './types';
 
 import { API_PATHS, BASE_URL } from '@/constants/api';
 import { isApiResponse, type ApiResponse } from '@/utils/envelope';
 import { logger } from '@/utils/logger';
 
-
 async function get<T>(path: string): Promise<T> {
+  return withRetry(() => fetchOnce<T>(path));
+}
+
+async function fetchOnce<T>(path: string): Promise<T> {
   const url = `${BASE_URL}${path}`;
   let res: Response;
   try {
