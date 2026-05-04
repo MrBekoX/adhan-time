@@ -45,7 +45,13 @@ yarn-error.*
 *~
 
 # ── AI Assistants Config ───────────────────────
-.claude/
+# Ignore local/secret config but keep the project knowledge base (rules/commands/skills)
+# tracked — CLAUDE.md links to these files and they must travel with the repo.
+.claude/*
+!.claude/rules/
+!.claude/commands/
+!.claude/skills/
+.claude/settings.local.json
 .opencode/
 .sisyphus/
 
