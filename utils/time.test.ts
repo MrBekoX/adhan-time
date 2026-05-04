@@ -1,4 +1,11 @@
-import { addDays, formatHHMM, getDateComponentsInTz, parsePrayerTime } from './time';
+import {
+  addDays,
+  addLocalDays,
+  formatHHMM,
+  getDateComponentsInTz,
+  parsePrayerTime,
+  yearInTz,
+} from './time';
 
 describe('parsePrayerTime', () => {
   it('parses Istanbul time correctly (UTC+3)', () => {
@@ -33,5 +40,49 @@ describe('addDays', () => {
 describe('formatHHMM', () => {
   it('formats in tz', () => {
     expect(formatHHMM(new Date('2026-05-02T02:54:00.000Z'), 'Europe/Istanbul')).toBe('05:54');
+  });
+});
+
+describe('yearInTz', () => {
+  it('returns UTC year when tz aligns with UTC', () => {
+    expect(yearInTz(new Date('2026-06-15T12:00:00Z'), 'UTC')).toBe(2026);
+  });
+
+  it('returns local year when local clock crosses year boundary before UTC', () => {
+    // 2026-12-31 22:00 UTC == 2027-01-01 07:00 Asia/Tokyo
+    expect(yearInTz(new Date('2026-12-31T22:00:00Z'), 'Asia/Tokyo')).toBe(2027);
+  });
+
+  it('returns local year when local clock is still in previous year', () => {
+    // 2027-01-01 02:00 UTC == 2026-12-31 21:00 America/New_York (EST = -05)
+    expect(yearInTz(new Date('2027-01-01T02:00:00Z'), 'America/New_York')).toBe(2026);
+  });
+});
+
+describe('addLocalDays', () => {
+  it('advances within the same month', () => {
+    expect(addLocalDays('2026-05-02', 3)).toBe('2026-05-05');
+  });
+
+  it('crosses month boundary', () => {
+    expect(addLocalDays('2026-05-30', 3)).toBe('2026-06-02');
+  });
+
+  it('crosses year boundary', () => {
+    expect(addLocalDays('2026-12-25', 10)).toBe('2027-01-04');
+  });
+
+  it('does not lose a day across DST forward shift (Mar 29, 2026 Europe/Istanbul has no DST but check Europe/Berlin)', () => {
+    // March 29, 2026 = DST forward in Europe/Berlin; addLocalDays must remain calendar-arithmetic
+    expect(addLocalDays('2026-03-29', 1)).toBe('2026-03-30');
+    expect(addLocalDays('2026-03-28', 2)).toBe('2026-03-30');
+  });
+
+  it('produces 10 distinct days when used to build a 10-day rolling window', () => {
+    const start = '2026-03-28';
+    const days = Array.from({ length: 10 }, (_, i) => addLocalDays(start, i));
+    expect(new Set(days).size).toBe(10);
+    expect(days[0]).toBe('2026-03-28');
+    expect(days[9]).toBe('2026-04-06');
   });
 });

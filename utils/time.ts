@@ -50,6 +50,35 @@ export function isoDateInTz(date: Date, tz: string): string {
   return formatInTimeZone(date, tz, 'yyyy-MM-dd');
 }
 
+/**
+ * Local year of `date` evaluated in IANA tz. Returns UTC year would be wrong
+ * for late-December-in-Asia/early-January-in-Americas cases.
+ */
+export function yearInTz(date: Date, tz: string): number {
+  return Number(formatInTimeZone(date, tz, 'yyyy'));
+}
+
+/**
+ * Pure calendar-day arithmetic on `YYYY-MM-DD`. DST-safe: ignores wall-clock
+ * offsets entirely. Used for rolling-window date generation.
+ */
+export function addLocalDays(dateIso: string, days: number): string {
+  const dateOnly = dateIso.slice(0, 10);
+  const parts = dateOnly.split('-').map(Number);
+  const [y, m, d] = parts;
+  if (
+    parts.length !== 3 ||
+    !Number.isFinite(y) ||
+    !Number.isFinite(m) ||
+    !Number.isFinite(d)
+  ) {
+    throw new Error(`Invalid date: ${dateIso}`);
+  }
+  const dt = new Date(Date.UTC(y as number, (m as number) - 1, d as number));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
 export function diffInSeconds(a: Date, b: Date): number {
   return Math.floor((a.getTime() - b.getTime()) / 1000);
 }
