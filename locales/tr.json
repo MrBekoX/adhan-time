@@ -114,7 +114,7 @@
       "locationServicesOff": "Konum servisleri kapalı. Lütfen sistem ayarlarından aç.",
       "acquiringLocation": "Konum alınıyor",
       "sensorMissing": "Bu cihazda pusula sensörü bulunmuyor.",
-      "headingFallbackNote": "Hassas konum izni verirseniz daha doğru gösterilebilir.",
+      "headingFallbackNote": "Coğrafi kuzey alınamadı; manyetik kuzey bölgenize göre 5–25° sapabilir. Konum hassasiyetini açın ve pusulayı kalibre edin.",
       "calibrationTitle": "Pusula kalibrasyonu",
       "calibrationBody": "Telefonu havada 8 hareketi çiz.",
       "calibrationUnreliable": "Pusula güvenilir değil — etrafında metal/elektronik cihaz var mı?",

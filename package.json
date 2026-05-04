@@ -30,6 +30,7 @@
     "expo-router": "~6.0.23",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
+    "geomagnetism": "^0.2.0",
     "i18next": "^23.16.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",

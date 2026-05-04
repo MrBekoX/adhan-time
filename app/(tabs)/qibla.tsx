@@ -37,7 +37,12 @@ export default function QiblaScreen() {
   const location = useUserLocation({ enabled: active });
   // Heading sensor needs location permission (Android computes trueHeading from
   // GPS-derived declination). Wait until location is ready before subscribing.
-  const heading = useDeviceHeading({ enabled: active && location.kind === 'ready' });
+  // We also pass coordinates through so that on Android paths returning only
+  // magnetic heading we can apply WMM declination compensation (SPEC-K2).
+  const heading = useDeviceHeading({
+    enabled: active && location.kind === 'ready',
+    location: location.kind === 'ready' ? { lat: location.lat, lon: location.lon } : null,
+  });
 
   const qibla = useMemo(() => {
     if (location.kind !== 'ready') return null;
@@ -102,7 +107,11 @@ function Body({ location, heading, qibla }: { location: LocationStatus; heading:
   // SPEC-K3 + K3c: 'unknown' is unreliable too — a calibrating compass must never
   // emit a positive alignment signal. Suppress alignment math itself so the band
   // never latches.
-  const unreliable = heading.kind === 'ready' && isUnreliable(heading.quality);
+  // SPEC-K2: when WMM declination compensation could not be applied and we are on
+  // raw magnetic heading, treat the reading as unreliable too — the deviation can
+  // be 5–25° depending on region.
+  const unreliable =
+    heading.kind === 'ready' && (isUnreliable(heading.quality) || heading.source === 'magnetic');
   const aligned = useAlignment(delta, atKaaba || !ready || unreliable);
   useAlignmentHaptic(aligned, unreliable || atKaaba || !ready);
 
@@ -407,7 +416,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.serif,
     fontStyle: 'italic',
     fontSize: 12,
-    color: colors.textFaint,
+    color: colors.danger,
     marginTop: spacing.xs,
   },
 

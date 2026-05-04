@@ -1,8 +1,9 @@
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { HEADING_EMA_ALPHA } from '@/constants/qibla';
+import { selectHeadingSource } from '@/utils/declination';
 import {
   applyEma,
   classifyQuality,
@@ -29,10 +30,23 @@ export type HeadingStatus =
       quality: HeadingQuality;
     };
 
-type Options = { enabled: boolean };
+type Options = {
+  enabled: boolean;
+  /**
+   * User's geographic position. When provided and the OS only exposes magnetic heading
+   * (Android without GPS-derived declination), the hook applies NOAA WMM declination
+   * compensation so the resulting heading is referenced to true north (SPEC-K2).
+   */
+  location?: { lat: number; lon: number } | null;
+};
 
-export function useDeviceHeading({ enabled }: Options): HeadingStatus {
+export function useDeviceHeading({ enabled, location = null }: Options): HeadingStatus {
   const [status, setStatus] = useState<HeadingStatus>({ kind: 'idle' });
+
+  // Stash location in a ref so the watchHeadingAsync callback always sees the latest
+  // position without forcing a resubscribe (which would drop sensor stream continuity).
+  const locationRef = useRef(location);
+  locationRef.current = location;
 
   useEffect(() => {
     if (!enabled) {
@@ -49,12 +63,14 @@ export function useDeviceHeading({ enabled }: Options): HeadingStatus {
         subscription = await Location.watchHeadingAsync((reading) => {
           if (cancelled) return;
 
-          const trueHeading = reading.trueHeading ?? -1;
-          const magHeading = reading.magHeading ?? -1;
-          const raw = trueHeading >= 0 ? trueHeading : magHeading;
-          if (raw < 0) return;
+          const selected = selectHeadingSource({
+            trueHeading: reading.trueHeading ?? -1,
+            magHeading: reading.magHeading ?? -1,
+            location: locationRef.current,
+          });
+          if (selected === null) return;
 
-          smoothed = applyEma(smoothed, raw, HEADING_EMA_ALPHA);
+          smoothed = applyEma(smoothed, selected.heading, HEADING_EMA_ALPHA);
           const accuracyDeg = normalizeAccuracyForPlatform(
             reading.accuracy,
             Platform.OS as PlatformOS,
@@ -63,7 +79,7 @@ export function useDeviceHeading({ enabled }: Options): HeadingStatus {
           setStatus({
             kind: 'ready',
             heading: smoothed,
-            source: trueHeading >= 0 ? 'true' : 'magnetic',
+            source: selected.source,
             accuracyDeg,
             quality: classifyQuality(accuracyDeg),
           });

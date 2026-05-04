@@ -114,7 +114,7 @@
       "locationServicesOff": "Location services are off. Please enable them in system settings.",
       "acquiringLocation": "Acquiring location",
       "sensorMissing": "This device has no compass sensor.",
-      "headingFallbackNote": "Granting precise location may improve accuracy.",
+      "headingFallbackNote": "True north unavailable; magnetic north can deviate 5–25° depending on your region. Enable precise location and calibrate the compass.",
       "calibrationTitle": "Compass calibration",
       "calibrationBody": "Wave the phone in a figure-8 motion.",
       "calibrationUnreliable": "Compass is unreliable — are there metal or electronic devices nearby?",
