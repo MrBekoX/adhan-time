@@ -7,7 +7,8 @@
     "tryAgain": "Try again",
     "loading": "Loading",
     "search": "Search",
-    "done": "Done"
+    "done": "Done",
+    "delete": "Delete"
   },
   "prayer": {
     "imsak": { "title": "Fajr", "body": "Fajr time has started.", "bodyWithCity": "Fajr time has started in {{city}}." },
@@ -97,7 +98,13 @@
       "version": "Version",
       "soundDefault": "Default",
       "soundAdhanShort": "Short Adhan",
-      "restartRequired": "Restart the app to finish applying the text-direction change."
+      "restartRequired": "Restart the app to finish applying the text-direction change.",
+      "privacy": "Privacy",
+      "deleteAccount": "Delete My Data",
+      "deleteAccountTitle": "Delete your data?",
+      "deleteAccountBody": "Your device record on the server will be removed, the push fallback will stop, and all local data will be cleared. You will start over.",
+      "deleteAccountFailed": "Server-side deletion failed — local data was cleared anyway.",
+      "deleteAccountInProgress": "Deleting data…"
     },
     "qibla": {
       "tabLabel": "Qibla",

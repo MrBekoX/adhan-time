@@ -7,7 +7,8 @@
     "tryAgain": "Tekrar Dene",
     "loading": "Yükleniyor",
     "search": "Ara",
-    "done": "Tamam"
+    "done": "Tamam",
+    "delete": "Sil"
   },
   "prayer": {
     "imsak": { "title": "İmsak", "body": "İmsak vakti girdi.", "bodyWithCity": "{{city}} için imsak vakti girdi." },
@@ -97,7 +98,13 @@
       "version": "Sürüm",
       "soundDefault": "Varsayılan",
       "soundAdhanShort": "Kısa Ezan",
-      "restartRequired": "Yazı yönü değişikliğinin tamamlanması için uygulamayı yeniden başlat."
+      "restartRequired": "Yazı yönü değişikliğinin tamamlanması için uygulamayı yeniden başlat.",
+      "privacy": "Gizlilik",
+      "deleteAccount": "Verilerimi Sil",
+      "deleteAccountTitle": "Verilerin silinsin mi?",
+      "deleteAccountBody": "Cihaz kaydın sunucudan silinir, bildirim sigortası iptal olur. Tüm yerel veriler temizlenir ve baştan başlarsın.",
+      "deleteAccountFailed": "Sunucudan silme başarısız oldu — yerel veri yine de temizlendi.",
+      "deleteAccountInProgress": "Veriler siliniyor…"
     },
     "qibla": {
       "tabLabel": "Kıble",

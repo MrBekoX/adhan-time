@@ -46,3 +46,33 @@ export async function registerDevice(input: Omit<RegisterPayload, 'expoPushToken
     logger.warn('register-device network failed', { error: String(e) });
   }
 }
+
+/**
+ * S4: Asks the server to delete the row associated with this device's
+ * push token. Used by the "Verilerimi sil" / "Delete my data" Settings flow.
+ * Returns true on a 2xx, false on transport failure or non-2xx — the caller
+ * still proceeds with the local wipe so the user is never trapped.
+ */
+export async function unregisterDevice(): Promise<boolean> {
+  const token = await getExpoPushToken();
+  if (!token) return true;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/unregister-device`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ expoPushToken: token }),
+    });
+    if (!res.ok) {
+      logger.warn('unregister-device non-2xx', { status: res.status });
+      return false;
+    }
+    return true;
+  } catch (e) {
+    logger.warn('unregister-device network failed', { error: String(e) });
+    return false;
+  }
+}

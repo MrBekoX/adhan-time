@@ -7,7 +7,8 @@
     "tryAgain": "حاول مرة أخرى",
     "loading": "جارٍ التحميل",
     "search": "بحث",
-    "done": "تم"
+    "done": "تم",
+    "delete": "حذف"
   },
   "prayer": {
     "imsak": { "title": "الفجر", "body": "دخل وقت الفجر.", "bodyWithCity": "دخل وقت الفجر في {{city}}." },
@@ -97,7 +98,13 @@
       "version": "الإصدار",
       "soundDefault": "افتراضي",
       "soundAdhanShort": "أذان قصير",
-      "restartRequired": "أعد تشغيل التطبيق لإتمام تغيير اتجاه الكتابة."
+      "restartRequired": "أعد تشغيل التطبيق لإتمام تغيير اتجاه الكتابة.",
+      "privacy": "الخصوصية",
+      "deleteAccount": "احذف بياناتي",
+      "deleteAccountTitle": "هل تريد حذف بياناتك؟",
+      "deleteAccountBody": "سيُحذف تسجيل جهازك على الخادم، وسيتوقّف نسخ التذكير الاحتياطي، وستُمسح جميع البيانات المحلية. ستبدأ من جديد.",
+      "deleteAccountFailed": "فشل الحذف من الخادم — تم مسح البيانات المحلية على أي حال.",
+      "deleteAccountInProgress": "جارٍ حذف البيانات…"
     },
     "qibla": {
       "tabLabel": "القبلة",

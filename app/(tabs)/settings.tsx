@@ -1,7 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandRow } from '@/components/BrandRow';
@@ -11,10 +13,12 @@ import { HorizonRule } from '@/components/HorizonRule';
 import { colors, fonts, radius, spacing } from '@/components/Theme';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
 import type { Locale } from '@/locales/i18n';
+import { unregisterDevice } from '@/services/deviceRegistry';
 import { applyLocale } from '@/services/localeService';
 import { cancelAllPrayerNotifications } from '@/services/notificationScheduler';
 import { syncYearly } from '@/services/prayerService';
 import { useLocationStore } from '@/store/locationStore';
+import { usePrayerStore } from '@/store/prayerStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
 const LOCALE_OPTIONS: readonly { locale: Locale; label: string; shortLabel: string }[] = [
@@ -30,6 +34,7 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const settings = useSettingsStore();
   const location = useLocationStore((s) => s.selected);
+  const [deleting, setDeleting] = useState(false);
 
   const onSoundChange = async (sound: 'default' | 'adhanShort'): Promise<void> => {
     settings.setSound(sound);
@@ -49,6 +54,38 @@ export default function Settings() {
 
   const onChangeCity = (): void => {
     router.push('/onboarding/select-country');
+  };
+
+  const performDelete = async (): Promise<void> => {
+    setDeleting(true);
+    const serverOk = await unregisterDevice();
+    await cancelAllPrayerNotifications();
+    await AsyncStorage.clear();
+    useLocationStore.getState().reset();
+    useSettingsStore.getState().reset();
+    usePrayerStore.getState().clear();
+    setDeleting(false);
+    if (!serverOk) {
+      Alert.alert(t('screens.settings.deleteAccountFailed'));
+    }
+    router.replace('/onboarding/select-language');
+  };
+
+  const onDeleteAccount = (): void => {
+    Alert.alert(
+      t('screens.settings.deleteAccountTitle'),
+      t('screens.settings.deleteAccountBody'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: () => {
+            void performDelete();
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -128,6 +165,15 @@ export default function Settings() {
               />
             </View>
           ))}
+        </Section>
+
+        <Section title={t('screens.settings.privacy')} ordinal="v">
+          <Button
+            title={deleting ? t('screens.settings.deleteAccountInProgress') : t('screens.settings.deleteAccount')}
+            variant="secondary"
+            onPress={onDeleteAccount}
+            disabled={deleting}
+          />
         </Section>
 
         <HorizonRule variant="short" marginVertical={spacing.xl} />
