@@ -2,6 +2,7 @@ import {
   classifyQuality,
   isUnreliable,
   normalizeAccuracyForPlatform,
+  showAlignmentVisuals,
 } from '@/utils/heading';
 
 describe('classifyQuality', () => {
@@ -77,5 +78,20 @@ describe('normalizeAccuracyForPlatform', () => {
 
   it('maps Android SENSOR_STATUS_ACCURACY_LOW (1) to ~30°', () => {
     expect(normalizeAccuracyForPlatform(1, 'android')).toBe(30);
+  });
+});
+
+describe('showAlignmentVisuals (K3b)', () => {
+  it('hides halo + ring when unreliable, even if aligned latched true', () => {
+    expect(showAlignmentVisuals(true, true)).toBe(false);
+  });
+
+  it('shows halo + ring when aligned and reading is reliable', () => {
+    expect(showAlignmentVisuals(true, false)).toBe(true);
+  });
+
+  it('hides halo + ring when not aligned', () => {
+    expect(showAlignmentVisuals(false, false)).toBe(false);
+    expect(showAlignmentVisuals(false, true)).toBe(false);
   });
 });

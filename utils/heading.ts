@@ -34,6 +34,17 @@ export function isUnreliable(quality: HeadingQuality): boolean {
 }
 
 /**
+ * Whether the qibla compass should render the alignment halo and Kaaba ring.
+ *
+ * Even after the alignment hysteresis has latched on, an unreliable heading must
+ * suppress the visual "you are facing qibla" cue — otherwise the user sees a
+ * confident green ring drawn on noise.
+ */
+export function showAlignmentVisuals(aligned: boolean, unreliable: boolean): boolean {
+  return aligned && !unreliable;
+}
+
+/**
  * Cross-platform normalization of the heading accuracy reading exposed by expo-location.
  *
  * iOS reports `CLHeading.headingAccuracy` directly in degrees (with -1 sentinel before first calibration).

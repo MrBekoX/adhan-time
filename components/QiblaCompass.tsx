@@ -7,7 +7,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import KAABA_IMAGE from '../assets/images/kaaba.png';
-import { shortestRotationDelta } from '@/utils/heading';
+import { shortestRotationDelta, showAlignmentVisuals } from '@/utils/heading';
 
 import { CompassRose } from './CompassRose';
 import { colors, spacing } from './Theme';
@@ -44,9 +44,14 @@ export function QiblaCompass({ size, deviceHeading, qiblaBearing, aligned, unrel
     roseRotation.value = withTiming(roseRotation.value + delta, { duration: 80 });
   }, [deviceHeading, roseRotation]);
 
+  // SPEC-K3b: halo and ring track `aligned && !unreliable`. Without the unreliable
+  // gate, an unreliable reading whose hysteresis happened to latch could still light
+  // up the green halo on noise.
+  const visualsOn = showAlignmentVisuals(aligned, unreliable);
+
   useEffect(() => {
-    haloOpacity.value = withTiming(aligned ? 1 : 0, { duration: 250 });
-  }, [aligned, haloOpacity]);
+    haloOpacity.value = withTiming(visualsOn ? 1 : 0, { duration: 250 });
+  }, [visualsOn, haloOpacity]);
 
   const roseStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${roseRotation.value}deg` }],
@@ -125,7 +130,7 @@ export function QiblaCompass({ size, deviceHeading, qiblaBearing, aligned, unrel
             style={styles.kaabaImage}
             resizeMode="contain"
           />
-          {aligned && (
+          {visualsOn && (
             <View
               style={[
                 StyleSheet.absoluteFillObject,
