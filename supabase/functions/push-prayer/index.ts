@@ -3,6 +3,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 import { verifyCronSecret } from '../_shared/cron-auth.ts';
 import {
+  type ExpoMessage,
+  type ExpoResponseBody,
+  type Pair,
+  type PushLogRow,
+  processBatchResponse,
+} from '../_shared/expo-push.ts';
+import {
   formatInTz,
   isWithinPrayerWindow,
   localYearInTz,
@@ -36,21 +43,6 @@ type PrayerEntry = {
   times: Record<PrayerKey, string>;
 };
 
-type ExpoMessage = {
-  to: string;
-  title: string;
-  body: string;
-  sound?: string | null;
-  data?: Record<string, unknown>;
-};
-
-type PushLogRow = {
-  device_id: string;
-  prayer_key: string;
-  scheduled_for: string;
-  local_date: string;
-};
-
 Deno.serve(async (req: Request) => {
   if (!verifyCronSecret(req, CRON_SECRET)) {
     return jsonResponse({ error: 'forbidden' }, 403);
@@ -68,8 +60,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const now = new Date();
-    const messages: ExpoMessage[] = [];
-    const logs: PushLogRow[] = [];
+    const pairs: Pair[] = [];
 
     for (const dev of devices as Device[]) {
       try {
@@ -86,18 +77,20 @@ Deno.serve(async (req: Request) => {
           if (!localTime) continue;
           if (!isWithinPrayerWindow(todayInTz, localTime, tz, now)) continue;
 
-          messages.push({
-            to: dev.expo_push_token,
-            title: titleFor(key, dev.locale),
-            body: bodyFor(key, dev.district_name, dev.locale),
-            sound: dev.sound === 'default' ? 'default' : null,
-            data: { prayerKey: key, source: 'server' },
-          });
-          logs.push({
-            device_id: dev.id,
-            prayer_key: key,
-            scheduled_for: now.toISOString(),
-            local_date: todayInTz,
+          pairs.push({
+            message: {
+              to: dev.expo_push_token,
+              title: titleFor(key, dev.locale),
+              body: bodyFor(key, dev.district_name, dev.locale),
+              sound: dev.sound === 'default' ? 'default' : null,
+              data: { prayerKey: key, source: 'server' },
+            },
+            log: {
+              device_id: dev.id,
+              prayer_key: key,
+              scheduled_for: now.toISOString(),
+              local_date: todayInTz,
+            },
           });
         }
       } catch (e) {
@@ -105,26 +98,79 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    if (messages.length === 0) return jsonResponse({ sent: 0 });
+    if (pairs.length === 0) return jsonResponse({ sent: 0 });
 
-    for (const c of chunk(messages, 100)) {
+    const enrichedLogs: PushLogRow[] = [];
+    const tokensToRemove = new Set<string>();
+    let okCount = 0;
+
+    for (const chunkPairs of chunk(pairs, 100)) {
+      const messages: ExpoMessage[] = chunkPairs.map((p) => p.message);
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (EXPO_TOKEN) headers.Authorization = `Bearer ${EXPO_TOKEN}`;
-      await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(c),
-      });
+
+      let response;
+      try {
+        response = await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(messages),
+        });
+      } catch (e) {
+        console.error('expo-send transport failed', e);
+        for (const p of chunkPairs) {
+          enrichedLogs.push({
+            ...p.log,
+            expo_response: { status: 'error', message: 'transport-failed' },
+          });
+        }
+        continue;
+      }
+
+      let body: ExpoResponseBody | undefined;
+      try {
+        body = response.ok ? ((await response.json()) as ExpoResponseBody) : undefined;
+      } catch (e) {
+        console.error('expo-send body parse failed', e);
+      }
+
+      const outcome = processBatchResponse(
+        chunkPairs,
+        response.ok ? { ok: true, body } : { ok: false, status: response.status },
+      );
+      enrichedLogs.push(...outcome.enrichedLogs);
+      for (const tok of outcome.tokensToRemove) tokensToRemove.add(tok);
+      for (const log of outcome.enrichedLogs) {
+        const t = log.expo_response;
+        if (t && t.status === 'ok') okCount++;
+      }
+
+      if (!response.ok) {
+        console.error('expo-send non-2xx', { status: response.status });
+      }
     }
-    if (logs.length > 0) {
+
+    // F1: clean up DeviceNotRegistered tokens so they stop getting retried.
+    if (tokensToRemove.size > 0) {
+      await supabase
+        .from('devices')
+        .delete()
+        .in('expo_push_token', Array.from(tokensToRemove));
+      console.info('devices-removed', { count: tokensToRemove.size });
+    }
+
+    if (enrichedLogs.length > 0) {
       // V12: dedup at the DB layer — second insert for the same
       // (device_id, prayer_key, local_date) tuple is silently dropped.
       await supabase
         .from('push_log')
-        .upsert(logs, { onConflict: 'device_id,prayer_key,local_date', ignoreDuplicates: true });
+        .upsert(enrichedLogs, {
+          onConflict: 'device_id,prayer_key,local_date',
+          ignoreDuplicates: true,
+        });
     }
 
-    return jsonResponse({ sent: messages.length });
+    return jsonResponse({ sent: okCount, attempted: pairs.length, removed: tokensToRemove.size });
   } catch (e) {
     console.error(e);
     return jsonResponse({ error: String(e) }, 500);
