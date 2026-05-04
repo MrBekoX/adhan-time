@@ -13,6 +13,10 @@ type State = {
   enabledPrayers: PrayerKey[];
   onboardingCompleted: boolean;
   notificationPermissionDenied: boolean;
+  // V16+F6: persisted across launches so a registration failure during
+  // onboarding (or yesterday's outage) is retried on the next foreground tick
+  // even after the app process is killed.
+  deviceRegistrationPending: boolean;
   hydrated: boolean;
 };
 
@@ -22,6 +26,7 @@ type Actions = {
   togglePrayer: (key: PrayerKey) => void;
   setOnboardingCompleted: (v: boolean) => void;
   setNotificationPermissionDenied: (v: boolean) => void;
+  setDeviceRegistrationPending: (v: boolean) => void;
   setHydrated: (v: boolean) => void;
   reset: () => void;
 };
@@ -32,6 +37,7 @@ const initial: State = {
   enabledPrayers: [...DEFAULT_ENABLED_PRAYERS],
   onboardingCompleted: false,
   notificationPermissionDenied: false,
+  deviceRegistrationPending: false,
   hydrated: false,
 };
 
@@ -48,6 +54,7 @@ export const useSettingsStore = create<State & Actions>()(
       },
       setOnboardingCompleted: (v) => set({ onboardingCompleted: v }),
       setNotificationPermissionDenied: (v) => set({ notificationPermissionDenied: v }),
+      setDeviceRegistrationPending: (v) => set({ deviceRegistrationPending: v }),
       setHydrated: (v) => set({ hydrated: v }),
       reset: () =>
         set({
@@ -60,7 +67,7 @@ export const useSettingsStore = create<State & Actions>()(
     }),
     {
       name: 'settings',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({
         locale: s.locale,
@@ -68,6 +75,7 @@ export const useSettingsStore = create<State & Actions>()(
         enabledPrayers: s.enabledPrayers,
         onboardingCompleted: s.onboardingCompleted,
         notificationPermissionDenied: s.notificationPermissionDenied,
+        deviceRegistrationPending: s.deviceRegistrationPending,
       }),
       migrate: (persisted, version) => migrateSettingsState(persisted, version) as State,
       onRehydrateStorage: () => (state) => {

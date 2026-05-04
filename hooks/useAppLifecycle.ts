@@ -42,7 +42,11 @@ export async function runLifecycleOnce(): Promise<void> {
     if (cur?.code === 'sync-failed') useUiStore.getState().setError(null);
   }
 
-  await registerDevice({
+  // V16+F6: registerDevice returns false after exhausting its 3-retry chain.
+  // Persist a "pending" flag so the next foreground tick re-attempts even
+  // after a process kill, and surface a banner so the user can manually
+  // retry from Settings. Successful registration clears both.
+  const registered = await registerDevice({
     districtId: loc.districtId,
     districtName: loc.districtName,
     countryName: loc.countryName,
@@ -51,6 +55,17 @@ export async function runLifecycleOnce(): Promise<void> {
     sound: settings.sound,
     enabledPrayers: settings.enabledPrayers,
   });
+
+  if (registered) {
+    if (useSettingsStore.getState().deviceRegistrationPending) {
+      useSettingsStore.getState().setDeviceRegistrationPending(false);
+    }
+    const cur = useUiStore.getState().lastError;
+    if (cur?.code === 'device-registration-failed') useUiStore.getState().setError(null);
+  } else {
+    useSettingsStore.getState().setDeviceRegistrationPending(true);
+    useUiStore.getState().setError({ code: 'device-registration-failed' });
+  }
 }
 
 /**

@@ -125,7 +125,11 @@
       "deleteAccountTitle": "Verilerin silinsin mi?",
       "deleteAccountBody": "Cihaz kaydın sunucudan silinir, bildirim sigortası iptal olur. Tüm yerel veriler temizlenir ve baştan başlarsın.",
       "deleteAccountFailed": "Sunucudan silme başarısız oldu — yerel veri yine de temizlendi.",
-      "deleteAccountInProgress": "Veriler siliniyor…"
+      "deleteAccountInProgress": "Veriler siliniyor…",
+      "deviceRegistration": "Sunucu Kaydı",
+      "retryDeviceRegistration": "Cihazı Yeniden Kaydet",
+      "retryingDeviceRegistration": "Yeniden kaydediliyor…",
+      "deviceRegistrationFailedHint": "Sunucu kaydı henüz tamamlanmadı. Tekrar dene."
     },
     "qibla": {
       "tabLabel": "Kıble",

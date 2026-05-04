@@ -70,3 +70,7 @@ supabase/.branches/
 
 # ── Misc ───────────────────────────────────────
 *.tar.gz
+
+# ── Local scratch (gh pr diff dumps, scratch notes) ──
+*.diff
+!docs/**/*.diff

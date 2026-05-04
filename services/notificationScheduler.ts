@@ -5,11 +5,14 @@ import { Platform } from 'react-native';
 import type { PrayerTime, ScheduledPrayer, YearlyPrayerCache } from './types';
 
 import {
+  ALL_PRAYERS_COUNT,
   ANDROID_CHANNEL_CUSTOM_ID,
   ANDROID_CHANNEL_CUSTOM_NAME,
   ANDROID_CHANNEL_ID,
   ANDROID_CHANNEL_NAME,
+  PENDING_NOTIFICATION_HARD_CAP,
   ROLLING_WINDOW_DAYS,
+  ROLLING_WINDOW_DAYS_ALL_PRAYERS,
   SOUNDS,
   type SoundKey,
   buildNotificationId,
@@ -58,13 +61,26 @@ export async function reconcile(
   cache: YearlyPrayerCache,
   options: ReconcileOptions = {},
 ): Promise<{ scheduled: number; cancelled: number; failed: number; total: number }> {
-  const windowDays = options.windowDays ?? ROLLING_WINDOW_DAYS;
   const enabled = options.enabledPrayers ?? [...PRAYER_KEYS];
+  // V2: when all six prayers are on, default to an 8-day window so the queue
+  // lands at 48 — well under the iOS 50 cap. Caller can still pass an explicit
+  // windowDays to override; the hard slice below is the absolute backstop.
+  const defaultWindow =
+    enabled.length === ALL_PRAYERS_COUNT
+      ? ROLLING_WINDOW_DAYS_ALL_PRAYERS
+      : ROLLING_WINDOW_DAYS;
+  const windowDays = options.windowDays ?? defaultWindow;
   const soundKey: SoundKey = options.sound ?? 'default';
   const tz = cache.timezone;
   const now = new Date();
 
-  const target = computeTargets(cache, tz, now, windowDays, enabled);
+  // V2: hard cap regardless of how the inputs combine. Even if a future
+  // override or scheduler bug produces > 50 raw targets, we never push past
+  // the iOS pending limit silently.
+  const target = computeTargets(cache, tz, now, windowDays, enabled).slice(
+    0,
+    PENDING_NOTIFICATION_HARD_CAP,
+  );
 
   const pendingAll = await Notifications.getAllScheduledNotificationsAsync();
   const pendingPrayer = pendingAll.filter((n) => isPrayerNotificationId(n.identifier));

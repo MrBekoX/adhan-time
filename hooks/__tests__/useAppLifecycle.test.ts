@@ -13,7 +13,7 @@ jest.mock('@/services/prayerService', () => ({
 }));
 
 jest.mock('@/services/deviceRegistry', () => ({
-  registerDevice: jest.fn(),
+  registerDevice: jest.fn(async () => true),
 }));
 
 const syncMock = syncYearly as jest.Mock;
@@ -33,7 +33,7 @@ const VALID_LOCATION = {
 describe('runLifecycleOnce — F4 sync-fail surfaces to uiStore', () => {
   beforeEach(() => {
     syncMock.mockReset();
-    registerMock.mockReset().mockResolvedValue(undefined);
+    registerMock.mockReset().mockResolvedValue(true);
     getPermissionsAsync.mockReset().mockResolvedValue({ status: 'granted' });
     useUiStore.setState({ lastError: null });
     useLocationStore.setState({ selected: VALID_LOCATION });
@@ -42,6 +42,7 @@ describe('runLifecycleOnce — F4 sync-fail surfaces to uiStore', () => {
       sound: 'default',
       enabledPrayers: ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'],
       notificationPermissionDenied: false,
+      deviceRegistrationPending: false,
     });
   });
 
@@ -94,7 +95,7 @@ describe('runLifecycleOnce — F4 sync-fail surfaces to uiStore', () => {
 describe('runLifecycleOnce — V5 permission reconciliation', () => {
   beforeEach(() => {
     syncMock.mockReset().mockResolvedValue({ entries: [] });
-    registerMock.mockReset().mockResolvedValue(undefined);
+    registerMock.mockReset().mockResolvedValue(true);
     getPermissionsAsync.mockReset();
     useUiStore.setState({ lastError: null });
     useLocationStore.setState({ selected: VALID_LOCATION });
@@ -103,6 +104,7 @@ describe('runLifecycleOnce — V5 permission reconciliation', () => {
       sound: 'default',
       enabledPrayers: ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'],
       notificationPermissionDenied: false,
+      deviceRegistrationPending: false,
     });
   });
 
@@ -139,5 +141,64 @@ describe('runLifecycleOnce — V5 permission reconciliation', () => {
     await expect(runLifecycleOnce()).resolves.toBeUndefined();
     // sync still runs even when the permission probe failed.
     expect(syncMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('runLifecycleOnce — V16+F6 device registration retry surface', () => {
+  beforeEach(() => {
+    syncMock.mockReset().mockResolvedValue({ entries: [] });
+    registerMock.mockReset();
+    getPermissionsAsync.mockReset().mockResolvedValue({ status: 'granted' });
+    useUiStore.setState({ lastError: null });
+    useLocationStore.setState({ selected: VALID_LOCATION });
+    useSettingsStore.setState({
+      locale: 'tr',
+      sound: 'default',
+      enabledPrayers: ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'],
+      notificationPermissionDenied: false,
+      deviceRegistrationPending: false,
+    });
+  });
+
+  it('sets deviceRegistrationPending=true and uiStore error when registerDevice returns false', async () => {
+    registerMock.mockResolvedValueOnce(false);
+
+    await runLifecycleOnce();
+
+    expect(useSettingsStore.getState().deviceRegistrationPending).toBe(true);
+    expect(useUiStore.getState().lastError?.code).toBe('device-registration-failed');
+  });
+
+  it('clears the pending flag and stale banner when registerDevice succeeds', async () => {
+    useSettingsStore.setState({ deviceRegistrationPending: true });
+    useUiStore.setState({ lastError: { code: 'device-registration-failed' } });
+    registerMock.mockResolvedValueOnce(true);
+
+    await runLifecycleOnce();
+
+    expect(useSettingsStore.getState().deviceRegistrationPending).toBe(false);
+    expect(useUiStore.getState().lastError).toBeNull();
+  });
+
+  it('does NOT touch sync-failed banners when only device registration is the issue', async () => {
+    useUiStore.setState({ lastError: { code: 'sync-failed' } });
+    registerMock.mockResolvedValueOnce(true);
+
+    await runLifecycleOnce();
+
+    // Sync succeeded, so the sync-failed clearing path runs and clears it.
+    // (This guards the cleanup precedence — registration success must not
+    // leave a sync-failed banner up.)
+    expect(useUiStore.getState().lastError).toBeNull();
+  });
+
+  it('keeps an existing pending flag set when registration still fails', async () => {
+    useSettingsStore.setState({ deviceRegistrationPending: true });
+    registerMock.mockResolvedValueOnce(false);
+
+    await runLifecycleOnce();
+
+    expect(useSettingsStore.getState().deviceRegistrationPending).toBe(true);
+    expect(useUiStore.getState().lastError?.code).toBe('device-registration-failed');
   });
 });

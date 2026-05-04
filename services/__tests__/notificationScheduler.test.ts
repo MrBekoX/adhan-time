@@ -238,6 +238,75 @@ describe('reconcile — F2 partial schedule isolation', () => {
   });
 });
 
+describe('V2 — iOS pending limit hard cap (≤ 50 notifications)', () => {
+  const schedule = Notifications.scheduleNotificationAsync as jest.Mock;
+  const cancel = Notifications.cancelScheduledNotificationAsync as jest.Mock;
+  const getAll = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
+
+  const FAKE_NOW = new Date('2026-05-02T00:00:00Z');
+
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(FAKE_NOW);
+    schedule.mockReset().mockResolvedValue('id');
+    cancel.mockReset().mockResolvedValue(undefined);
+    getAll.mockReset().mockResolvedValue([]);
+    useUiStore.setState({ lastError: null });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function freshCache(): YearlyPrayerCache {
+    return makeCache(range('2026-05-02', 14));
+  }
+
+  it('reconcile auto-shrinks the window to 8 days when all 6 prayers are enabled', async () => {
+    // 6 prayers × 10 default days would be 60 notifications, busting the iOS
+    // 64-pending cap once other system notifications share the queue.
+    const result = await reconcile(freshCache(), { enabledPrayers: [...PRAYER_KEYS] });
+
+    expect(result.scheduled).toBe(48); // 6 × 8 days
+    expect(result.total).toBe(48);
+    expect(schedule).toHaveBeenCalledTimes(48);
+  });
+
+  it('reconcile keeps the full 50 when only 5 prayers are enabled', async () => {
+    const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+
+    const result = await reconcile(freshCache(), { enabledPrayers: enabled });
+
+    expect(result.scheduled).toBe(50);
+    expect(result.total).toBe(50);
+  });
+
+  it('reconcile honors an explicit windowDays override (no auto-shrink)', async () => {
+    // Caller is responsible — if they ask for 10 days × 6 prayers explicitly
+    // they get 60 targets only IF the hard cap allows; the 50 cap still wins.
+    const result = await reconcile(freshCache(), {
+      enabledPrayers: [...PRAYER_KEYS],
+      windowDays: 10,
+    });
+
+    // 10 × 6 = 60 raw, but the 50-cap clamps it.
+    expect(result.scheduled).toBe(50);
+    expect(result.total).toBe(50);
+  });
+
+  it('reconcile clamps a manipulated 70-target list down to 50', async () => {
+    // Long cache + future dates so a wide windowDays produces > 50 raw targets.
+    const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+    const result = await reconcile(makeCache(range('2026-05-02', 20)), {
+      enabledPrayers: enabled,
+      windowDays: 14, // 14 × 5 = 70 raw
+    });
+
+    expect(result.total).toBe(50);
+    expect(result.scheduled).toBe(50);
+    expect(schedule).toHaveBeenCalledTimes(50);
+  });
+});
+
 describe('V8 — sound key mapping + Android custom channel', () => {
   const schedule = Notifications.scheduleNotificationAsync as jest.Mock;
   const cancel = Notifications.cancelScheduledNotificationAsync as jest.Mock;

@@ -125,7 +125,11 @@
       "deleteAccountTitle": "删除你的数据？",
       "deleteAccountBody": "服务器上的设备记录将被删除，推送备份将停止，所有本地数据将被清除。你将从头开始。",
       "deleteAccountFailed": "服务器删除失败 — 本地数据仍已清除。",
-      "deleteAccountInProgress": "正在删除数据…"
+      "deleteAccountInProgress": "正在删除数据…",
+      "deviceRegistration": "服务器注册",
+      "retryDeviceRegistration": "重新注册设备",
+      "retryingDeviceRegistration": "重新注册中…",
+      "deviceRegistrationFailedHint": "设备尚未在推送备份服务上注册。请重试。"
     },
     "qibla": {
       "tabLabel": "朝向",

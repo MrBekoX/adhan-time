@@ -13,7 +13,7 @@ import { HorizonRule } from '@/components/HorizonRule';
 import { colors, fonts, radius, spacing } from '@/components/Theme';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
 import type { Locale } from '@/locales/i18n';
-import { unregisterDevice } from '@/services/deviceRegistry';
+import { registerDevice, unregisterDevice } from '@/services/deviceRegistry';
 import { applyLocale } from '@/services/localeService';
 import { cancelAllPrayerNotifications } from '@/services/notificationScheduler';
 import { scheduleAfterToggle, syncYearly } from '@/services/prayerService';
@@ -36,7 +36,9 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const settings = useSettingsStore();
   const location = useLocationStore((s) => s.selected);
+  const deviceRegistrationPending = useSettingsStore((s) => s.deviceRegistrationPending);
   const [deleting, setDeleting] = useState(false);
+  const [retryingRegistration, setRetryingRegistration] = useState(false);
 
   const onSoundChange = async (sound: 'default' | 'adhanShort'): Promise<void> => {
     settings.setSound(sound);
@@ -72,6 +74,34 @@ export default function Settings() {
 
   const onChangeCity = (): void => {
     router.push('/onboarding/select-country');
+  };
+
+  const onRetryDeviceRegistration = async (): Promise<void> => {
+    if (!location) return;
+    setRetryingRegistration(true);
+    try {
+      const ok = await registerDevice({
+        districtId: location.districtId,
+        districtName: location.districtName,
+        countryName: location.countryName,
+        timezone: location.timezone,
+        locale: settings.locale,
+        sound: settings.sound,
+        enabledPrayers: settings.enabledPrayers,
+      });
+      if (ok) {
+        useSettingsStore.getState().setDeviceRegistrationPending(false);
+        const cur = useUiStore.getState().lastError;
+        if (cur?.code === 'device-registration-failed') useUiStore.getState().setError(null);
+      } else {
+        useUiStore.getState().setError({ code: 'device-registration-failed' });
+      }
+    } catch (e) {
+      logger.warn('settings-retry-device-registration-failed', { error: String(e) });
+      useUiStore.getState().setError({ code: 'device-registration-failed' });
+    } finally {
+      setRetryingRegistration(false);
+    }
   };
 
   const performDelete = async (): Promise<void> => {
@@ -191,7 +221,29 @@ export default function Settings() {
           ))}
         </Section>
 
-        <Section title={t('screens.settings.privacy')} ordinal="v">
+        {deviceRegistrationPending && (
+          <Section title={t('screens.settings.deviceRegistration')} ordinal="v">
+            <Text style={styles.subvalue}>
+              {t('screens.settings.deviceRegistrationFailedHint')}
+            </Text>
+            <View style={styles.spacer} />
+            <Button
+              title={
+                retryingRegistration
+                  ? t('screens.settings.retryingDeviceRegistration')
+                  : t('screens.settings.retryDeviceRegistration')
+              }
+              variant="secondary"
+              onPress={() => void onRetryDeviceRegistration()}
+              disabled={retryingRegistration || !location}
+            />
+          </Section>
+        )}
+
+        <Section
+          title={t('screens.settings.privacy')}
+          ordinal={deviceRegistrationPending ? 'vi' : 'v'}
+        >
           <Button
             title={deleting ? t('screens.settings.deleteAccountInProgress') : t('screens.settings.deleteAccount')}
             variant="secondary"

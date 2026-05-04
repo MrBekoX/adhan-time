@@ -125,7 +125,11 @@
       "deleteAccountTitle": "Delete your data?",
       "deleteAccountBody": "Your device record on the server will be removed, the push fallback will stop, and all local data will be cleared. You will start over.",
       "deleteAccountFailed": "Server-side deletion failed — local data was cleared anyway.",
-      "deleteAccountInProgress": "Deleting data…"
+      "deleteAccountInProgress": "Deleting data…",
+      "deviceRegistration": "Server Registration",
+      "retryDeviceRegistration": "Retry Device Registration",
+      "retryingDeviceRegistration": "Retrying…",
+      "deviceRegistrationFailedHint": "Your device hasn't been registered with the push fallback yet. Try again."
     },
     "qibla": {
       "tabLabel": "Qibla",
