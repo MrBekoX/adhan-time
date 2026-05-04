@@ -36,9 +36,11 @@
     },
     "banner": {
       "sync-failed": "Veriler güncellenemedi. Eski bilgileri görüyorsun.",
-      "partial-schedule": "Bazı bildirimler zamanlanamadı.",
+      "partial-sync": "Yıl sonu vakitleri kısmen güncellenemedi. Aralık-Ocak geçişinde bazı bildirimler eksik kalabilir.",
+      "partial-schedule": "Bazı bildirimler zamanlanamadı veya iptal edilemedi.",
       "hydration-timeout": "Uygulama bazı verileri okuyamadı.",
       "device-registration-failed": "Bildirimler için sunucu kaydı yapılamadı.",
+      "device-registration-incompatible": "Bu uygulama sürümü sunucuyla uyumlu değil — lütfen mağazadan güncelle.",
       "toggle-failed": "Bildirim ayarın kaydedildi ama yeniden zamanlanamadı."
     },
     "onboardingFinalize": {

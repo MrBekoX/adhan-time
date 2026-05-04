@@ -3,6 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 import { verifyCronSecret } from '../_shared/cron-auth.ts';
 import {
+  buildDeviceErrorLog,
   type ExpoMessage,
   type ExpoResponseBody,
   type Pair,
@@ -59,6 +60,7 @@ Deno.serve(async (req: Request) => {
 
     const now = new Date();
     const pairs: Pair[] = [];
+    const deviceErrorLogs: PushLogRow[] = [];
 
     for (const dev of devices as Device[]) {
       try {
@@ -93,12 +95,34 @@ Deno.serve(async (req: Request) => {
         }
       } catch (e) {
         console.error('device loop error', dev.id, e);
+        // Record an audit row so the (otherwise silent) failure shows up
+        // in the push_log SQL view and ops can chase the bad device row.
+        let localDate: string | undefined;
+        try {
+          localDate = formatInTz(now, dev.timezone, 'yyyy-MM-dd');
+        } catch {
+          // Bad tz is one of the loop-failure causes; UTC fallback is fine.
+        }
+        deviceErrorLogs.push(buildDeviceErrorLog(dev.id, now, e, localDate));
       }
     }
 
-    if (pairs.length === 0) return jsonResponse({ sent: 0 });
+    const enrichedLogs: PushLogRow[] = [...deviceErrorLogs];
 
-    const enrichedLogs: PushLogRow[] = [];
+    if (pairs.length === 0) {
+      // Even when nothing was sent, flush any per-device audit rows so a
+      // silently-failing device doesn't disappear from push_log forever.
+      if (enrichedLogs.length > 0) {
+        await supabase
+          .from('push_log')
+          .upsert(enrichedLogs, {
+            onConflict: 'device_id,prayer_key,local_date',
+            ignoreDuplicates: true,
+          });
+      }
+      return jsonResponse({ sent: 0, deviceErrors: deviceErrorLogs.length });
+    }
+
     const tokensToRemove = new Set<string>();
     let okCount = 0;
 
@@ -126,15 +150,27 @@ Deno.serve(async (req: Request) => {
       }
 
       let body: ExpoResponseBody | undefined;
+      let bodyParseFailed = false;
       try {
         body = response.ok ? ((await response.json()) as ExpoResponseBody) : undefined;
       } catch (e) {
         console.error('expo-send body parse failed', e);
+        bodyParseFailed = true;
       }
 
+      // Issue #8: a 200 with a malformed body is not a success. Fall through
+      // to the !ok branch so DeviceNotRegistered cleanup still has a chance
+      // (we won't see tickets, but at least each pair gets a recorded
+      // parse-failed log instead of a fake "ok").
       const outcome = processBatchResponse(
         chunkPairs,
-        response.ok ? { ok: true, body } : { ok: false, status: response.status },
+        response.ok && !bodyParseFailed
+          ? { ok: true, body }
+          : {
+              ok: false,
+              status: response.status,
+              reason: bodyParseFailed ? 'body-parse-failed' : undefined,
+            },
       );
       enrichedLogs.push(...outcome.enrichedLogs);
       for (const tok of outcome.tokensToRemove) tokensToRemove.add(tok);

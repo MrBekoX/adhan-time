@@ -35,18 +35,22 @@ export async function runLifecycleOnce(): Promise<void> {
     useUiStore.getState().setError({ code: 'sync-failed', message: String(e) });
   }
 
-  // Clear a stale sync-failed banner the next time the cycle succeeds — a
-  // server outage from yesterday should not haunt today's UI.
+  // Clear a stale 'sync-failed' banner once the cycle succeeds — a server
+  // outage from yesterday should not haunt today's UI. The 'partial-sync'
+  // banner is intentionally NOT cleared here: it can be set INSIDE
+  // syncYearly by fetchNextYearStart even on a successful run, so a clear
+  // pass at this point would clobber the banner the same call just emitted.
   if (!syncFailed) {
     const cur = useUiStore.getState().lastError;
     if (cur?.code === 'sync-failed') useUiStore.getState().setError(null);
   }
 
-  // V16+F6: registerDevice returns false after exhausting its 3-retry chain.
-  // Persist a "pending" flag so the next foreground tick re-attempts even
-  // after a process kill, and surface a banner so the user can manually
-  // retry from Settings. Successful registration clears both.
-  const registered = await registerDevice({
+  // The 'transient' branch persists a pending flag so the next foreground
+  // tick re-attempts (even across process kills) and surfaces the generic
+  // banner with a retry. The 'incompatible' branch (4xx — schema drift,
+  // signing-key rotation) emits a distinct banner pointing the user at an
+  // app update; we do NOT set pending because retry won't help.
+  const result = await registerDevice({
     districtId: loc.districtId,
     districtName: loc.districtName,
     countryName: loc.countryName,
@@ -56,16 +60,34 @@ export async function runLifecycleOnce(): Promise<void> {
     enabledPrayers: settings.enabledPrayers,
   });
 
-  if (registered) {
-    if (useSettingsStore.getState().deviceRegistrationPending) {
-      useSettingsStore.getState().setDeviceRegistrationPending(false);
+  const settingsActions = useSettingsStore.getState();
+  const ui = useUiStore.getState();
+
+  if (result.ok) {
+    if (settingsActions.deviceRegistrationPending) {
+      settingsActions.setDeviceRegistrationPending(false);
     }
-    const cur = useUiStore.getState().lastError;
-    if (cur?.code === 'device-registration-failed') useUiStore.getState().setError(null);
-  } else {
-    useSettingsStore.getState().setDeviceRegistrationPending(true);
-    useUiStore.getState().setError({ code: 'device-registration-failed' });
+    const cur = ui.lastError;
+    if (
+      cur?.code === 'device-registration-failed' ||
+      cur?.code === 'device-registration-incompatible'
+    ) {
+      ui.setError(null);
+    }
+  } else if (result.reason === 'incompatible') {
+    if (settingsActions.deviceRegistrationPending) {
+      settingsActions.setDeviceRegistrationPending(false);
+    }
+    ui.setError({
+      code: 'device-registration-incompatible',
+      data: { status: result.status },
+    });
+  } else if (result.reason === 'transient') {
+    settingsActions.setDeviceRegistrationPending(true);
+    ui.setError({ code: 'device-registration-failed' });
   }
+  // 'no-token': nothing actionable. The user never granted push permission
+  // (V5 already surfaced that path through notificationPermissionDenied).
 }
 
 /**

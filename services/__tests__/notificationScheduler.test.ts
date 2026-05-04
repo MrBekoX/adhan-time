@@ -7,6 +7,7 @@ import type { PrayerTime, YearlyPrayerCache } from '../types';
 import {
   ANDROID_CHANNEL_CUSTOM_ID,
   ANDROID_CHANNEL_ID,
+  PENDING_NOTIFICATION_HARD_CAP,
 } from '@/constants/notifications';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
 import { useUiStore } from '@/store/uiStore';
@@ -266,7 +267,11 @@ describe('V2 — iOS pending limit hard cap (≤ 50 notifications)', () => {
     // 64-pending cap once other system notifications share the queue.
     const result = await reconcile(freshCache(), { enabledPrayers: [...PRAYER_KEYS] });
 
-    expect(result.scheduled).toBe(48); // 6 × 8 days
+    // Primary invariant: never exceed the iOS pending-queue cap. The exact 48
+    // is an incidental derivation (6 × ROLLING_WINDOW_DAYS_ALL_PRAYERS); a
+    // future tweak to that constant must still keep the total under the cap.
+    expect(result.scheduled).toBeLessThanOrEqual(PENDING_NOTIFICATION_HARD_CAP);
+    expect(result.scheduled).toBe(48); // secondary anchor: 6 × 8 today
     expect(result.total).toBe(48);
     expect(schedule).toHaveBeenCalledTimes(48);
   });
@@ -291,6 +296,41 @@ describe('V2 — iOS pending limit hard cap (≤ 50 notifications)', () => {
     // 10 × 6 = 60 raw, but the 50-cap clamps it.
     expect(result.scheduled).toBe(50);
     expect(result.total).toBe(50);
+  });
+
+  it('cancel pass survives a single rejection and still schedules new targets', async () => {
+    // Mirrors the F2 schedule-pass contract: a native crash mid-cancel of a
+    // stale notification must not block the new schedule pass below.
+    const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+    const stalePending = [
+      { identifier: 'prayer-9541-2026-04-30-imsak' }, // not in fresh window
+      { identifier: 'prayer-9541-2026-04-30-gunes' },
+      { identifier: 'prayer-9541-2026-04-30-ogle' },
+    ];
+    getAll.mockResolvedValueOnce(stalePending);
+    let cancelCount = 0;
+    cancel.mockImplementation(async () => {
+      cancelCount++;
+      if (cancelCount === 2) throw new Error('native-cancel-crash');
+    });
+
+    const result = await reconcile(freshCache(), {
+      enabledPrayers: enabled,
+      windowDays: 10,
+    });
+
+    // All 3 stale ids attempted (not aborted on the rejection).
+    expect(cancel).toHaveBeenCalledTimes(3);
+    // Schedule pass still ran for all 50 fresh targets.
+    expect(result.scheduled).toBe(50);
+    expect(schedule).toHaveBeenCalledTimes(50);
+    // partial-schedule banner reports the cancel-side failure too — without
+    // the data field, a future refactor could drop cancelFailed from the OR
+    // and the user would silently miss the cancel-side signal.
+    const err = useUiStore.getState().lastError;
+    expect(err?.code).toBe('partial-schedule');
+    expect(err?.data?.failed).toBe(0);
+    expect(err?.data?.cancelFailed).toBe(1);
   });
 
   it('reconcile clamps a manipulated 70-target list down to 50', async () => {

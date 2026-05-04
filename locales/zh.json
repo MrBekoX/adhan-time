@@ -36,9 +36,11 @@
     },
     "banner": {
       "sync-failed": "数据未能更新,正在显示上次保存的内容。",
-      "partial-schedule": "部分通知未能成功安排。",
+      "partial-sync": "年末数据未能完全更新,12 月至 1 月间部分通知可能缺失。",
+      "partial-schedule": "部分通知未能成功安排或移除。",
       "hydration-timeout": "部分本地数据无法读取。",
       "device-registration-failed": "通知所需的服务器注册失败。",
+      "device-registration-incompatible": "当前应用版本与服务器不兼容,请从应用商店更新。",
       "toggle-failed": "偏好已保存,但通知重新安排失败。"
     },
     "onboardingFinalize": {

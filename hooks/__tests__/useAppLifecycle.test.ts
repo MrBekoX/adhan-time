@@ -1,6 +1,9 @@
 import * as Notifications from 'expo-notifications';
+import * as React from 'react';
+import { AppState, type AppStateStatus, type NativeEventSubscription } from 'react-native';
+import TestRenderer from 'react-test-renderer';
 
-import { runLifecycleOnce } from '../useAppLifecycle';
+import { runLifecycleOnce, useAppLifecycle } from '../useAppLifecycle';
 
 import { registerDevice } from '@/services/deviceRegistry';
 import { syncYearly } from '@/services/prayerService';
@@ -13,7 +16,7 @@ jest.mock('@/services/prayerService', () => ({
 }));
 
 jest.mock('@/services/deviceRegistry', () => ({
-  registerDevice: jest.fn(async () => true),
+  registerDevice: jest.fn(async () => ({ ok: true })),
 }));
 
 const syncMock = syncYearly as jest.Mock;
@@ -33,7 +36,7 @@ const VALID_LOCATION = {
 describe('runLifecycleOnce — F4 sync-fail surfaces to uiStore', () => {
   beforeEach(() => {
     syncMock.mockReset();
-    registerMock.mockReset().mockResolvedValue(true);
+    registerMock.mockReset().mockResolvedValue({ ok: true });
     getPermissionsAsync.mockReset().mockResolvedValue({ status: 'granted' });
     useUiStore.setState({ lastError: null });
     useLocationStore.setState({ selected: VALID_LOCATION });
@@ -90,12 +93,34 @@ describe('runLifecycleOnce — F4 sync-fail surfaces to uiStore', () => {
     expect(registerMock).not.toHaveBeenCalled();
     expect(useUiStore.getState().lastError).toBeNull();
   });
+
+  it("preserves a 'partial-sync' banner that syncYearly emitted internally", async () => {
+    // Regression guard for the bug PR #12 reviewers caught: previously
+    // fetchNextYearStart set 'sync-failed', which the cleanup pass below
+    // immediately cleared since syncYearly itself didn't throw. The fix
+    // uses a distinct 'partial-sync' code that survives the cleanup.
+    syncMock.mockImplementation(async () => {
+      // Simulate fetchNextYearStart emitting the banner inside a successful
+      // syncYearly resolution.
+      useUiStore.getState().setError({
+        code: 'partial-sync',
+        message: 'next-year-range:upstream-502',
+      });
+      return { entries: [] };
+    });
+
+    await runLifecycleOnce();
+
+    const err = useUiStore.getState().lastError;
+    expect(err).not.toBeNull();
+    expect(err?.code).toBe('partial-sync');
+  });
 });
 
 describe('runLifecycleOnce — V5 permission reconciliation', () => {
   beforeEach(() => {
     syncMock.mockReset().mockResolvedValue({ entries: [] });
-    registerMock.mockReset().mockResolvedValue(true);
+    registerMock.mockReset().mockResolvedValue({ ok: true });
     getPermissionsAsync.mockReset();
     useUiStore.setState({ lastError: null });
     useLocationStore.setState({ selected: VALID_LOCATION });
@@ -160,8 +185,8 @@ describe('runLifecycleOnce — V16+F6 device registration retry surface', () => 
     });
   });
 
-  it('sets deviceRegistrationPending=true and uiStore error when registerDevice returns false', async () => {
-    registerMock.mockResolvedValueOnce(false);
+  it("sets pending=true and 'device-registration-failed' banner on transient failure", async () => {
+    registerMock.mockResolvedValueOnce({ ok: false, reason: 'transient' });
 
     await runLifecycleOnce();
 
@@ -169,10 +194,36 @@ describe('runLifecycleOnce — V16+F6 device registration retry surface', () => 
     expect(useUiStore.getState().lastError?.code).toBe('device-registration-failed');
   });
 
+  it("emits 'device-registration-incompatible' (not the retry banner) on 4xx and does NOT set pending", async () => {
+    // Issue #8: 4xx + retry-button infinite loop. The user must update the
+    // app, not click retry. Pending stays false so AppState 'active' won't
+    // queue a doomed retry on the next foreground tick.
+    registerMock.mockResolvedValueOnce({ ok: false, reason: 'incompatible', status: 401 });
+
+    await runLifecycleOnce();
+
+    expect(useSettingsStore.getState().deviceRegistrationPending).toBe(false);
+    const err = useUiStore.getState().lastError;
+    expect(err?.code).toBe('device-registration-incompatible');
+    expect(err?.data?.status).toBe(401);
+  });
+
+  it('clears a previously-pending flag when 4xx surfaces (transient → incompatible transition)', async () => {
+    useSettingsStore.setState({ deviceRegistrationPending: true });
+    registerMock.mockResolvedValueOnce({ ok: false, reason: 'incompatible', status: 422 });
+
+    await runLifecycleOnce();
+
+    // Yesterday's transient banner queued a retry; today's 4xx says retry
+    // won't help, so the pending flag must clear or Settings keeps showing
+    // a misleading retry button.
+    expect(useSettingsStore.getState().deviceRegistrationPending).toBe(false);
+  });
+
   it('clears the pending flag and stale banner when registerDevice succeeds', async () => {
     useSettingsStore.setState({ deviceRegistrationPending: true });
     useUiStore.setState({ lastError: { code: 'device-registration-failed' } });
-    registerMock.mockResolvedValueOnce(true);
+    registerMock.mockResolvedValueOnce({ ok: true });
 
     await runLifecycleOnce();
 
@@ -180,25 +231,142 @@ describe('runLifecycleOnce — V16+F6 device registration retry surface', () => 
     expect(useUiStore.getState().lastError).toBeNull();
   });
 
+  it("clears a stale 'device-registration-incompatible' banner after a successful retry", async () => {
+    useUiStore.setState({ lastError: { code: 'device-registration-incompatible' } });
+    registerMock.mockResolvedValueOnce({ ok: true });
+
+    await runLifecycleOnce();
+
+    expect(useUiStore.getState().lastError).toBeNull();
+  });
+
   it('does NOT touch sync-failed banners when only device registration is the issue', async () => {
     useUiStore.setState({ lastError: { code: 'sync-failed' } });
-    registerMock.mockResolvedValueOnce(true);
+    registerMock.mockResolvedValueOnce({ ok: true });
 
     await runLifecycleOnce();
 
     // Sync succeeded, so the sync-failed clearing path runs and clears it.
-    // (This guards the cleanup precedence — registration success must not
-    // leave a sync-failed banner up.)
     expect(useUiStore.getState().lastError).toBeNull();
   });
 
-  it('keeps an existing pending flag set when registration still fails', async () => {
+  it('keeps an existing pending flag set when registration still fails transiently', async () => {
     useSettingsStore.setState({ deviceRegistrationPending: true });
-    registerMock.mockResolvedValueOnce(false);
+    registerMock.mockResolvedValueOnce({ ok: false, reason: 'transient' });
 
     await runLifecycleOnce();
 
     expect(useSettingsStore.getState().deviceRegistrationPending).toBe(true);
     expect(useUiStore.getState().lastError?.code).toBe('device-registration-failed');
+  });
+
+  it("'no-token' result is a no-op for both flag and banner", async () => {
+    registerMock.mockResolvedValueOnce({ ok: false, reason: 'no-token' });
+
+    await runLifecycleOnce();
+
+    expect(useSettingsStore.getState().deviceRegistrationPending).toBe(false);
+    expect(useUiStore.getState().lastError).toBeNull();
+  });
+});
+
+describe('useAppLifecycle — V16 AppState listener wiring', () => {
+  // Issue #9: V16 acceptance criterion "AppState 'active' geçişinde pending
+  // flag varsa retry tetiklenir" was not directly tested. This block
+  // mocks AppState.addEventListener to capture the subscriber and asserts
+  // the lifecycle re-runs only on 'active' (not 'background'/'inactive')
+  // and that sub.remove() fires on unmount.
+  let listener: ((status: AppStateStatus) => void) | undefined;
+  let mockSub: NativeEventSubscription;
+  let addEventSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    syncMock.mockReset().mockResolvedValue({ entries: [] });
+    registerMock.mockReset().mockResolvedValue({ ok: true });
+    getPermissionsAsync.mockReset().mockResolvedValue({ status: 'granted' });
+    useUiStore.setState({ lastError: null });
+    useLocationStore.setState({ selected: VALID_LOCATION });
+    useSettingsStore.setState({
+      locale: 'tr',
+      sound: 'default',
+      enabledPrayers: ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'],
+      notificationPermissionDenied: false,
+      deviceRegistrationPending: false,
+    });
+    listener = undefined;
+    mockSub = { remove: jest.fn() } as unknown as NativeEventSubscription;
+    addEventSpy = jest.spyOn(AppState, 'addEventListener').mockImplementation(
+      ((event: string, cb: (status: AppStateStatus) => void) => {
+        if (event === 'change') listener = cb;
+        return mockSub;
+      }) as typeof AppState.addEventListener,
+    );
+  });
+
+  afterEach(() => {
+    addEventSpy.mockRestore();
+  });
+
+  function Probe(): null {
+    useAppLifecycle();
+    return null;
+  }
+
+  it("subscribes to AppState 'change' on mount and triggers runLifecycleOnce", async () => {
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await TestRenderer.act(async () => {
+      tree = TestRenderer.create(React.createElement(Probe));
+    });
+    expect(addEventSpy).toHaveBeenCalledWith('change', expect.any(Function));
+    expect(listener).toBeDefined();
+    // The mount-time runLifecycleOnce call drove syncYearly + registerDevice.
+    expect(syncMock).toHaveBeenCalledTimes(1);
+    expect(registerMock).toHaveBeenCalledTimes(1);
+    await TestRenderer.act(async () => tree?.unmount());
+  });
+
+  it("re-runs the lifecycle when the listener fires with 'active'", async () => {
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await TestRenderer.act(async () => {
+      tree = TestRenderer.create(React.createElement(Probe));
+    });
+    syncMock.mockClear();
+    registerMock.mockClear();
+
+    await TestRenderer.act(async () => {
+      listener?.('active');
+    });
+
+    expect(syncMock).toHaveBeenCalledTimes(1);
+    expect(registerMock).toHaveBeenCalledTimes(1);
+    await TestRenderer.act(async () => tree?.unmount());
+  });
+
+  it("does NOT re-run the lifecycle when the listener fires with 'background' or 'inactive'", async () => {
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await TestRenderer.act(async () => {
+      tree = TestRenderer.create(React.createElement(Probe));
+    });
+    syncMock.mockClear();
+    registerMock.mockClear();
+
+    await TestRenderer.act(async () => {
+      listener?.('background');
+      listener?.('inactive');
+    });
+
+    expect(syncMock).not.toHaveBeenCalled();
+    expect(registerMock).not.toHaveBeenCalled();
+    await TestRenderer.act(async () => tree?.unmount());
+  });
+
+  it('removes the subscription on unmount', async () => {
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await TestRenderer.act(async () => {
+      tree = TestRenderer.create(React.createElement(Probe));
+    });
+    expect(mockSub.remove).not.toHaveBeenCalled();
+    await TestRenderer.act(async () => tree?.unmount());
+    expect(mockSub.remove).toHaveBeenCalledTimes(1);
   });
 });

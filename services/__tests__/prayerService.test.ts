@@ -5,6 +5,7 @@ import type { PrayerTime, YearlyPrayerCache } from '../types';
 
 import { PRAYER_CACHE_TTL_MS } from '@/constants/api';
 import { usePrayerStore } from '@/store/prayerStore';
+import { useUiStore } from '@/store/uiStore';
 
 jest.mock('../ezanvaktiClient', () => ({
   ezanvakti: {
@@ -165,6 +166,25 @@ describe('syncYearly year-boundary behavior', () => {
 
     expect(yearlyMock).toHaveBeenCalledTimes(1);
     expect(rangeMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a 'partial-sync' banner (NOT sync-failed) when the next-year fetch throws", async () => {
+    // The distinct code is load-bearing: useAppLifecycle clears stale
+    // 'sync-failed' banners on a clean syncYearly, and would have wiped
+    // this one if we used the same code.
+    jest.useFakeTimers().setSystemTime(new Date('2026-12-25T12:00:00Z'));
+    usePrayerStore.setState({ cache: null });
+    useUiStore.setState({ lastError: null });
+    yearlyMock.mockResolvedValueOnce(range('2026-01-01', 365));
+    rangeMock.mockRejectedValueOnce(new Error('upstream-502'));
+
+    await syncYearly(DISTRICT, NAME, TZ);
+
+    expect(rangeMock).toHaveBeenCalled();
+    expect(usePrayerStore.getState().cache?.entries.length).toBe(365);
+    const err = useUiStore.getState().lastError;
+    expect(err).not.toBeNull();
+    expect(err?.code).toBe('partial-sync');
   });
 
   it('force=true triggers refetch even when cache would be valid', async () => {

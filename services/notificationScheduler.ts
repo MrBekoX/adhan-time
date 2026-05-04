@@ -90,28 +90,41 @@ export async function reconcile(
   const toCancel = pendingPrayer.filter((p) => !targetMap.has(p.identifier));
   const toSchedule = target.filter((s) => !pendingMap.has(s.id));
 
-  for (const c of toCancel) {
-    await Notifications.cancelScheduledNotificationAsync(c.identifier);
+  // Mirror the schedule pass below: a native crash cancelling one stale
+  // notification must not block the rest, otherwise a single corrupted
+  // pending entry permanently breaks reconcile until the user reinstalls.
+  const cancelResults = await Promise.allSettled(
+    toCancel.map((c) => Notifications.cancelScheduledNotificationAsync(c.identifier)),
+  );
+  const cancelFailed = cancelResults.filter((r) => r.status === 'rejected').length;
+  if (cancelFailed > 0) {
+    logger.warn('reconcile-cancel-partial-failure', {
+      failed: cancelFailed,
+      total: toCancel.length,
+    });
   }
 
-  // F2: schedule each target independently — one rejection must not abort the rest.
   const results = await Promise.allSettled(
     toSchedule.map((s) => scheduleOne(s, tz, soundKey, options.districtName)),
   );
   const failed = results.filter((r) => r.status === 'rejected').length;
   const scheduled = toSchedule.length - failed;
 
-  if (failed > 0) {
-    logger.warn('reconcile-partial-failure', { failed, total: toSchedule.length });
+  if (failed > 0 || cancelFailed > 0) {
+    logger.warn('reconcile-partial-failure', {
+      failed,
+      total: toSchedule.length,
+      cancelFailed,
+    });
     useUiStore.getState().setError({
       code: 'partial-schedule',
-      data: { failed, total: toSchedule.length },
+      data: { failed, total: toSchedule.length, cancelFailed },
     });
   }
 
   logger.info('reconcile', {
     target: target.length,
-    cancelled: toCancel.length,
+    cancelled: toCancel.length - cancelFailed,
     scheduled,
     failed,
   });

@@ -41,7 +41,7 @@ export type BatchOutcome = {
 
 export type BatchResponse =
   | { ok: true; body?: ExpoResponseBody }
-  | { ok: false; status: number };
+  | { ok: false; status: number; reason?: string };
 
 export function processBatchResponse(pairs: Pair[], response: BatchResponse): BatchOutcome {
   const enrichedLogs: PushLogRow[] = [];
@@ -51,7 +51,7 @@ export function processBatchResponse(pairs: Pair[], response: BatchResponse): Ba
   if (!response.ok) {
     const ticket: ExpoTicket = {
       status: 'error',
-      message: `expo-non-2xx-${response.status}`,
+      message: response.reason ?? `expo-non-2xx-${response.status}`,
     };
     for (const p of pairs) {
       enrichedLogs.push({ ...p.log, expo_response: ticket });
@@ -82,5 +82,27 @@ export function processBatchResponse(pairs: Pair[], response: BatchResponse): Ba
     enrichedLogs,
     tokensToRemove: Array.from(removeSet),
     rateLimitedTokens: Array.from(rateLimitSet),
+  };
+}
+
+// Issue #8: per-device errors in the cron loop (bad timezone, upstream API
+// down, prayer-time parse crash, etc.) used to be a console.error only.
+// Writing a synthetic push_log row gives admin a SQL-queryable signal that
+// a particular device is silently dropping pushes — without it, a single
+// corrupt device row hides forever in the per-device try/catch. The
+// '_system' prayer_key keeps the (device_id, prayer_key, local_date)
+// dedup key from clashing with real prayer notifications.
+export function buildDeviceErrorLog(
+  deviceId: string,
+  now: Date,
+  error: unknown,
+  localDate?: string,
+): PushLogRow {
+  return {
+    device_id: deviceId,
+    prayer_key: '_system',
+    scheduled_for: now.toISOString(),
+    local_date: localDate ?? now.toISOString().slice(0, 10),
+    expo_response: { status: 'error', message: `device-loop-error: ${String(error)}` },
   };
 }

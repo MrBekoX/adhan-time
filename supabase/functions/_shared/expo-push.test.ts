@@ -1,4 +1,4 @@
-import { processBatchResponse, type Pair } from './expo-push';
+import { buildDeviceErrorLog, processBatchResponse, type Pair } from './expo-push';
 
 const TOKEN_A = 'ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaa]';
 const TOKEN_B = 'ExponentPushToken[bbbbbbbbbbbbbbbbbbbbbb]';
@@ -119,5 +119,53 @@ describe('processBatchResponse', () => {
     });
     expect((result.enrichedLogs[0].expo_response as { status: string }).status).toBe('ok');
     expect((result.enrichedLogs[1].expo_response as { status: string }).status).toBe('error');
+  });
+
+  it('uses a custom reason in the log message when the caller supplies one (parse-failed)', () => {
+    // Issue #8: an HTTP 200 with a malformed body must not be treated like
+    // a clean success — every log should record the parse-failed reason so
+    // ops can distinguish "Expo down" from "we sent garbage".
+    const pairs = [pair(TOKEN_A, 'd-a'), pair(TOKEN_B, 'd-b')];
+    const result = processBatchResponse(pairs, {
+      ok: false,
+      status: 200,
+      reason: 'body-parse-failed',
+    });
+    expect(result.tokensToRemove).toEqual([]);
+    expect(result.enrichedLogs.every((l) => (l.expo_response as { status: string }).status === 'error')).toBe(true);
+    expect(
+      result.enrichedLogs[0].expo_response,
+    ).toMatchObject({ status: 'error', message: 'body-parse-failed' });
+  });
+});
+
+describe('buildDeviceErrorLog (Issue #8 — per-device cron-loop audit)', () => {
+  it('produces a push_log row tagged with the _system prayer key', () => {
+    const now = new Date('2026-05-04T03:30:00.000Z');
+    const row = buildDeviceErrorLog('dev-42', now, new Error('bad-tz'));
+    expect(row).toEqual({
+      device_id: 'dev-42',
+      prayer_key: '_system',
+      scheduled_for: now.toISOString(),
+      local_date: '2026-05-04',
+      expo_response: { status: 'error', message: 'device-loop-error: Error: bad-tz' },
+    });
+  });
+
+  it('honors a caller-supplied tz-aware local date when available', () => {
+    const now = new Date('2026-05-04T20:30:00.000Z'); // already 05-05 in Asia/Tokyo
+    const row = buildDeviceErrorLog('dev-tokyo', now, 'fetch-503', '2026-05-05');
+    expect(row.local_date).toBe('2026-05-05');
+  });
+
+  it('falls back to the UTC date when no local-date hint is given', () => {
+    const now = new Date('2026-05-04T20:30:00.000Z');
+    const row = buildDeviceErrorLog('dev-x', now, 'whatever');
+    expect(row.local_date).toBe('2026-05-04');
+  });
+
+  it('coerces non-Error throws into a string-safe message', () => {
+    const row = buildDeviceErrorLog('dev-y', new Date(), { code: 'weird-shape' });
+    expect((row.expo_response as { message: string }).message).toContain('device-loop-error:');
   });
 });

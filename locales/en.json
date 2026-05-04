@@ -36,9 +36,11 @@
     },
     "banner": {
       "sync-failed": "Could not refresh data. Showing what we last saved.",
-      "partial-schedule": "Some notifications could not be scheduled.",
+      "partial-sync": "Couldn't fully refresh year-end data. Some Dec→Jan notifications may be missing.",
+      "partial-schedule": "Some notifications could not be scheduled or removed.",
       "hydration-timeout": "Some saved data could not be read.",
       "device-registration-failed": "Server registration for notifications failed.",
+      "device-registration-incompatible": "This app version isn't compatible with the server — please update from the store.",
       "toggle-failed": "Your preference was saved, but rescheduling failed."
     },
     "onboardingFinalize": {

@@ -60,14 +60,14 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
     delete process.env.REGISTER_DEVICE_BASE_DELAY_MS;
   });
 
-  it('returns true on a single 2xx response', async () => {
+  it('returns ok=true on a single 2xx response', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ ok: true, id: 'dev-1' }), { status: 200 }),
     );
 
-    const ok = await registerDevice(VALID_INPUT);
+    const result = await registerDevice(VALID_INPUT);
 
-    expect(ok).toBe(true);
+    expect(result.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -77,46 +77,54 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
       .mockResolvedValueOnce(new Response('boom', { status: 503 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
 
-    const ok = await registerDevice(VALID_INPUT);
+    const result = await registerDevice(VALID_INPUT);
 
-    expect(ok).toBe(true);
+    expect(result.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it('returns false after 3 retries when every attempt fails with 5xx', async () => {
+  it("returns ok=false reason='transient' after 3 retries when every attempt fails with 5xx", async () => {
     fetchMock.mockResolvedValue(new Response('still failing', { status: 500 }));
 
-    const ok = await registerDevice(VALID_INPUT);
+    const result = await registerDevice(VALID_INPUT);
 
-    expect(ok).toBe(false);
+    expect(result).toEqual({ ok: false, reason: 'transient' });
     // withRetry default `retries: 3` produces up to 4 total attempts.
     expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3);
     expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(4);
   });
 
-  it('returns false on persistent network failure', async () => {
+  it("returns ok=false reason='transient' on persistent network failure", async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
 
-    const ok = await registerDevice(VALID_INPUT);
+    const result = await registerDevice(VALID_INPUT);
 
-    expect(ok).toBe(false);
+    expect(result).toEqual({ ok: false, reason: 'transient' });
   });
 
-  it('returns false (not retried) when no Expo push token is available', async () => {
+  it("returns ok=false reason='no-token' (not retried) when no Expo push token is available", async () => {
     getTokenMock.mockResolvedValueOnce(null);
 
-    const ok = await registerDevice(VALID_INPUT);
+    const result = await registerDevice(VALID_INPUT);
 
-    expect(ok).toBe(false);
+    expect(result).toEqual({ ok: false, reason: 'no-token' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('does NOT retry on 4xx (client error — payload is wrong, retry will not help)', async () => {
+  it("returns ok=false reason='incompatible' on 4xx (client error — retry will not help)", async () => {
     fetchMock.mockResolvedValueOnce(new Response('bad payload', { status: 400 }));
 
-    const ok = await registerDevice(VALID_INPUT);
+    const result = await registerDevice(VALID_INPUT);
 
-    expect(ok).toBe(false);
+    expect(result).toEqual({ ok: false, reason: 'incompatible', status: 400 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports the actual 4xx status code so admin can distinguish 401 vs 403 vs 422', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('hmac fail', { status: 401 }));
+
+    const result = await registerDevice(VALID_INPUT);
+
+    expect(result).toEqual({ ok: false, reason: 'incompatible', status: 401 });
   });
 });

@@ -80,7 +80,7 @@ export default function Settings() {
     if (!location) return;
     setRetryingRegistration(true);
     try {
-      const ok = await registerDevice({
+      const result = await registerDevice({
         districtId: location.districtId,
         districtName: location.districtName,
         countryName: location.countryName,
@@ -89,12 +89,27 @@ export default function Settings() {
         sound: settings.sound,
         enabledPrayers: settings.enabledPrayers,
       });
-      if (ok) {
+      const ui = useUiStore.getState();
+      if (result.ok) {
         useSettingsStore.getState().setDeviceRegistrationPending(false);
-        const cur = useUiStore.getState().lastError;
-        if (cur?.code === 'device-registration-failed') useUiStore.getState().setError(null);
+        const cur = ui.lastError;
+        if (
+          cur?.code === 'device-registration-failed' ||
+          cur?.code === 'device-registration-incompatible'
+        ) {
+          ui.setError(null);
+        }
+      } else if (result.reason === 'incompatible') {
+        // Retry from Settings still hit a 4xx — the build is incompatible
+        // with the edge function. Drop pending so the section disappears
+        // (incompatible banner takes over).
+        useSettingsStore.getState().setDeviceRegistrationPending(false);
+        ui.setError({
+          code: 'device-registration-incompatible',
+          data: { status: result.status },
+        });
       } else {
-        useUiStore.getState().setError({ code: 'device-registration-failed' });
+        ui.setError({ code: 'device-registration-failed' });
       }
     } catch (e) {
       logger.warn('settings-retry-device-registration-failed', { error: String(e) });

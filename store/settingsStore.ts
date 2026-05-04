@@ -62,6 +62,10 @@ export const useSettingsStore = create<State & Actions>()(
           // notificationPermissionDenied tracks the OS permission state — a
           // local "reset" can't grant the user's permission back, so keep it.
           notificationPermissionDenied: get().notificationPermissionDenied,
+          // Explicit so a future change to initial.deviceRegistrationPending
+          // can't silently keep a stale flag through "Delete my data" — a
+          // wiped device has no server row left to retry against.
+          deviceRegistrationPending: false,
           hydrated: get().hydrated,
         }),
     }),

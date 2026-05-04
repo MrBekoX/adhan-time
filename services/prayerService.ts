@@ -11,6 +11,7 @@ import { ROLLING_WINDOW_DAYS } from '@/constants/notifications';
 import type { PrayerKey } from '@/constants/prayers';
 import { usePrayerStore } from '@/store/prayerStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useUiStore } from '@/store/uiStore';
 import { logger } from '@/utils/logger';
 import { addLocalDays, isoDateInTz, yearInTz } from '@/utils/time';
 
@@ -75,7 +76,17 @@ async function fetchNextYearStart(
   try {
     return await ezanvakti.prayerTimesRange(districtId, startDate, endDate);
   } catch (e) {
+    // Returning [] keeps the current-year cache writeable so the user isn't
+    // left with nothing — but the rolling window can no longer cover the
+    // year-boundary days. Use a distinct 'partial-sync' code (not
+    // 'sync-failed') so useAppLifecycle's stale-banner cleanup at the end
+    // of a SUCCESSFUL syncYearly doesn't immediately wipe it: the outer
+    // syncYearly never throws here, only the inner range fetch did.
     logger.warn('next-year-range-failed', { districtId, startDate, endDate, error: String(e) });
+    useUiStore.getState().setError({
+      code: 'partial-sync',
+      message: `next-year-range:${String(e)}`,
+    });
     return [];
   }
 }

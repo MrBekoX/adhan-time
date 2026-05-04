@@ -31,20 +31,35 @@ function getBaseDelayMs(): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1000;
 }
 
-/**
- * V16+F6: registers the device with the push fallback service. Returns
- * `true` on success, `false` when retries are exhausted or the request
- * never went out (no push token, 4xx client error, network down). The
- * caller surfaces `false` to the user via uiStore + a settings flag so a
- * server outage during onboarding doesn't silently break server-side push.
- */
+class RegisterDeviceClientError extends Error {
+  constructor(public readonly status: number) {
+    super(`register-device-${status}`);
+    this.name = 'RegisterDeviceClientError';
+  }
+}
+
+export type RegisterResult =
+  | { ok: true }
+  | { ok: false; reason: 'no-token' }
+  | { ok: false; reason: 'transient' }
+  | { ok: false; reason: 'incompatible'; status: number };
+
+// V16+F6: registers the device with the push fallback service. Returns a
+// discriminated union so callers can branch on the failure mode:
+//   - 'transient' (5xx, network, retries exhausted) → set pending flag,
+//     surface the generic banner with retry; AppState 'active' will retry.
+//   - 'incompatible' (4xx — bad payload, signing-key rotation, schema drift)
+//     → retry won't help. Surface a distinct banner ("Update the app"),
+//     don't queue a pending retry. The 'status' carries the HTTP code so
+//     bug reports can distinguish 400/401/403/422.
+//   - 'no-token' → device never asked for push; nothing to do.
 export async function registerDevice(
   input: Omit<RegisterPayload, 'expoPushToken'>,
-): Promise<boolean> {
+): Promise<RegisterResult> {
   const token = await getExpoPushToken();
   if (!token) {
     logger.warn('skip register: no push token');
-    return false;
+    return { ok: false, reason: 'no-token' };
   }
   const body: RegisterPayload = { ...input, expoPushToken: token };
   const raw = JSON.stringify(body);
@@ -67,34 +82,30 @@ export async function registerDevice(
             body: raw,
           });
         } catch (e) {
-          // Network / DNS / abort — retryable. Original error goes to logger
-          // below via withRetry's lastError; the typed NetworkError is what
-          // makes withRetry's isRetryable predicate kick in.
           logger.warn('register-device-fetch-failed', { error: String(e) });
           throw new NetworkError();
         }
         if (res.ok) return;
         if (res.status >= 500) {
-          // Transient server fault — retryable.
           throw new ApiServerError(res.status, `register-device ${res.status}`);
         }
-        // 4xx is a client-side bug (bad payload, missing HMAC, etc.) — retrying
-        // won't help. Surface as a non-retryable error so withRetry stops.
         throw new RegisterDeviceClientError(res.status);
       },
       { retries: 3, baseDelayMs: getBaseDelayMs() },
     );
-    return true;
+    return { ok: true };
   } catch (e) {
+    if (e instanceof RegisterDeviceClientError) {
+      // logger.error so a build-vs-server schema drift shows up in admin
+      // dashboards as an actionable signal, not a routine warning.
+      logger.error('register-device-incompatible', {
+        status: e.status,
+        name: e.name,
+      });
+      return { ok: false, reason: 'incompatible', status: e.status };
+    }
     logger.warn('register-device-failed-after-retries', { error: String(e) });
-    return false;
-  }
-}
-
-class RegisterDeviceClientError extends Error {
-  constructor(public readonly status: number) {
-    super(`register-device-${status}`);
-    this.name = 'RegisterDeviceClientError';
+    return { ok: false, reason: 'transient' };
   }
 }
 
