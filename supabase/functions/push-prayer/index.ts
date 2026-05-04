@@ -1,6 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+import { verifyCronSecret } from '../_shared/cron-auth.ts';
 import {
   formatInTz,
   isWithinPrayerWindow,
@@ -12,6 +13,9 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
 const EXPO_TOKEN = Deno.env.get('EXPO_ACCESS_TOKEN');
+// S2: shared secret with pg_cron — fail closed when unset so the function
+// never accidentally exposes a public POST endpoint after a redeploy.
+const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? null;
 const STALE_DAYS = 5;
 const PRAYER_KEYS = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'] as const;
 type PrayerKey = (typeof PRAYER_KEYS)[number];
@@ -47,7 +51,10 @@ type PushLogRow = {
   local_date: string;
 };
 
-Deno.serve(async () => {
+Deno.serve(async (req: Request) => {
+  if (!verifyCronSecret(req, CRON_SECRET)) {
+    return jsonResponse({ error: 'forbidden' }, 403);
+  }
   try {
     const cutoff = new Date(Date.now() - STALE_DAYS * 86400_000).toISOString();
     const { data: devices, error } = await supabase
