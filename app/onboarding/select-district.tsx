@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,36 +24,49 @@ export default function SelectDistrict() {
   }>();
   const [items, setItems] = useState<LocationListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const selectLocation = useLocationStore((s) => s.selectLocation);
 
-  useEffect(() => {
-    if (!params.stateId) return;
-    let cancelled = false;
-    void (async () => {
+  const load = useCallback(
+    async (signal?: { cancelled: boolean }) => {
+      if (!params.stateId) return;
+      setLoading(true);
+      setError(false);
       try {
         const data = await locationCache.districts(params.stateId);
-        if (cancelled) return;
+        if (signal?.cancelled) return;
         setItems(data.map((c) => ({ id: c._id, name: c.name, nameEn: c.name_en })));
       } catch (e) {
-        logger.error('districts fetch', { error: String(e) });
+        logger.error('districts-fetch', { error: String(e) });
+        if (!signal?.cancelled) setError(true);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!signal?.cancelled) setLoading(false);
       }
-    })();
+    },
+    [params.stateId],
+  );
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    void load(signal);
     return () => {
-      cancelled = true;
+      signal.cancelled = true;
     };
-  }, [params.stateId]);
+  }, [load]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.lg }]}>
       <View style={styles.head}>
-        <Text style={styles.eyebrow}>· chapter iv · {params.stateName ?? ''}</Text>
+        <Text style={styles.eyebrow}>
+          {t('screens.onboarding.chapterEyebrow.iv')} {params.stateName ?? ''}
+        </Text>
         <Text style={styles.title}>{t('screens.onboarding.selectDistrict')}</Text>
       </View>
       <LocationList
         items={items}
         loading={loading}
+        error={error}
+        onRetry={() => void load()}
         onSelect={(it) => {
           const tz = params.userSelectedTimezone ?? resolveTimezone(params.countryId, params.stateId);
           selectLocation({

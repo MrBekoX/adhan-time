@@ -12,6 +12,7 @@
     "type-check": "tsc --noEmit",
     "test": "jest",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "build:supabase-i18n": "node tools/scripts/build-supabase-i18n.js",
     "prepare": "husky"
   },
   "dependencies": {
@@ -32,6 +33,7 @@
     "expo-status-bar": "~3.0.9",
     "geomagnetism": "^0.2.0",
     "i18next": "^23.16.0",
+    "intl-pluralrules": "^2.0.1",
     "js-sha256": "^0.11.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",

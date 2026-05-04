@@ -9,6 +9,7 @@ import {
   type PushLogRow,
   processBatchResponse,
 } from '../_shared/expo-push.ts';
+import { prayerBody, prayerTitle } from '../_shared/i18n.ts';
 import { fetchPrayerYear, type PrayerEntry } from '../_shared/prayer-cache.ts';
 import {
   formatInTz,
@@ -77,8 +78,8 @@ Deno.serve(async (req: Request) => {
           pairs.push({
             message: {
               to: dev.expo_push_token,
-              title: titleFor(key, dev.locale),
-              body: bodyFor(key, dev.district_name, dev.locale),
+              title: prayerTitle(dev.locale, key),
+              body: prayerBody(dev.locale, key, dev.district_name),
               sound: dev.sound === 'default' ? 'default' : null,
               data: { prayerKey: key, source: 'server' },
             },
@@ -210,69 +211,6 @@ function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
-}
-
-const TR_TITLES: Record<string, string> = {
-  imsak: 'İmsak',
-  gunes: 'Güneş',
-  ogle: 'Öğle',
-  ikindi: 'İkindi',
-  aksam: 'Akşam',
-  yatsi: 'Yatsı',
-};
-const EN_TITLES: Record<string, string> = {
-  imsak: 'Fajr',
-  gunes: 'Sunrise',
-  ogle: 'Dhuhr',
-  ikindi: 'Asr',
-  aksam: 'Maghrib',
-  yatsi: 'Isha',
-};
-const AR_TITLES: Record<string, string> = {
-  imsak: 'الفجر',
-  gunes: 'الشروق',
-  ogle: 'الظهر',
-  ikindi: 'العصر',
-  aksam: 'المغرب',
-  yatsi: 'العشاء',
-};
-const ZH_TITLES: Record<string, string> = {
-  imsak: '晨礼',
-  gunes: '日出',
-  ogle: '晌礼',
-  ikindi: '晡礼',
-  aksam: '昏礼',
-  yatsi: '宵礼',
-};
-
-function titleFor(key: string, locale: string): string {
-  switch (locale) {
-    case 'en':
-      return EN_TITLES[key] ?? key;
-    case 'ar':
-      return AR_TITLES[key] ?? key;
-    case 'zh':
-      return ZH_TITLES[key] ?? key;
-    default:
-      return TR_TITLES[key] ?? key;
-  }
-}
-
-function bodyFor(key: string, city: string, locale: string): string {
-  if (locale === 'en') {
-    if (key === 'gunes') return `Sun has risen in ${city}.`;
-    return `${EN_TITLES[key] ?? key} time has started in ${city}.`;
-  }
-  if (locale === 'ar') {
-    if (key === 'gunes') return `أشرقت الشمس في ${city}.`;
-    return `دخل وقت ${AR_TITLES[key] ?? key} في ${city}.`;
-  }
-  if (locale === 'zh') {
-    if (key === 'gunes') return `${city} 太阳已升起。`;
-    return `${city} ${ZH_TITLES[key] ?? key}时间已到。`;
-  }
-  if (key === 'gunes') return `${city} için güneş doğdu.`;
-  return `${city} için ${TR_TITLES[key] ?? key.toLowerCase()} vakti girdi.`;
 }
 
 function jsonResponse(body: unknown, status = 200): Response {

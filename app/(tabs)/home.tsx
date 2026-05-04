@@ -6,16 +6,23 @@ import { BrandRow } from '@/components/BrandRow';
 import { CountdownPill } from '@/components/CountdownPill';
 import { GradientCanvas } from '@/components/GradientCanvas';
 import { HorizonRule } from '@/components/HorizonRule';
+import { NotificationDeniedBanner } from '@/components/NotificationDeniedBanner';
 import { PrayerCard } from '@/components/PrayerCard';
+import { SyncErrorBanner } from '@/components/SyncErrorBanner';
 import { colors, fonts, spacing } from '@/components/Theme';
-import { useAppLifecycle } from '@/hooks/useAppLifecycle';
+import type { PrayerKey } from '@/constants/prayers';
+import { runLifecycleOnce, useAppLifecycle } from '@/hooks/useAppLifecycle';
 import { useNextPrayer } from '@/hooks/useNextPrayer';
 import { useTodayPrayers } from '@/hooks/useTodayPrayers';
+import { scheduleAfterToggle } from '@/services/prayerService';
 import { useLocationStore } from '@/store/locationStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useUiStore } from '@/store/uiStore';
+import { logger } from '@/utils/logger';
+import { lowercaseInLocale } from '@/utils/textCase';
 
 export default function Home() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const today = useTodayPrayers();
   const next = useNextPrayer();
@@ -23,6 +30,17 @@ export default function Home() {
   const enabledPrayers = useSettingsStore((s) => s.enabledPrayers);
   const togglePrayer = useSettingsStore((s) => s.togglePrayer);
   useAppLifecycle();
+
+  const handleToggle = async (key: PrayerKey): Promise<void> => {
+    togglePrayer(key);
+    if (!location) return;
+    try {
+      await scheduleAfterToggle(location.districtId, location.districtName, location.timezone);
+    } catch (e) {
+      logger.warn('home-toggle-reschedule-failed', { key, error: String(e) });
+      useUiStore.getState().setError({ code: 'toggle-failed' });
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -37,12 +55,17 @@ export default function Home() {
       >
         <BrandRow />
 
+        <NotificationDeniedBanner />
+        <SyncErrorBanner onRetry={() => void runLifecycleOnce()} />
+
         <View style={styles.cityBlock}>
           <View style={styles.cityRule} />
           <Text style={styles.cityEyebrow}>{t('screens.home.observingFrom')}</Text>
           <Text style={styles.cityName}>{location?.districtName ?? '—'}</Text>
           {location?.countryName && (
-            <Text style={styles.cityCountry}>{location.countryName.toLocaleLowerCase('tr')}</Text>
+            <Text style={styles.cityCountry}>
+              {lowercaseInLocale(location.countryName, i18n.language)}
+            </Text>
           )}
         </View>
 
@@ -63,14 +86,14 @@ export default function Home() {
               time={r.time}
               highlight={next?.key === r.key}
               enabled={enabledPrayers.includes(r.key)}
-              onToggle={() => togglePrayer(r.key)}
+              onToggle={() => void handleToggle(r.key)}
             />
           ))}
         </View>
 
         {!today && (
           <View style={styles.fallbackBlock}>
-            <Text style={styles.fallback}>{t('common.loading').toLowerCase()}</Text>
+            <Text style={styles.fallback}>{t('common.loading')}</Text>
             <View style={styles.fallbackRule} />
           </View>
         )}
@@ -139,7 +162,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     fontSize: 12,
     color: colors.textFaint,
-    marginLeft: spacing.sm,
+    marginStart: spacing.sm,
   },
   list: {
     marginTop: spacing.xs,

@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { migrateSettingsState } from './settingsStore.migration';
+
 import { DEFAULT_ENABLED_PRAYERS, type PrayerKey } from '@/constants/prayers';
 import type { Locale } from '@/locales/i18n';
 
@@ -10,6 +12,8 @@ type State = {
   sound: 'default' | 'adhanShort';
   enabledPrayers: PrayerKey[];
   onboardingCompleted: boolean;
+  notificationPermissionDenied: boolean;
+  hydrated: boolean;
 };
 
 type Actions = {
@@ -17,6 +21,8 @@ type Actions = {
   setSound: (sound: State['sound']) => void;
   togglePrayer: (key: PrayerKey) => void;
   setOnboardingCompleted: (v: boolean) => void;
+  setNotificationPermissionDenied: (v: boolean) => void;
+  setHydrated: (v: boolean) => void;
   reset: () => void;
 };
 
@@ -25,6 +31,8 @@ const initial: State = {
   sound: 'default',
   enabledPrayers: [...DEFAULT_ENABLED_PRAYERS],
   onboardingCompleted: false,
+  notificationPermissionDenied: false,
+  hydrated: false,
 };
 
 export const useSettingsStore = create<State & Actions>()(
@@ -39,12 +47,32 @@ export const useSettingsStore = create<State & Actions>()(
         set({ enabledPrayers: next });
       },
       setOnboardingCompleted: (v) => set({ onboardingCompleted: v }),
-      reset: () => set(initial),
+      setNotificationPermissionDenied: (v) => set({ notificationPermissionDenied: v }),
+      setHydrated: (v) => set({ hydrated: v }),
+      reset: () =>
+        set({
+          ...initial,
+          // notificationPermissionDenied tracks the OS permission state — a
+          // local "reset" can't grant the user's permission back, so keep it.
+          notificationPermissionDenied: get().notificationPermissionDenied,
+          hydrated: get().hydrated,
+        }),
     }),
     {
       name: 'settings',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (s) => ({
+        locale: s.locale,
+        sound: s.sound,
+        enabledPrayers: s.enabledPrayers,
+        onboardingCompleted: s.onboardingCompleted,
+        notificationPermissionDenied: s.notificationPermissionDenied,
+      }),
+      migrate: (persisted, version) => migrateSettingsState(persisted, version) as State,
+      onRehydrateStorage: () => (state) => {
+        state?.setHydrated(true);
+      },
     },
   ),
 );

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,35 +20,48 @@ export default function SelectState() {
   }>();
   const [items, setItems] = useState<LocationListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    if (!params.countryId) return;
-    let cancelled = false;
-    void (async () => {
+  const load = useCallback(
+    async (signal?: { cancelled: boolean }) => {
+      if (!params.countryId) return;
+      setLoading(true);
+      setError(false);
       try {
         const data = await locationCache.states(params.countryId);
-        if (cancelled) return;
+        if (signal?.cancelled) return;
         setItems(data.map((c) => ({ id: c._id, name: c.name, nameEn: c.name_en })));
       } catch (e) {
-        logger.error('states fetch', { error: String(e) });
+        logger.error('states-fetch', { error: String(e) });
+        if (!signal?.cancelled) setError(true);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!signal?.cancelled) setLoading(false);
       }
-    })();
+    },
+    [params.countryId],
+  );
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    void load(signal);
     return () => {
-      cancelled = true;
+      signal.cancelled = true;
     };
-  }, [params.countryId]);
+  }, [load]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.lg }]}>
       <View style={styles.head}>
-        <Text style={styles.eyebrow}>· chapter iii · {params.countryName ?? ''}</Text>
+        <Text style={styles.eyebrow}>
+          {t('screens.onboarding.chapterEyebrow.iii')} {params.countryName ?? ''}
+        </Text>
         <Text style={styles.title}>{t('screens.onboarding.selectState')}</Text>
       </View>
       <LocationList
         items={items}
         loading={loading}
+        error={error}
+        onRetry={() => void load()}
         onSelect={(it) =>
           router.push({
             pathname: '/onboarding/select-district',

@@ -1,7 +1,15 @@
-import { computeTargets } from '../notificationScheduler';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+
+import { computeTargets, ensureAndroidChannel, reconcile } from '../notificationScheduler';
 import type { PrayerTime, YearlyPrayerCache } from '../types';
 
+import {
+  ANDROID_CHANNEL_CUSTOM_ID,
+  ANDROID_CHANNEL_ID,
+} from '@/constants/notifications';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
+import { useUiStore } from '@/store/uiStore';
 
 function entry(date: string, override: Partial<PrayerTime['times']> = {}): PrayerTime {
   return {
@@ -154,5 +162,176 @@ describe('computeTargets — V11 defensive parsing', () => {
     const targets = computeTargets(cache, TZ, now, 10, enabled);
 
     expect(targets).toHaveLength(49);
+  });
+});
+
+describe('reconcile — F2 partial schedule isolation', () => {
+  const schedule = Notifications.scheduleNotificationAsync as jest.Mock;
+  const cancel = Notifications.cancelScheduledNotificationAsync as jest.Mock;
+  const getAll = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
+
+  // Pin "now" so the rolling-window math is deterministic across test runs.
+  const FAKE_NOW = new Date('2026-05-02T00:00:00Z');
+
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(FAKE_NOW);
+    schedule.mockReset().mockResolvedValue('id');
+    cancel.mockReset().mockResolvedValue(undefined);
+    getAll.mockReset().mockResolvedValue([]);
+    useUiStore.setState({ lastError: null });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function buildFutureCache(): YearlyPrayerCache {
+    // At 02:00 Berlin on 2026-05-02 every prayer (earliest is imsak 05:00) is
+    // still in the future, so the rolling window yields exactly 5 × 10 = 50.
+    return makeCache(range('2026-05-02', 12));
+  }
+
+  it('continues scheduling remaining targets when one schedule call rejects', async () => {
+    const cache = buildFutureCache();
+    const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+
+    let calls = 0;
+    schedule.mockImplementation(() => {
+      calls++;
+      return calls === 7 ? Promise.reject(new Error('boom')) : Promise.resolve('ok');
+    });
+
+    const result = await reconcile(cache, { enabledPrayers: enabled });
+
+    expect(result.total).toBe(50);
+    expect(result.failed).toBe(1);
+    expect(result.scheduled).toBe(49);
+    expect(schedule).toHaveBeenCalledTimes(50);
+  });
+
+  it('writes a partial-schedule error to useUiStore when at least one schedule fails', async () => {
+    const cache = buildFutureCache();
+    const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+
+    schedule.mockRejectedValueOnce(new Error('boom'));
+
+    await reconcile(cache, { enabledPrayers: enabled });
+
+    const err = useUiStore.getState().lastError;
+    expect(err).not.toBeNull();
+    expect(err?.code).toBe('partial-schedule');
+    expect(err?.data?.failed).toBe(1);
+    expect(err?.data?.total).toBe(50);
+  });
+
+  it('does NOT set a partial-schedule error when every target schedules successfully', async () => {
+    const cache = buildFutureCache();
+    const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+    useUiStore.setState({ lastError: { code: 'stale' } });
+
+    const result = await reconcile(cache, { enabledPrayers: enabled });
+
+    expect(result.failed).toBe(0);
+    expect(result.scheduled).toBe(50);
+    // Pre-existing error is left alone — we only set on failure.
+    expect(useUiStore.getState().lastError?.code).toBe('stale');
+  });
+});
+
+describe('V8 — sound key mapping + Android custom channel', () => {
+  const schedule = Notifications.scheduleNotificationAsync as jest.Mock;
+  const cancel = Notifications.cancelScheduledNotificationAsync as jest.Mock;
+  const getAll = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
+  const setChannel = Notifications.setNotificationChannelAsync as jest.Mock;
+
+  const FAKE_NOW = new Date('2026-05-02T00:00:00Z');
+
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(FAKE_NOW);
+    schedule.mockReset().mockResolvedValue('id');
+    cancel.mockReset().mockResolvedValue(undefined);
+    getAll.mockReset().mockResolvedValue([]);
+    setChannel.mockReset().mockResolvedValue(undefined);
+    useUiStore.setState({ lastError: null });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function singleTargetCache(): YearlyPrayerCache {
+    // Tomorrow's imsak only — minimal cache to capture a single schedule call.
+    return makeCache([entry('2026-05-03', { imsak: '05:00' })]);
+  }
+
+  it('passes adhan_short.wav as the content.sound when soundKey is adhanShort', async () => {
+    const cache = singleTargetCache();
+    await reconcile(cache, {
+      enabledPrayers: ['imsak'],
+      sound: 'adhanShort',
+      windowDays: 2,
+    });
+
+    const calls = schedule.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls[0][0].content.sound).toBe('adhan_short.wav');
+  });
+
+  it('passes default as the content.sound when soundKey is default', async () => {
+    const cache = singleTargetCache();
+    await reconcile(cache, {
+      enabledPrayers: ['imsak'],
+      sound: 'default',
+      windowDays: 2,
+    });
+
+    expect(schedule.mock.calls[0][0].content.sound).toBe('default');
+  });
+
+  it('routes Android schedule to adhan-custom channel when soundKey is adhanShort', async () => {
+    const original = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+    try {
+      const cache = singleTargetCache();
+      await reconcile(cache, {
+        enabledPrayers: ['imsak'],
+        sound: 'adhanShort',
+        windowDays: 2,
+      });
+      expect(schedule.mock.calls[0][0].trigger.channelId).toBe(ANDROID_CHANNEL_CUSTOM_ID);
+    } finally {
+      Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+    }
+  });
+
+  it('routes Android schedule to default adhan channel when soundKey is default', async () => {
+    const original = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+    try {
+      const cache = singleTargetCache();
+      await reconcile(cache, {
+        enabledPrayers: ['imsak'],
+        sound: 'default',
+        windowDays: 2,
+      });
+      expect(schedule.mock.calls[0][0].trigger.channelId).toBe(ANDROID_CHANNEL_ID);
+    } finally {
+      Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+    }
+  });
+
+  it('ensureAndroidChannel creates both default and adhan-custom channels', async () => {
+    const original = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+    try {
+      await ensureAndroidChannel();
+      const channelIds = setChannel.mock.calls.map((c) => c[0]);
+      expect(channelIds).toContain(ANDROID_CHANNEL_ID);
+      expect(channelIds).toContain(ANDROID_CHANNEL_CUSTOM_ID);
+      const customCall = setChannel.mock.calls.find((c) => c[0] === ANDROID_CHANNEL_CUSTOM_ID);
+      expect(customCall?.[1].sound).toBe('adhan_short.wav');
+    } finally {
+      Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+    }
   });
 });

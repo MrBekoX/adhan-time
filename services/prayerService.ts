@@ -1,5 +1,9 @@
 import { ezanvakti } from './ezanvaktiClient';
-import { ensureAndroidChannel, reconcile } from './notificationScheduler';
+import {
+  cancelAllPrayerNotifications,
+  ensureAndroidChannel,
+  reconcile,
+} from './notificationScheduler';
 import type { PrayerTime, YearlyPrayerCache } from './types';
 
 import { PRAYER_CACHE_TTL_MS } from '@/constants/api';
@@ -74,6 +78,20 @@ async function fetchNextYearStart(
     logger.warn('next-year-range-failed', { districtId, startDate, endDate, error: String(e) });
     return [];
   }
+}
+
+/**
+ * V4 — Settings/Home toggle reconcile: cancel any queued prayer notifications,
+ * then re-run a (cache-friendly) sync to reschedule with the new settings.
+ * Errors propagate so the caller can surface them via uiStore/Alert.
+ */
+export async function scheduleAfterToggle(
+  districtId: string,
+  districtName: string,
+  timezone: string,
+): Promise<void> {
+  await cancelAllPrayerNotifications();
+  await syncYearly(districtId, districtName, timezone);
 }
 
 async function scheduleAll(cache: YearlyPrayerCache, districtName: string): Promise<void> {

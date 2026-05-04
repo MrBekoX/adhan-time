@@ -8,7 +8,9 @@
     "loading": "جارٍ التحميل",
     "search": "بحث",
     "done": "تم",
-    "delete": "حذف"
+    "delete": "حذف",
+    "dismiss": "إغلاق",
+    "openSettings": "فتح الإعدادات"
   },
   "prayer": {
     "imsak": { "title": "الفجر", "body": "دخل وقت الفجر.", "bodyWithCity": "دخل وقت الفجر في {{city}}." },
@@ -31,6 +33,17 @@
     "tzUnsupported": {
       "title": "هذه المنطقة غير مدعومة بعد",
       "body": "خريطة المنطقة الزمنية لـ {{country}} غير جاهزة. لا يمكن اختيار هذه الدولة لأننا لا نضمن وصول التنبيهات في الوقت الصحيح."
+    },
+    "banner": {
+      "sync-failed": "تعذّر تحديث البيانات. تعرض البيانات المحفوظة سابقًا.",
+      "partial-schedule": "تعذّر جدولة بعض التنبيهات.",
+      "hydration-timeout": "تعذّر قراءة بعض البيانات المحفوظة.",
+      "device-registration-failed": "فشل تسجيل الجهاز للتنبيهات على الخادم.",
+      "toggle-failed": "تم حفظ تفضيلك، لكن فشل إعادة جدولة التنبيهات."
+    },
+    "onboardingFinalize": {
+      "title": "لم يكتمل الإعداد",
+      "body": "تعذّر تنزيل أوقات الصلاة أو تسجيل الجهاز. تحقّق من اتصالك وحاول مجددًا."
     },
     "unknown": "حدث خطأ غير متوقع."
   },
@@ -74,7 +87,15 @@
       "permissionsBody": "نحتاج إذنك لإرسال تنبيهات أوقات الصلاة.",
       "grantPermission": "السماح",
       "finish": "إنهاء",
-      "est": "تأسس 2026"
+      "est": "تأسس 2026",
+      "chapterEyebrow": {
+        "i": "· الفصل الأول ·",
+        "ii": "· الفصل الثاني ·",
+        "iii": "· الفصل الثالث ·",
+        "iv": "· الفصل الرابع ·",
+        "final": "· الفصل الأخير ·"
+      },
+      "notificationsForCity": "· سيصلك التنبيه للمدينة التالية ·"
     },
     "home": {
       "nextPrayer": "الصلاة القادمة",
@@ -133,10 +154,18 @@
     "placeholder": "..."
   },
   "units": {
-    "hour": "{{count}} ساعة",
-    "hour_plural": "{{count}} ساعات",
-    "minute": "{{count}} دقيقة",
-    "minute_plural": "{{count}} دقائق",
+    "hour_zero": "لا ساعات",
+    "hour_one": "ساعة واحدة",
+    "hour_two": "ساعتان",
+    "hour_few": "{{count}} ساعات",
+    "hour_many": "{{count}} ساعة",
+    "hour_other": "{{count}} ساعة",
+    "minute_zero": "لا دقائق",
+    "minute_one": "دقيقة واحدة",
+    "minute_two": "دقيقتان",
+    "minute_few": "{{count}} دقائق",
+    "minute_many": "{{count}} دقيقة",
+    "minute_other": "{{count}} دقيقة",
     "km": "{{value}} كم",
     "degrees": "{{value}}°",
     "meters": "{{value}} م"

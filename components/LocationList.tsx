@@ -4,6 +4,8 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, Vi
 
 import { colors, fonts, radius, spacing } from './Theme';
 
+import { lowercaseInLocale } from '@/utils/textCase';
+
 export type LocationListItem = {
   id: string;
   name: string;
@@ -13,21 +15,40 @@ export type LocationListItem = {
 type Props = {
   items: LocationListItem[];
   loading?: boolean;
+  error?: boolean;
+  onRetry?: () => void;
   onSelect: (item: LocationListItem) => void;
 };
 
-export function LocationList({ items, loading, onSelect }: Props) {
+export function LocationList({ items, loading, error, onRetry, onSelect }: Props) {
   const { t, i18n } = useTranslation();
   const [q, setQ] = useState('');
 
   const filtered = useMemo(() => {
     if (!q.trim()) return items;
-    const needle = q.trim().toLocaleLowerCase('tr');
+    const lang = i18n.language;
+    const needle = lowercaseInLocale(q.trim(), lang);
     return items.filter((it) => {
-      const name = (i18n.language === 'tr' ? it.name : it.nameEn).toLocaleLowerCase('tr');
+      const name = lowercaseInLocale(lang === 'tr' ? it.name : it.nameEn, lang);
       return name.includes(needle);
     });
   }, [items, q, i18n.language]);
+
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorMessage}>{t('errors.api.network')}</Text>
+        {onRetry && (
+          <Pressable
+            onPress={onRetry}
+            style={({ pressed }) => [styles.retryBtn, pressed && styles.retryPressed]}
+          >
+            <Text style={styles.retryText}>{t('common.tryAgain')}</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }
 
   if (loading) {
     return (
@@ -43,7 +64,7 @@ export function LocationList({ items, loading, onSelect }: Props) {
         <Text style={styles.searchGlyph}>·</Text>
         <TextInput
           style={styles.input}
-          placeholder={t('common.search').toLowerCase()}
+          placeholder={t('common.search')}
           placeholderTextColor={colors.textFaint}
           value={q}
           onChangeText={setQ}
@@ -72,7 +93,31 @@ export function LocationList({ items, loading, onSelect }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
+  errorMessage: {
+    fontFamily: fonts.serif,
+    fontStyle: 'italic',
+    fontSize: 16,
+    color: colors.textDim,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+    letterSpacing: 0.3,
+  },
+  retryBtn: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.primary,
+  },
+  retryPressed: { opacity: 0.6 },
+  retryText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 11,
+    letterSpacing: 2.4,
+    textTransform: 'uppercase',
+    color: colors.primary,
+  },
   searchWrap: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -91,7 +136,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     color: colors.cream,
     fontSize: 18,
-    paddingLeft: spacing.md + 4,
+    paddingStart: spacing.md + 4,
     paddingVertical: spacing.sm,
     letterSpacing: 0.3,
   },
@@ -127,7 +172,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.serif,
     fontSize: 16,
     color: colors.textFaint,
-    marginLeft: spacing.sm,
+    marginStart: spacing.sm,
   },
-  sep: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderSoft, marginLeft: spacing.lg + 32 },
+  sep: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderSoft, marginStart: spacing.lg + 32 },
 });

@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     width: 2,
     height: 26,
     borderRadius: 1,
-    marginRight: spacing.md,
+    marginEnd: spacing.md,
   },
   barOff: { opacity: 0.25 },
   numeral: {
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     fontSize: 20,
     letterSpacing: 1,
-    marginRight: spacing.md,
+    marginEnd: spacing.md,
   },
   timeHighlight: { fontWeight: '500' },
   switchWrap: {

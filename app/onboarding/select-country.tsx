@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,34 +17,42 @@ export default function SelectCountry() {
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<LocationListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const load = useCallback(async (signal?: { cancelled: boolean }) => {
+    setLoading(true);
+    setError(false);
+    try {
+      const data = await locationCache.countries();
+      if (signal?.cancelled) return;
+      setItems(data.map((c) => ({ id: c._id, name: c.name, nameEn: c.name_en })));
+    } catch (e) {
+      logger.error('countries-fetch', { error: String(e) });
+      if (!signal?.cancelled) setError(true);
+    } finally {
+      if (!signal?.cancelled) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await locationCache.countries();
-        if (cancelled) return;
-        setItems(data.map((c) => ({ id: c._id, name: c.name, nameEn: c.name_en })));
-      } catch (e) {
-        logger.error('countries fetch', { error: String(e) });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    const signal = { cancelled: false };
+    void load(signal);
     return () => {
-      cancelled = true;
+      signal.cancelled = true;
     };
-  }, []);
+  }, [load]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.lg }]}>
       <View style={styles.head}>
-        <Text style={styles.eyebrow}>· chapter ii ·</Text>
+        <Text style={styles.eyebrow}>{t('screens.onboarding.chapterEyebrow.ii')}</Text>
         <Text style={styles.title}>{t('screens.onboarding.selectCountry')}</Text>
       </View>
       <LocationList
         items={items}
         loading={loading}
+        error={error}
+        onRetry={() => void load()}
         onSelect={(it) => {
           if (!isCountrySupported(it.id)) {
             logger.warn('tz-resolver-unsupported-country', { countryId: it.id, name: it.name });

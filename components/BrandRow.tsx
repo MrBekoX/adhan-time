@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.sm,
+    marginEnd: spacing.sm,
     backgroundColor: 'transparent',
     overflow: 'hidden',
   },

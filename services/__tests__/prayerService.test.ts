@@ -1,5 +1,6 @@
 import { ezanvakti } from '../ezanvaktiClient';
-import { syncYearly } from '../prayerService';
+import * as scheduler from '../notificationScheduler';
+import { scheduleAfterToggle, syncYearly } from '../prayerService';
 import type { PrayerTime, YearlyPrayerCache } from '../types';
 
 import { PRAYER_CACHE_TTL_MS } from '@/constants/api';
@@ -15,6 +16,7 @@ jest.mock('../ezanvaktiClient', () => ({
 jest.mock('../notificationScheduler', () => ({
   ensureAndroidChannel: jest.fn(),
   reconcile: jest.fn(async () => ({ scheduled: 0, cancelled: 0, total: 0 })),
+  cancelAllPrayerNotifications: jest.fn(async () => undefined),
 }));
 
 const yearlyMock = ezanvakti.prayerTimesYearly as jest.Mock;
@@ -180,5 +182,50 @@ describe('syncYearly year-boundary behavior', () => {
     await syncYearly(DISTRICT, NAME, TZ, { force: true });
 
     expect(yearlyMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('scheduleAfterToggle (V4)', () => {
+  const cancelMock = scheduler.cancelAllPrayerNotifications as jest.Mock;
+  const reconcileMock = scheduler.reconcile as jest.Mock;
+
+  beforeEach(() => {
+    cancelMock.mockClear();
+    reconcileMock.mockClear();
+  });
+
+  it('cancels existing notifications before re-scheduling', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-01T12:00:00Z'));
+    const cached: YearlyPrayerCache = {
+      districtId: DISTRICT,
+      year: 2026,
+      timezone: TZ,
+      fetchedAt: new Date(Date.now() - 60_000).toISOString(),
+      entries: range('2026-01-01', 365),
+    };
+    usePrayerStore.setState({ cache: cached });
+
+    const order: string[] = [];
+    cancelMock.mockImplementationOnce(async () => {
+      order.push('cancel');
+    });
+    reconcileMock.mockImplementationOnce(async () => {
+      order.push('reconcile');
+      return { scheduled: 0, cancelled: 0, total: 0 };
+    });
+
+    await scheduleAfterToggle(DISTRICT, NAME, TZ);
+
+    expect(order).toEqual(['cancel', 'reconcile']);
+    expect(cancelMock).toHaveBeenCalledTimes(1);
+    // syncYearly should hit cache (force=false), so prayerTimesYearly NOT called
+    expect(yearlyMock).not.toHaveBeenCalled();
+  });
+
+  it('propagates errors so caller can surface to UI', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-01T12:00:00Z'));
+    cancelMock.mockRejectedValueOnce(new Error('cancel-boom'));
+
+    await expect(scheduleAfterToggle(DISTRICT, NAME, TZ)).rejects.toThrow('cancel-boom');
   });
 });

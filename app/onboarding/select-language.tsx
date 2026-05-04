@@ -37,7 +37,7 @@ export default function SelectLanguage() {
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.xl }]}>
       <View style={styles.head}>
-        <Text style={styles.eyebrow}>· chapter i ·</Text>
+        <Text style={styles.eyebrow}>{t('screens.onboarding.chapterEyebrow.i')}</Text>
         <Text style={styles.title}>{t('screens.onboarding.selectLanguage')}</Text>
       </View>
 

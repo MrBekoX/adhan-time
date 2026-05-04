@@ -16,10 +16,12 @@ import type { Locale } from '@/locales/i18n';
 import { unregisterDevice } from '@/services/deviceRegistry';
 import { applyLocale } from '@/services/localeService';
 import { cancelAllPrayerNotifications } from '@/services/notificationScheduler';
-import { syncYearly } from '@/services/prayerService';
+import { scheduleAfterToggle, syncYearly } from '@/services/prayerService';
 import { useLocationStore } from '@/store/locationStore';
 import { usePrayerStore } from '@/store/prayerStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useUiStore } from '@/store/uiStore';
+import { logger } from '@/utils/logger';
 
 const LOCALE_OPTIONS: readonly { locale: Locale; label: string; shortLabel: string }[] = [
   { locale: 'tr', label: 'Türkçe', shortLabel: 'tr' },
@@ -38,17 +40,33 @@ export default function Settings() {
 
   const onSoundChange = async (sound: 'default' | 'adhanShort'): Promise<void> => {
     settings.setSound(sound);
-    if (location) {
+    if (!location) return;
+    try {
       await cancelAllPrayerNotifications();
       await syncYearly(location.districtId, location.districtName, location.timezone, { force: true });
+    } catch (e) {
+      logger.warn('settings-sound-change-failed', { sound, error: String(e) });
+      useUiStore.getState().setError({ code: 'toggle-failed' });
     }
   };
 
   const onTogglePrayer = async (key: PrayerKey): Promise<void> => {
     settings.togglePrayer(key);
-    if (location) {
-      await cancelAllPrayerNotifications();
-      await syncYearly(location.districtId, location.districtName, location.timezone);
+    if (!location) return;
+    try {
+      await scheduleAfterToggle(location.districtId, location.districtName, location.timezone);
+    } catch (e) {
+      logger.warn('settings-toggle-failed', { key, error: String(e) });
+      useUiStore.getState().setError({ code: 'toggle-failed' });
+    }
+  };
+
+  const onLocaleChange = async (locale: Locale): Promise<void> => {
+    try {
+      await applyLocale(locale);
+    } catch (e) {
+      logger.warn('settings-locale-change-failed', { locale, error: String(e) });
+      useUiStore.getState().setError({ code: 'toggle-failed' });
     }
   };
 
@@ -58,13 +76,19 @@ export default function Settings() {
 
   const performDelete = async (): Promise<void> => {
     setDeleting(true);
-    const serverOk = await unregisterDevice();
-    await cancelAllPrayerNotifications();
-    await AsyncStorage.clear();
-    useLocationStore.getState().reset();
-    useSettingsStore.getState().reset();
-    usePrayerStore.getState().clear();
-    setDeleting(false);
+    let serverOk = false;
+    try {
+      serverOk = await unregisterDevice();
+      await cancelAllPrayerNotifications();
+      await AsyncStorage.clear();
+      useLocationStore.getState().reset();
+      useSettingsStore.getState().reset();
+      usePrayerStore.getState().clear();
+    } catch (e) {
+      logger.warn('settings-delete-account-failed', { error: String(e) });
+    } finally {
+      setDeleting(false);
+    }
     if (!serverOk) {
       Alert.alert(t('screens.settings.deleteAccountFailed'));
     }
@@ -126,7 +150,7 @@ export default function Settings() {
                 active={settings.locale === opt.locale}
                 label={opt.label}
                 shortLabel={opt.shortLabel}
-                onPress={() => void applyLocale(opt.locale)}
+                onPress={() => void onLocaleChange(opt.locale)}
               />
             ))}
           </Row>
@@ -282,7 +306,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     fontSize: 13,
     color: colors.primary,
-    marginRight: spacing.sm,
+    marginEnd: spacing.sm,
     letterSpacing: 0.5,
   },
   sectionTitle: {
@@ -296,7 +320,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.borderSoft,
-    marginLeft: spacing.md,
+    marginStart: spacing.md,
   },
   sectionBody: {},
   value: {
@@ -323,7 +347,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    marginRight: spacing.sm,
+    marginEnd: spacing.sm,
     marginBottom: spacing.sm,
   },
   chipActive: { borderColor: colors.primary, backgroundColor: colors.primaryGlow },
@@ -333,7 +357,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     fontSize: 13,
     color: colors.textFaint,
-    marginRight: spacing.sm,
+    marginEnd: spacing.sm,
   },
   chipShortActive: { color: colors.primary },
   chipLabel: {
@@ -358,7 +382,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: spacing.md,
+    marginEnd: spacing.md,
   },
   toggleLabel: {
     fontFamily: fonts.serif,

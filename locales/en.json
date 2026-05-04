@@ -5,10 +5,12 @@
     "save": "Save",
     "cancel": "Cancel",
     "tryAgain": "Try again",
-    "loading": "Loading",
-    "search": "Search",
+    "loading": "loading",
+    "search": "search",
     "done": "Done",
-    "delete": "Delete"
+    "delete": "Delete",
+    "dismiss": "Dismiss",
+    "openSettings": "Open Settings"
   },
   "prayer": {
     "imsak": { "title": "Fajr", "body": "Fajr time has started.", "bodyWithCity": "Fajr time has started in {{city}}." },
@@ -31,6 +33,17 @@
     "tzUnsupported": {
       "title": "Region not yet supported",
       "body": "We don't have a timezone mapping for {{country}}. Selection is blocked because we can't guarantee notifications will fire at the correct time."
+    },
+    "banner": {
+      "sync-failed": "Could not refresh data. Showing what we last saved.",
+      "partial-schedule": "Some notifications could not be scheduled.",
+      "hydration-timeout": "Some saved data could not be read.",
+      "device-registration-failed": "Server registration for notifications failed.",
+      "toggle-failed": "Your preference was saved, but rescheduling failed."
+    },
+    "onboardingFinalize": {
+      "title": "Setup didn't finish",
+      "body": "We could not download prayer times or register your device. Check your connection and try again."
     },
     "unknown": "An unexpected error occurred."
   },
@@ -74,7 +87,15 @@
       "permissionsBody": "We need permission to deliver prayer time alerts.",
       "grantPermission": "Grant",
       "finish": "Finish",
-      "est": "est. 2026"
+      "est": "est. 2026",
+      "chapterEyebrow": {
+        "i": "· chapter i ·",
+        "ii": "· chapter ii ·",
+        "iii": "· chapter iii ·",
+        "iv": "· chapter iv ·",
+        "final": "· final chapter ·"
+      },
+      "notificationsForCity": "· you'll receive notifications for ·"
     },
     "home": {
       "nextPrayer": "Next Prayer",
@@ -133,10 +154,10 @@
     "placeholder": "..."
   },
   "units": {
-    "hour": "{{count}} hour",
-    "hour_plural": "{{count}} hours",
-    "minute": "{{count}} minute",
-    "minute_plural": "{{count}} minutes",
+    "hour_one": "{{count}} hour",
+    "hour_other": "{{count}} hours",
+    "minute_one": "{{count}} minute",
+    "minute_other": "{{count}} minutes",
     "km": "{{value}} km",
     "degrees": "{{value}}°",
     "meters": "{{value}} m"

@@ -5,10 +5,12 @@
     "save": "Kaydet",
     "cancel": "İptal",
     "tryAgain": "Tekrar Dene",
-    "loading": "Yükleniyor",
-    "search": "Ara",
+    "loading": "yükleniyor",
+    "search": "ara",
     "done": "Tamam",
-    "delete": "Sil"
+    "delete": "Sil",
+    "dismiss": "Kapat",
+    "openSettings": "Ayarları Aç"
   },
   "prayer": {
     "imsak": { "title": "İmsak", "body": "İmsak vakti girdi.", "bodyWithCity": "{{city}} için imsak vakti girdi." },
@@ -31,6 +33,17 @@
     "tzUnsupported": {
       "title": "Bu bölge henüz desteklenmiyor",
       "body": "{{country}} için saat dilimi haritamız hazır değil. Bildirimlerin doğru zamanda gelmesini garanti edemediğimiz için bu ülke seçilemez."
+    },
+    "banner": {
+      "sync-failed": "Veriler güncellenemedi. Eski bilgileri görüyorsun.",
+      "partial-schedule": "Bazı bildirimler zamanlanamadı.",
+      "hydration-timeout": "Uygulama bazı verileri okuyamadı.",
+      "device-registration-failed": "Bildirimler için sunucu kaydı yapılamadı.",
+      "toggle-failed": "Bildirim ayarın kaydedildi ama yeniden zamanlanamadı."
+    },
+    "onboardingFinalize": {
+      "title": "Kurulum tamamlanamadı",
+      "body": "Vakitler indirilemedi veya cihaz kaydedilemedi. Bağlantını kontrol edip tekrar dene."
     },
     "unknown": "Beklenmeyen bir hata oluştu."
   },
@@ -74,7 +87,15 @@
       "permissionsBody": "Vaktinde bildirim alabilmen için izin gerekli.",
       "grantPermission": "İzin Ver",
       "finish": "Bitir",
-      "est": "Kuruluş 2026"
+      "est": "Kuruluş 2026",
+      "chapterEyebrow": {
+        "i": "· bölüm i ·",
+        "ii": "· bölüm ii ·",
+        "iii": "· bölüm iii ·",
+        "iv": "· bölüm iv ·",
+        "final": "· son bölüm ·"
+      },
+      "notificationsForCity": "· bildirimler şu şehir için gelecek ·"
     },
     "home": {
       "nextPrayer": "Sıradaki Vakit",
@@ -133,10 +154,10 @@
     "placeholder": "..."
   },
   "units": {
-    "hour": "{{count}} saat",
-    "hour_plural": "{{count}} saat",
-    "minute": "{{count}} dakika",
-    "minute_plural": "{{count}} dakika",
+    "hour_one": "{{count}} saat",
+    "hour_other": "{{count}} saat",
+    "minute_one": "{{count}} dakika",
+    "minute_other": "{{count}} dakika",
     "km": "{{value}} km",
     "degrees": "{{value}}°",
     "meters": "{{value}} m"

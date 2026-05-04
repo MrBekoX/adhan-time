@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.md,
+    marginEnd: spacing.md,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
   textBox: { flex: 1 },

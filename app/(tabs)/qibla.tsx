@@ -17,11 +17,12 @@ import { useUserLocation } from '@/hooks/useUserLocation';
 import { useLocationStore } from '@/store/locationStore';
 import { distanceToKaabaKm, qiblaBearing } from '@/utils/geo';
 import { isUnreliable, signedDelta } from '@/utils/heading';
+import { lowercaseInLocale } from '@/utils/textCase';
 
 const COMPASS_SIZE = 260;
 
 export default function QiblaScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const cityName = useLocationStore((s) => s.selected?.districtName ?? null);
   const countryName = useLocationStore((s) => s.selected?.countryName ?? null);
@@ -73,7 +74,9 @@ export default function QiblaScreen() {
             <>
               <Text style={styles.cityName}>{cityName}</Text>
               {countryName && (
-                <Text style={styles.cityCountry}>{countryName.toLocaleLowerCase('tr')}</Text>
+                <Text style={styles.cityCountry}>
+                  {lowercaseInLocale(countryName, i18n.language)}
+                </Text>
               )}
             </>
           ) : (

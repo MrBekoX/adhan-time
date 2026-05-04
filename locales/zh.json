@@ -8,7 +8,9 @@
     "loading": "加载中",
     "search": "搜索",
     "done": "完成",
-    "delete": "删除"
+    "delete": "删除",
+    "dismiss": "关闭",
+    "openSettings": "打开设置"
   },
   "prayer": {
     "imsak": { "title": "晨礼", "body": "晨礼时间已到。", "bodyWithCity": "{{city}} 晨礼时间已到。" },
@@ -31,6 +33,17 @@
     "tzUnsupported": {
       "title": "此地区尚不支持",
       "body": "{{country}} 的时区映射尚未就绪。无法保证通知在正确的时间触发,因此此国家无法选择。"
+    },
+    "banner": {
+      "sync-failed": "数据未能更新,正在显示上次保存的内容。",
+      "partial-schedule": "部分通知未能成功安排。",
+      "hydration-timeout": "部分本地数据无法读取。",
+      "device-registration-failed": "通知所需的服务器注册失败。",
+      "toggle-failed": "偏好已保存,但通知重新安排失败。"
+    },
+    "onboardingFinalize": {
+      "title": "初始化未完成",
+      "body": "无法下载礼拜时间或注册设备,请检查网络连接后重试。"
     },
     "unknown": "发生未知错误。"
   },
@@ -74,7 +87,15 @@
       "permissionsBody": "我们需要权限以准时发送礼拜提醒。",
       "grantPermission": "授予",
       "finish": "完成",
-      "est": "建于 2026"
+      "est": "建于 2026",
+      "chapterEyebrow": {
+        "i": "· 第一章 ·",
+        "ii": "· 第二章 ·",
+        "iii": "· 第三章 ·",
+        "iv": "· 第四章 ·",
+        "final": "· 最终章 ·"
+      },
+      "notificationsForCity": "· 通知将发送至以下城市 ·"
     },
     "home": {
       "nextPrayer": "下次礼拜",
@@ -133,10 +154,8 @@
     "placeholder": "..."
   },
   "units": {
-    "hour": "{{count}} 小时",
-    "hour_plural": "{{count}} 小时",
-    "minute": "{{count}} 分钟",
-    "minute_plural": "{{count}} 分钟",
+    "hour_other": "{{count}} 小时",
+    "minute_other": "{{count}} 分钟",
     "km": "{{value}} 公里",
     "degrees": "{{value}}°",
     "meters": "{{value}} 米"

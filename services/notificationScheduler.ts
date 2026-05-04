@@ -5,14 +5,20 @@ import { Platform } from 'react-native';
 import type { PrayerTime, ScheduledPrayer, YearlyPrayerCache } from './types';
 
 import {
+  ANDROID_CHANNEL_CUSTOM_ID,
+  ANDROID_CHANNEL_CUSTOM_NAME,
   ANDROID_CHANNEL_ID,
   ANDROID_CHANNEL_NAME,
   ROLLING_WINDOW_DAYS,
+  SOUNDS,
+  type SoundKey,
   buildNotificationId,
+  channelIdForSound,
   isPrayerNotificationId,
 } from '@/constants/notifications';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
 import { i18n } from '@/locales/i18n';
+import { useUiStore } from '@/store/uiStore';
 import { logger } from '@/utils/logger';
 import { addLocalDays, getDateComponentsInTz, isoDateInTz, parsePrayerTime } from '@/utils/time';
 
@@ -21,7 +27,7 @@ import { addLocalDays, getDateComponentsInTz, isoDateInTz, parsePrayerTime } fro
 type ReconcileOptions = {
   windowDays?: number;
   enabledPrayers?: PrayerKey[];
-  sound?: string;
+  sound?: SoundKey;
   districtName?: string;
 };
 
@@ -30,7 +36,18 @@ export async function ensureAndroidChannel(): Promise<void> {
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
     name: ANDROID_CHANNEL_NAME,
     importance: Notifications.AndroidImportance.HIGH,
-    sound: 'default',
+    sound: SOUNDS.default,
+    vibrationPattern: [0, 500, 250, 500],
+    enableVibrate: true,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  });
+  // V8: a separate channel hosts the custom adhan ringtone — runtime sound
+  // changes on Android require swapping channel IDs, since the OS freezes a
+  // channel's sound at first registration.
+  await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_CUSTOM_ID, {
+    name: ANDROID_CHANNEL_CUSTOM_NAME,
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: SOUNDS.adhanShort,
     vibrationPattern: [0, 500, 250, 500],
     enableVibrate: true,
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
@@ -40,10 +57,10 @@ export async function ensureAndroidChannel(): Promise<void> {
 export async function reconcile(
   cache: YearlyPrayerCache,
   options: ReconcileOptions = {},
-): Promise<{ scheduled: number; cancelled: number; total: number }> {
+): Promise<{ scheduled: number; cancelled: number; failed: number; total: number }> {
   const windowDays = options.windowDays ?? ROLLING_WINDOW_DAYS;
   const enabled = options.enabledPrayers ?? [...PRAYER_KEYS];
-  const sound = options.sound ?? 'default';
+  const soundKey: SoundKey = options.sound ?? 'default';
   const tz = cache.timezone;
   const now = new Date();
 
@@ -60,17 +77,30 @@ export async function reconcile(
   for (const c of toCancel) {
     await Notifications.cancelScheduledNotificationAsync(c.identifier);
   }
-  for (const s of toSchedule) {
-    await scheduleOne(s, tz, sound, options.districtName);
+
+  // F2: schedule each target independently — one rejection must not abort the rest.
+  const results = await Promise.allSettled(
+    toSchedule.map((s) => scheduleOne(s, tz, soundKey, options.districtName)),
+  );
+  const failed = results.filter((r) => r.status === 'rejected').length;
+  const scheduled = toSchedule.length - failed;
+
+  if (failed > 0) {
+    logger.warn('reconcile-partial-failure', { failed, total: toSchedule.length });
+    useUiStore.getState().setError({
+      code: 'partial-schedule',
+      data: { failed, total: toSchedule.length },
+    });
   }
 
   logger.info('reconcile', {
     target: target.length,
     cancelled: toCancel.length,
-    scheduled: toSchedule.length,
+    scheduled,
+    failed,
   });
 
-  return { scheduled: toSchedule.length, cancelled: toCancel.length, total: target.length };
+  return { scheduled, cancelled: toCancel.length, failed, total: target.length };
 }
 
 export async function cancelAllPrayerNotifications(): Promise<void> {
@@ -123,7 +153,7 @@ function findEntryForDate(entries: PrayerTime[], dateIso: string): PrayerTime | 
 async function scheduleOne(
   s: ScheduledPrayer,
   tz: string,
-  sound: string,
+  soundKey: SoundKey,
   districtName?: string,
 ): Promise<void> {
   const c = getDateComponentsInTz(s.fireAt, tz);
@@ -134,7 +164,7 @@ async function scheduleOne(
       body: districtName
         ? i18n.t(`prayer.${s.prayerKey}.bodyWithCity`, { city: districtName })
         : i18n.t(`prayer.${s.prayerKey}.body`),
-      sound: sound === 'default' ? 'default' : sound,
+      sound: SOUNDS[soundKey],
       data: { prayerKey: s.prayerKey, dateIso: s.dateIso },
     },
     trigger: {
@@ -147,7 +177,7 @@ async function scheduleOne(
       minute: c.minute,
       second: 0,
       repeats: false,
-      ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : {}),
+      ...(Platform.OS === 'android' ? { channelId: channelIdForSound(soundKey) } : {}),
     },
   });
 }
