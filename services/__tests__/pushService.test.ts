@@ -1,10 +1,8 @@
-/**
- * Issue #13: getExpoPushToken now returns a discriminated TokenResult so a
- * fetch-failed transient (Expo SDK couldn't issue a token despite the user
- * having push permission ON) can be distinguished from a permission-denied
- * case. Without that distinction, useAppLifecycle silently dropped the
- * device's server-side push fallback whenever Expo's SDK hiccuped.
- */
+// getExpoPushToken returns a discriminated TokenResult so a fetch-failed
+// transient (Expo SDK couldn't issue a token despite the user having push
+// permission ON) is distinguishable from a permission-denied case. Without
+// that distinction, useAppLifecycle silently dropped the device's
+// server-side push fallback whenever Expo's SDK hiccuped.
 import * as Notifications from 'expo-notifications';
 
 import { getExpoPushToken } from '../pushService';
@@ -28,7 +26,7 @@ beforeEach(() => {
   getTokenAsyncMock.mockReset().mockResolvedValue({ data: 'ExponentPushToken[xyz]' });
 });
 
-describe('getExpoPushToken — discriminated TokenResult (Issue #13)', () => {
+describe('getExpoPushToken — discriminated TokenResult', () => {
   it('returns ok=true with the token string when everything succeeds', async () => {
     const result = await getExpoPushToken();
     expect(result).toEqual({ ok: true, token: 'ExponentPushToken[xyz]' });

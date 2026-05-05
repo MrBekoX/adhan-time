@@ -35,11 +35,11 @@ export async function runLifecycleOnce(): Promise<void> {
     useUiStore.getState().setError({ code: 'sync-failed', message: String(e) });
   }
 
-  // Clear a stale 'sync-failed' banner once the cycle succeeds — a server
-  // outage from yesterday should not haunt today's UI. The 'partial-sync'
-  // banner is intentionally NOT cleared here: it can be set INSIDE
-  // syncYearly by fetchNextYearStart even on a successful run, so a clear
-  // pass at this point would clobber the banner the same call just emitted.
+  // Clear a stale 'sync-failed' banner once the cycle succeeds — a banner
+  // from a previous failed attempt should not persist past a recovery.
+  // 'partial-sync' is intentionally NOT cleared here: it can be set INSIDE
+  // syncYearly by fetchNextYearStart even on a successful run, so this
+  // pass would clobber the banner the same call just emitted.
   if (!syncFailed) {
     const cur = useUiStore.getState().lastError;
     if (cur?.code === 'sync-failed') useUiStore.getState().setError(null);
@@ -87,24 +87,18 @@ export async function runLifecycleOnce(): Promise<void> {
     settingsActions.setDeviceRegistrationPending(true);
     ui.setError({ code: 'device-registration-failed' });
   } else if (result.reason === 'token-fetch-failed') {
-    // Issue #13: permission was granted but Expo's SDK couldn't issue a
-    // token. Treat as transient — set the pending flag so AppState 'active'
-    // retries, but use a distinct banner code so the user knows the issue
-    // is push-side (Expo backend / network), not server-side.
+    // Distinct from 'transient' so the banner copy points at the push
+    // side (Expo backend / network), not at server-side registration.
     settingsActions.setDeviceRegistrationPending(true);
     ui.setError({ code: 'push-token-unavailable' });
   }
-  // 'no-token' → simulator OR permission-denied. Permission denial is
-  // already surfaced through V5's notificationPermissionDenied; simulator
-  // is a dev-mode no-op.
+  // 'no-token' covers simulator + permission-denied. Permission state is
+  // already surfaced through notificationPermissionDenied elsewhere.
 }
 
-/**
- * V5: keep `notificationPermissionDenied` in sync with the OS state on every
- * foreground tick. If the user re-enabled notifications in system settings,
- * clear the banner; if they revoked an earlier grant, surface it again so
- * silent notification-off prayer time misses are flagged loudly.
- */
+// Keep notificationPermissionDenied in sync with the OS on every foreground
+// tick — without this, a user who revokes permission in system settings
+// still sees a clean app and silently misses every prayer notification.
 async function reconcilePermissionFlag(): Promise<void> {
   try {
     const perm = await Notifications.getPermissionsAsync();

@@ -20,10 +20,9 @@ type RegisterPayload = {
 
 const HMAC_SECRET = process.env.EXPO_PUBLIC_REGISTER_HMAC_KEY ?? null;
 
-// V16: 3 retries × exponential backoff. Tests can shrink the base delay so
-// the suite doesn't burn 7s per failure case waiting for 1s/2s/4s sleeps.
-// Resolved per call rather than at module load so test setup can override
-// REGISTER_DEVICE_BASE_DELAY_MS without re-importing the module.
+// Resolved per call rather than at module load so tests can override
+// REGISTER_DEVICE_BASE_DELAY_MS to skip the 1s/2s/4s exponential sleeps
+// without re-importing this module.
 function getBaseDelayMs(): number {
   const fromEnv = process.env.REGISTER_DEVICE_BASE_DELAY_MS;
   if (!fromEnv) return 1000;
@@ -45,19 +44,13 @@ export type RegisterResult =
   | { ok: false; reason: 'transient' }
   | { ok: false; reason: 'incompatible'; status: number };
 
-// V16+F6: registers the device with the push fallback service. Returns a
-// discriminated union so callers can branch on the failure mode:
-//   - 'transient' (5xx, network, retries exhausted) → set pending flag,
-//     surface the generic banner with retry; AppState 'active' will retry.
-//   - 'incompatible' (4xx — bad payload, signing-key rotation, schema drift)
-//     → retry won't help. Surface a distinct banner ("Update the app"),
-//     don't queue a pending retry. The 'status' carries the HTTP code so
-//     bug reports can distinguish 400/401/403/422.
-//   - 'token-fetch-failed' (issue #13) → permission was granted but Expo's
-//     SDK couldn't issue a token. Treat as transient — banner + retry.
-//   - 'no-token' → device is a simulator OR user denied permission; the
-//     latter is already surfaced through V5's notificationPermissionDenied,
-//     the former is a dev-mode no-op.
+// Branches the caller relies on:
+//   - 'incompatible' is a 4xx — retry won't help, banner copy points the
+//     user at an app update; pending flag must NOT be set.
+//   - 'token-fetch-failed' looks transient like 5xx but originates on the
+//     push side, so the banner copy points at "check connection" instead.
+//   - 'no-token' covers both simulator and permission-denied; the latter
+//     is already surfaced through notificationPermissionDenied elsewhere.
 export async function registerDevice(
   input: Omit<RegisterPayload, 'expoPushToken'>,
 ): Promise<RegisterResult> {
@@ -106,8 +99,8 @@ export async function registerDevice(
     return { ok: true };
   } catch (e) {
     if (e instanceof RegisterDeviceClientError) {
-      // logger.error so a build-vs-server schema drift shows up in admin
-      // dashboards as an actionable signal, not a routine warning.
+      // error-level so a build-vs-server schema drift surfaces in admin
+      // dashboards as actionable, not a routine warning.
       logger.error('register-device-incompatible', {
         status: e.status,
         name: e.name,
@@ -119,12 +112,9 @@ export async function registerDevice(
   }
 }
 
-/**
- * S4: Asks the server to delete the row associated with this device's
- * push token. Used by the "Verilerimi sil" / "Delete my data" Settings flow.
- * Returns true on a 2xx, false on transport failure or non-2xx — the caller
- * still proceeds with the local wipe so the user is never trapped.
- */
+// Returns false (not throws) on transport failure or non-2xx — the caller
+// still proceeds with the local wipe so a server outage can't trap the
+// user inside their own data.
 export async function unregisterDevice(): Promise<boolean> {
   const tokenResult = await getExpoPushToken();
   if (!tokenResult.ok) return true;

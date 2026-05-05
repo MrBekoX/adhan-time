@@ -79,9 +79,10 @@ describe('finalizeOnboarding (V5)', () => {
   });
 
   it('does NOT swallow a registerDevice exception (kept as ok:false for retry)', async () => {
-    // registerDevice today swallows its own network errors, but if a future
-    // change makes it throw the orchestration must fall through to ok:false
-    // rather than silently complete onboarding.
+    // Contract: any throw from registerDevice must produce ok:false on the
+    // orchestration result, not a silently completed onboarding. The
+    // current registerDevice catches its own network errors, but this test
+    // pins the orchestration's behavior under the contract regardless.
     registerMock.mockRejectedValue(new Error('register-500'));
     const result = await finalizeOnboarding(INPUT);
     expect(result.ok).toBe(false);

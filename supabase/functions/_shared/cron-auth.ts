@@ -1,7 +1,7 @@
-// S2: shared-secret check for the pg_cron → push-prayer call.
-// Fails closed: if the function was deployed without the env var, every
-// request is rejected. That is preferable to silently re-enabling the open
-// endpoint while the operator forgets to set the secret.
+// Shared-secret check for the pg_cron → push-prayer call. Fails closed:
+// if deployed without the env var every request is rejected, preventing a
+// silent re-open of the public POST endpoint when the operator forgets
+// to set the secret after a redeploy.
 
 const HEADER = 'x-cron-secret';
 

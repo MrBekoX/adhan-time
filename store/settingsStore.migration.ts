@@ -1,18 +1,6 @@
-/**
- * Forward-only persisted-state migrations for the settings store.
- *
- * v1 → v2 (V5): `notificationPermissionDenied` introduced so Home can show
- * the openSettings banner across launches, not just during onboarding.
- * Existing persisted blobs lacked the field — backfill `false` so an
- * existing user is not falsely marked denied.
- *
- * v2 → v3 (V16+F6): `deviceRegistrationPending` introduced so a failed
- * registerDevice call survives a process kill and gets retried on the
- * next foreground tick. Existing blobs lacked the field — backfill
- * `false`; a new user has no pending registration to retry.
- *
- * Pure for testability — keep AsyncStorage out of this module.
- */
+// Forward-only: each version block backfills a new field on older blobs.
+// Pure (no AsyncStorage) for testability — invoked by zustand persist
+// middleware against the raw persisted JSON.
 export type PersistedSettingsShape = {
   locale?: string;
   sound?: string;

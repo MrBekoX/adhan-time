@@ -46,9 +46,9 @@ export default function Permissions() {
       return;
     }
 
-    // V5: surface the OS-level denial as a persistent banner on Home; we
-    // still let the user finish onboarding so they can use the app and
-    // re-enable notifications later from system Settings.
+    // Surface the OS-level denial as a persistent banner on Home; the
+    // user still finishes onboarding so they can use the app and re-enable
+    // notifications later from system Settings.
     setNotificationPermissionDenied(!result.permissionGranted);
     setOnboardingCompleted(true);
     router.replace('/(tabs)/home');

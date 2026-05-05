@@ -13,9 +13,9 @@ type State = {
   enabledPrayers: PrayerKey[];
   onboardingCompleted: boolean;
   notificationPermissionDenied: boolean;
-  // V16+F6: persisted across launches so a registration failure during
-  // onboarding (or yesterday's outage) is retried on the next foreground tick
-  // even after the app process is killed.
+  // Persisted across launches so a registration failure during onboarding
+  // (or any prior outage) gets retried on the next foreground tick even
+  // after the app process is killed.
   deviceRegistrationPending: boolean;
   hydrated: boolean;
 };

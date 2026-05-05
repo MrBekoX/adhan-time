@@ -1,10 +1,7 @@
-// I1: server-side push notification copy is sourced from the same JSON
-// catalog that mobile uses. The generated module SHARED_I18N is built
-// from locales/*.json by `npm run build:supabase-i18n`, so a translation
-// edit propagates to the cron fallback after a single regeneration step.
-//
-// Both the Deno edge runtime and Jest+Node import this file unchanged —
-// no `import.meta`, no JSON import attributes, just a plain TS module.
+// SHARED_I18N is generated from locales/*.json by `npm run build:supabase-i18n`
+// so a mobile translation edit propagates to the cron fallback after one
+// regen step. The plain TS module form keeps this importable from both the
+// Deno edge runtime and Jest+Node without import.meta or JSON-attribute hacks.
 
 import { SHARED_I18N } from './i18n.gen.ts';
 

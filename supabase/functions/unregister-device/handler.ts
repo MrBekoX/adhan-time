@@ -1,8 +1,7 @@
-// S4: device-driven account deletion (KVKK/GDPR).
-// The mobile client sends its own push token; the edge function deletes the
-// matching row in `devices`. No HMAC: an attacker could only "annoy" a user
-// by removing their server fallback, and the next app open re-registers
-// automatically.
+// Device-driven account deletion (KVKK/GDPR). The mobile client sends its
+// own push token; this edge function deletes the matching `devices` row.
+// No HMAC: an attacker could only "annoy" a user by removing their server
+// fallback, and the next app open re-registers automatically.
 
 const TOKEN_RE = /^ExponentPushToken\[[A-Za-z0-9_-]{20,40}\]$/;
 

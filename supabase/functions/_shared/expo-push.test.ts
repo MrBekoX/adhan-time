@@ -122,9 +122,9 @@ describe('processBatchResponse', () => {
   });
 
   it('uses a custom reason in the log message when the caller supplies one (parse-failed)', () => {
-    // Issue #8: an HTTP 200 with a malformed body must not be treated like
-    // a clean success — every log should record the parse-failed reason so
-    // ops can distinguish "Expo down" from "we sent garbage".
+    // An HTTP 200 with a malformed body must not be treated like a clean
+    // success — every log should record the parse-failed reason so ops
+    // can distinguish "Expo down" from "we sent garbage".
     const pairs = [pair(TOKEN_A, 'd-a'), pair(TOKEN_B, 'd-b')];
     const result = processBatchResponse(pairs, {
       ok: false,

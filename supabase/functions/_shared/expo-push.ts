@@ -1,6 +1,6 @@
-// F1: pure parser/classifier for Expo /push/send responses.
-// Side-effects (DB delete, log upsert) live in the Deno entry point;
-// this module just decides what each ticket means.
+// Pure parser/classifier for Expo /push/send responses. Side-effects
+// (DB delete, log upsert) live in the Deno entry point; this module
+// just decides what each ticket means.
 
 export type ExpoMessage = {
   to: string;
@@ -85,11 +85,9 @@ export function processBatchResponse(pairs: Pair[], response: BatchResponse): Ba
   };
 }
 
-// Issue #8: per-device errors in the cron loop (bad timezone, upstream API
-// down, prayer-time parse crash, etc.) used to be a console.error only.
-// Writing a synthetic push_log row gives admin a SQL-queryable signal that
-// a particular device is silently dropping pushes — without it, a single
-// corrupt device row hides forever in the per-device try/catch. The
+// Synthetic push_log row for a per-device cron-loop failure (bad timezone,
+// upstream API outage, prayer-time parse crash). Without this audit row a
+// single corrupt device row would silently drop pushes forever. The
 // '_system' prayer_key keeps the (device_id, prayer_key, local_date)
 // dedup key from clashing with real prayer notifications.
 export function buildDeviceErrorLog(

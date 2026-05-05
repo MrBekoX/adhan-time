@@ -123,10 +123,10 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
   });
 
   it("returns ok=false reason='token-fetch-failed' when Expo's getExpoPushTokenAsync throws", async () => {
-    // Issue #13: distinct from permission-denied. The user has push permission
-    // ON but Expo's SDK couldn't issue a token (network blip, projectId
-    // misconfigured, Expo backend hiccup). Treat it as transient — the next
-    // foreground tick will retry.
+    // Distinct from permission-denied: the user has push permission ON
+    // but Expo's SDK couldn't issue a token (network blip, projectId
+    // misconfigured, Expo backend hiccup). Treat as transient — the next
+    // foreground tick retries.
     getTokenMock.mockResolvedValueOnce({
       ok: false,
       reason: 'fetch-failed',

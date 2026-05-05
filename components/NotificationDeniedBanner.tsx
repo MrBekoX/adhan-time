@@ -5,15 +5,9 @@ import { colors, fonts, radius, spacing } from './Theme';
 
 import { useSettingsStore } from '@/store/settingsStore';
 
-/**
- * V5: rendered on Home whenever the user denied the OS notification prompt.
- * Tapping the action opens the system settings app — we cannot re-prompt
- * after a denial on iOS, so the user has to flip the toggle there.
- *
- * The banner stays visible until `notificationPermissionDenied` is cleared,
- * which happens when a future requestPermission() returns true (handled by
- * the same flow that set the flag in the first place).
- */
+// Tapping the action opens system settings — iOS cannot re-prompt after
+// a denial, so the user has to flip the toggle there. The banner stays
+// visible until requestPermission() returns true on a later attempt.
 export function NotificationDeniedBanner() {
   const { t } = useTranslation();
   const denied = useSettingsStore((s) => s.notificationPermissionDenied);

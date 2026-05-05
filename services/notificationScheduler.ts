@@ -44,9 +44,9 @@ export async function ensureAndroidChannel(): Promise<void> {
     enableVibrate: true,
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   });
-  // V8: a separate channel hosts the custom adhan ringtone — runtime sound
-  // changes on Android require swapping channel IDs, since the OS freezes a
-  // channel's sound at first registration.
+  // Separate channel for the custom adhan ringtone: Android freezes a
+  // channel's sound at first registration, so a runtime sound change
+  // requires swapping channel IDs rather than mutating the existing one.
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_CUSTOM_ID, {
     name: ANDROID_CHANNEL_CUSTOM_NAME,
     importance: Notifications.AndroidImportance.HIGH,
@@ -62,9 +62,9 @@ export async function reconcile(
   options: ReconcileOptions = {},
 ): Promise<{ scheduled: number; cancelled: number; failed: number; total: number }> {
   const enabled = options.enabledPrayers ?? [...PRAYER_KEYS];
-  // V2: when all six prayers are on, default to an 8-day window so the queue
-  // lands at 48 — well under the iOS 50 cap. Caller can still pass an explicit
-  // windowDays to override; the hard slice below is the absolute backstop.
+  // All-six prayers default to an 8-day window so 6 × 8 = 48 stays under
+  // the iOS pending cap. An explicit windowDays override is honored, but
+  // the slice() below is the absolute backstop against silent over-cap.
   const defaultWindow =
     enabled.length === ALL_PRAYERS_COUNT
       ? ROLLING_WINDOW_DAYS_ALL_PRAYERS
@@ -74,9 +74,6 @@ export async function reconcile(
   const tz = cache.timezone;
   const now = new Date();
 
-  // V2: hard cap regardless of how the inputs combine. Even if a future
-  // override or scheduler bug produces > 50 raw targets, we never push past
-  // the iOS pending limit silently.
   const target = computeTargets(cache, tz, now, windowDays, enabled).slice(
     0,
     PENDING_NOTIFICATION_HARD_CAP,
@@ -167,7 +164,7 @@ export function computeTargets(
           fireAt,
         });
       } catch (e) {
-        // V11: a single malformed entry must not abort the whole window.
+        // A single malformed entry must not abort the whole window.
         logger.warn('parsePrayerTime-failed', { dateIso, key, value, error: String(e) });
       }
     }

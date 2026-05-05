@@ -91,11 +91,10 @@ async function fetchNextYearStart(
   }
 }
 
-/**
- * V4 — Settings/Home toggle reconcile: cancel any queued prayer notifications,
- * then re-run a (cache-friendly) sync to reschedule with the new settings.
- * Errors propagate so the caller can surface them via uiStore/Alert.
- */
+// Cancel before reschedule so a sound-toggle doesn't leave surviving
+// notifications firing with the previous channel/sound on Android, where
+// channels freeze their sound at first registration. Errors propagate so
+// the caller can surface them via uiStore/Alert.
 export async function scheduleAfterToggle(
   districtId: string,
   districtName: string,

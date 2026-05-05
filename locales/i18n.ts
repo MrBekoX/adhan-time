@@ -8,12 +8,10 @@ import en from './en.json';
 import tr from './tr.json';
 import zh from './zh.json';
 
-// I3: i18next 23 plural resolution requires `Intl.PluralRules`. Modern Hermes
-// (React Native 0.74+) ships it, but older builds and the JSC fallback do not.
-// Loading the polyfill is a no-op when the engine already exposes Intl, so it
-// only costs bytes on legacy environments.
+// i18next plural resolution depends on Intl.PluralRules. Modern Hermes
+// (React Native 0.74+) ships it; older builds and the JSC fallback do not.
+// Lazy require so the polyfill is loaded only on engines that need it.
 if (typeof Intl === 'undefined' || typeof Intl.PluralRules !== 'function') {
-  // Lazy require so the polyfill cost is paid only on engines that need it.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   require('intl-pluralrules');
 }
@@ -46,9 +44,8 @@ void i18n.use(initReactI18next).init({
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
   returnNull: false,
-  // I3: v4 (CLDR) plural keys (`_one`, `_two`, `_few`, `_many`, `_other`)
-  // are now used. Arabic gains its dual/many forms instead of collapsing
-  // them into a single `_plural` bucket.
+  // v4 (CLDR) plural keys (`_one`/`_two`/`_few`/`_many`/`_other`) so Arabic
+  // renders dual and many forms correctly instead of collapsing into one.
 });
 
 // İlk açılışta cihaz dili Arapça ise RTL'i layout seviyesinde ayarla.

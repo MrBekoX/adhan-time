@@ -95,10 +95,11 @@ describe('runLifecycleOnce — F4 sync-fail surfaces to uiStore', () => {
   });
 
   it("preserves a 'partial-sync' banner that syncYearly emitted internally", async () => {
-    // Regression guard for the bug PR #12 reviewers caught: previously
-    // fetchNextYearStart set 'sync-failed', which the cleanup pass below
-    // immediately cleared since syncYearly itself didn't throw. The fix
-    // uses a distinct 'partial-sync' code that survives the cleanup.
+    // Regression guard: the runLifecycleOnce cleanup clears 'sync-failed'
+    // on a clean syncYearly resolution. fetchNextYearStart deliberately
+    // uses a distinct 'partial-sync' code so its banner survives that
+    // cleanup pass — without the distinction, year-boundary partial loss
+    // would set a banner the same call immediately wipes.
     syncMock.mockImplementation(async () => {
       // Simulate fetchNextYearStart emitting the banner inside a successful
       // syncYearly resolution.
@@ -195,9 +196,9 @@ describe('runLifecycleOnce — V16+F6 device registration retry surface', () => 
   });
 
   it("emits 'device-registration-incompatible' (not the retry banner) on 4xx and does NOT set pending", async () => {
-    // Issue #8: 4xx + retry-button infinite loop. The user must update the
-    // app, not click retry. Pending stays false so AppState 'active' won't
-    // queue a doomed retry on the next foreground tick.
+    // 4xx with the retry-button path becomes an infinite no-op loop —
+    // the user must update the app, not click retry. Pending stays false
+    // so AppState 'active' won't queue a doomed retry on the next tick.
     registerMock.mockResolvedValueOnce({ ok: false, reason: 'incompatible', status: 401 });
 
     await runLifecycleOnce();
@@ -208,15 +209,15 @@ describe('runLifecycleOnce — V16+F6 device registration retry surface', () => 
     expect(err?.data?.status).toBe(401);
   });
 
-  it('clears a previously-pending flag when 4xx surfaces (transient → incompatible transition)', async () => {
+  it('clears a pending flag when 4xx surfaces (transient → incompatible transition)', async () => {
     useSettingsStore.setState({ deviceRegistrationPending: true });
     registerMock.mockResolvedValueOnce({ ok: false, reason: 'incompatible', status: 422 });
 
     await runLifecycleOnce();
 
-    // Yesterday's transient banner queued a retry; today's 4xx says retry
-    // won't help, so the pending flag must clear or Settings keeps showing
-    // a misleading retry button.
+    // A retry queued by an earlier transient failure must drop once a 4xx
+    // arrives — retry can't recover from a 4xx, and Settings should stop
+    // offering the retry button.
     expect(useSettingsStore.getState().deviceRegistrationPending).toBe(false);
   });
 
@@ -294,9 +295,7 @@ describe('runLifecycleOnce — V16+F6 device registration retry surface', () => 
 });
 
 describe('useAppLifecycle — V16 AppState listener wiring', () => {
-  // Issue #9: V16 acceptance criterion "AppState 'active' geçişinde pending
-  // flag varsa retry tetiklenir" was not directly tested. This block
-  // mocks AppState.addEventListener to capture the subscriber and asserts
+  // Mocks AppState.addEventListener to capture the subscriber and asserts
   // the lifecycle re-runs only on 'active' (not 'background'/'inactive')
   // and that sub.remove() fires on unmount.
   let listener: ((status: AppStateStatus) => void) | undefined;

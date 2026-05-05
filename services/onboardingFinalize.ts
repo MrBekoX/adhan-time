@@ -17,16 +17,9 @@ export type FinalizeResult =
   | { ok: true; permissionGranted: boolean }
   | { ok: false; error: unknown };
 
-/**
- * V5: orchestrates the side-effects fired when the user taps "Finish" on the
- * permissions screen — request OS permission, ensure the Android channel,
- * pull the year of prayer times, and register the device with the server.
- *
- * Pure orchestration: returns a discriminated result instead of throwing so
- * the screen can decide whether to show a retry alert (`ok: false`) or a
- * persistent denied-permission banner (`ok: true && !permissionGranted`)
- * without burying the user in raw errors.
- */
+// Returns a discriminated result instead of throwing so the screen can
+// decide between retry-alert (`ok: false`) and a persistent denied-permission
+// banner (`ok: true && !permissionGranted`) without burying raw errors.
 export async function finalizeOnboarding(input: FinalizeInput): Promise<FinalizeResult> {
   try {
     const permissionGranted = await requestPermission();

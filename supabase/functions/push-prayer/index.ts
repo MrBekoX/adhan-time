@@ -23,8 +23,8 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
 const EXPO_TOKEN = Deno.env.get('EXPO_ACCESS_TOKEN');
-// S2: shared secret with pg_cron — fail closed when unset so the function
-// never accidentally exposes a public POST endpoint after a redeploy.
+// Shared secret with pg_cron — fail closed when unset so the function never
+// accidentally exposes a public POST endpoint after a redeploy.
 const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? null;
 const STALE_DAYS = 5;
 const PRAYER_KEYS = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'] as const;
@@ -158,10 +158,10 @@ Deno.serve(async (req: Request) => {
         bodyParseFailed = true;
       }
 
-      // Issue #8: a 200 with a malformed body is not a success. Fall through
-      // to the !ok branch so DeviceNotRegistered cleanup still has a chance
-      // (we won't see tickets, but at least each pair gets a recorded
-      // parse-failed log instead of a fake "ok").
+      // A 200 with a malformed body is not a success — fall through to the
+      // !ok branch so each pair gets a recorded parse-failed log instead
+      // of a fake "ok". DeviceNotRegistered cleanup defers to the next run
+      // since we have no per-message tickets to inspect.
       const outcome = processBatchResponse(
         chunkPairs,
         response.ok && !bodyParseFailed
@@ -184,7 +184,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // F1: clean up DeviceNotRegistered tokens so they stop getting retried.
+    // Drop DeviceNotRegistered tokens so they stop getting retried every minute.
     if (tokensToRemove.size > 0) {
       await supabase
         .from('devices')
@@ -194,8 +194,9 @@ Deno.serve(async (req: Request) => {
     }
 
     if (enrichedLogs.length > 0) {
-      // V12: dedup at the DB layer — second insert for the same
-      // (device_id, prayer_key, local_date) tuple is silently dropped.
+      // Dedup at the DB layer: a second insert for the same
+      // (device_id, prayer_key, local_date) tuple is silently dropped, so
+      // a cron double-fire (5s skew) doesn't double-push.
       await supabase
         .from('push_log')
         .upsert(enrichedLogs, {
@@ -212,7 +213,7 @@ Deno.serve(async (req: Request) => {
 });
 
 async function ensurePrayerCache(districtId: string, year: number): Promise<PrayerEntry[]> {
-  // V13: composite (district_id, year) lookup so the same district can hold
+  // Composite (district_id, year) lookup so the same district can hold
   // data for both the current and the rolling-window-next year.
   const { data: row } = await supabase
     .from('prayer_cache')
@@ -225,8 +226,8 @@ async function ensurePrayerCache(districtId: string, year: number): Promise<Pray
     return row.data as PrayerEntry[];
   }
 
-  // F3: validate the upstream envelope BEFORE writing anything to cache.
-  // A single bad upsert (e.g. an HTML 502 page) would otherwise silence
+  // Validate the upstream envelope BEFORE writing anything to cache:
+  // a single bad upsert (e.g. an HTML 502 page) would otherwise silence
   // push notifications for the 30-day TTL window.
   const result = await fetchPrayerYear(fetch, districtId);
   if (!result.ok) throw new Error(result.reason);

@@ -1,10 +1,6 @@
-/**
- * Issue #9 follow-up: the locale-parity test in SyncErrorBanner.test.ts
- * verifies the banner can resolve every code, but the component itself has
- * three branching behaviors that were unverified — null-error, missing
- * onRetry, and dismiss. The dismiss path is the highest-value: a regression
- * there leaves banners stuck on Home indefinitely.
- */
+// Component-level branch tests (sibling to SyncErrorBanner.test.ts which
+// only checks locale parity). The dismiss path is the most regression-prone:
+// breaking it leaves banners stuck on Home indefinitely.
 import * as React from 'react';
 import { Text } from 'react-native';
 import TestRenderer, { type ReactTestInstance } from 'react-test-renderer';

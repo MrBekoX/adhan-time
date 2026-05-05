@@ -1,18 +1,17 @@
 export const ANDROID_CHANNEL_ID = 'adhan';
 export const ANDROID_CHANNEL_NAME = 'Ezan Vakitleri';
-// V8: Android cannot change a channel's sound at runtime, so the custom-ringtone
-// variant lives in its own channel. The scheduler picks the channel ID per
-// notification based on the user's current sound preference.
+// Android freezes a channel's sound at first registration, so the custom
+// ringtone needs its own channel. The scheduler picks per-notification
+// based on the user's current sound preference.
 export const ANDROID_CHANNEL_CUSTOM_ID = 'adhan-custom';
 export const ANDROID_CHANNEL_CUSTOM_NAME = 'Ezan Vakitleri (Kısa Ezan)';
 
 export const NOTIFICATION_ID_PREFIX = 'prayer';
 export const ROLLING_WINDOW_DAYS = 10;
-// V2: iOS allows ~64 pending UNCalendarNotificationTriggers system-wide; we
-// keep our own queue at ≤ 50 so adhan notifications never silently fall off
-// when other apps share the slot. With 6 prayers enabled the rolling window
-// shrinks to 8 days (6 × 8 = 48) so the count stays under the cap without
-// users wondering why "10 days × 6 prayers = 50".
+// iOS allows ~64 pending UNCalendarNotificationTriggers system-wide; we
+// cap at 50 so adhan notifications never silently fall off when other apps
+// share the slot. With all 6 prayers enabled the rolling window auto-shrinks
+// to 8 days (6 × 8 = 48) to stay under this cap.
 export const PENDING_NOTIFICATION_HARD_CAP = 50;
 export const ROLLING_WINDOW_DAYS_ALL_PRAYERS = 8;
 export const ALL_PRAYERS_COUNT = 6;

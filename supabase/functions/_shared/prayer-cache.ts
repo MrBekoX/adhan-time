@@ -1,4 +1,4 @@
-// F3: pure, testable envelope check for the ezanvakti yearly endpoint.
+// Pure, testable envelope check for the ezanvakti yearly endpoint.
 // Bad upstream responses must NOT enter prayer_cache — the cache TTL is 30
 // days, so a single bad write would silence push notifications for a month.
 
