@@ -41,6 +41,7 @@
       "hydration-timeout": "Some saved data could not be read.",
       "device-registration-failed": "Server registration for notifications failed.",
       "device-registration-incompatible": "This app version isn't compatible with the server — please update from the store.",
+      "push-token-unavailable": "Couldn't get a push notification ID right now. Check your connection and try again shortly.",
       "toggle-failed": "Your preference was saved, but rescheduling failed."
     },
     "onboardingFinalize": {

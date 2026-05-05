@@ -41,6 +41,7 @@
       "hydration-timeout": "تعذّر قراءة بعض البيانات المحفوظة.",
       "device-registration-failed": "فشل تسجيل الجهاز للتنبيهات على الخادم.",
       "device-registration-incompatible": "هذا الإصدار من التطبيق غير متوافق مع الخادم — يرجى التحديث من المتجر.",
+      "push-token-unavailable": "تعذّر الحصول على معرّف الإشعارات حاليًا. تحقّق من الاتصال وحاول بعد قليل.",
       "toggle-failed": "تم حفظ تفضيلك، لكن فشل إعادة جدولة التنبيهات."
     },
     "onboardingFinalize": {

@@ -41,6 +41,7 @@
       "hydration-timeout": "Uygulama bazı verileri okuyamadı.",
       "device-registration-failed": "Bildirimler için sunucu kaydı yapılamadı.",
       "device-registration-incompatible": "Bu uygulama sürümü sunucuyla uyumlu değil — lütfen mağazadan güncelle.",
+      "push-token-unavailable": "Bildirim kimliği şu anda alınamıyor. Bağlantını kontrol edip biraz sonra tekrar dene.",
       "toggle-failed": "Bildirim ayarın kaydedildi ama yeniden zamanlanamadı."
     },
     "onboardingFinalize": {

@@ -49,7 +49,9 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
   let fetchMock: jest.SpyInstance;
 
   beforeEach(() => {
-    getTokenMock.mockReset().mockResolvedValue('ExponentPushToken[abc123]');
+    getTokenMock
+      .mockReset()
+      .mockResolvedValue({ ok: true, token: 'ExponentPushToken[abc123]' });
     // 0ms backoff so the test runs in real-time without fake-timer plumbing.
     process.env.REGISTER_DEVICE_BASE_DELAY_MS = '0';
     fetchMock = jest.spyOn(globalThis, 'fetch');
@@ -102,12 +104,38 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
     expect(result).toEqual({ ok: false, reason: 'transient' });
   });
 
-  it("returns ok=false reason='no-token' (not retried) when no Expo push token is available", async () => {
-    getTokenMock.mockResolvedValueOnce(null);
+  it("returns ok=false reason='no-token' when permission was denied (V5 surfaces it elsewhere)", async () => {
+    getTokenMock.mockResolvedValueOnce({ ok: false, reason: 'permission-denied' });
 
     const result = await registerDevice(VALID_INPUT);
 
     expect(result).toEqual({ ok: false, reason: 'no-token' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns ok=false reason='no-token' when running on a simulator (push not supported)", async () => {
+    getTokenMock.mockResolvedValueOnce({ ok: false, reason: 'simulator' });
+
+    const result = await registerDevice(VALID_INPUT);
+
+    expect(result).toEqual({ ok: false, reason: 'no-token' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns ok=false reason='token-fetch-failed' when Expo's getExpoPushTokenAsync throws", async () => {
+    // Issue #13: distinct from permission-denied. The user has push permission
+    // ON but Expo's SDK couldn't issue a token (network blip, projectId
+    // misconfigured, Expo backend hiccup). Treat it as transient — the next
+    // foreground tick will retry.
+    getTokenMock.mockResolvedValueOnce({
+      ok: false,
+      reason: 'fetch-failed',
+      error: 'expo-backend-503',
+    });
+
+    const result = await registerDevice(VALID_INPUT);
+
+    expect(result).toEqual({ ok: false, reason: 'token-fetch-failed' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

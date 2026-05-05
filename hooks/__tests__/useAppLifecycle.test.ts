@@ -268,6 +268,29 @@ describe('runLifecycleOnce — V16+F6 device registration retry surface', () => 
     expect(useSettingsStore.getState().deviceRegistrationPending).toBe(false);
     expect(useUiStore.getState().lastError).toBeNull();
   });
+
+  it("'token-fetch-failed' sets pending=true and 'push-token-unavailable' banner (Issue #13)", async () => {
+    // Permission granted but Expo SDK couldn't issue a token. Distinct from
+    // device-registration-failed (server-side) so the banner copy can point
+    // at the push-side issue.
+    registerMock.mockResolvedValueOnce({ ok: false, reason: 'token-fetch-failed' });
+
+    await runLifecycleOnce();
+
+    expect(useSettingsStore.getState().deviceRegistrationPending).toBe(true);
+    expect(useUiStore.getState().lastError?.code).toBe('push-token-unavailable');
+  });
+
+  it("clears a stale 'push-token-unavailable' banner once registerDevice succeeds", async () => {
+    useUiStore.setState({ lastError: { code: 'push-token-unavailable' } });
+    useSettingsStore.setState({ deviceRegistrationPending: true });
+    registerMock.mockResolvedValueOnce({ ok: true });
+
+    await runLifecycleOnce();
+
+    expect(useSettingsStore.getState().deviceRegistrationPending).toBe(false);
+    expect(useUiStore.getState().lastError).toBeNull();
+  });
 });
 
 describe('useAppLifecycle — V16 AppState listener wiring', () => {

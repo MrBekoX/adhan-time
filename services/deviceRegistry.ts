@@ -41,6 +41,7 @@ class RegisterDeviceClientError extends Error {
 export type RegisterResult =
   | { ok: true }
   | { ok: false; reason: 'no-token' }
+  | { ok: false; reason: 'token-fetch-failed' }
   | { ok: false; reason: 'transient' }
   | { ok: false; reason: 'incompatible'; status: number };
 
@@ -52,15 +53,24 @@ export type RegisterResult =
 //     → retry won't help. Surface a distinct banner ("Update the app"),
 //     don't queue a pending retry. The 'status' carries the HTTP code so
 //     bug reports can distinguish 400/401/403/422.
-//   - 'no-token' → device never asked for push; nothing to do.
+//   - 'token-fetch-failed' (issue #13) → permission was granted but Expo's
+//     SDK couldn't issue a token. Treat as transient — banner + retry.
+//   - 'no-token' → device is a simulator OR user denied permission; the
+//     latter is already surfaced through V5's notificationPermissionDenied,
+//     the former is a dev-mode no-op.
 export async function registerDevice(
   input: Omit<RegisterPayload, 'expoPushToken'>,
 ): Promise<RegisterResult> {
-  const token = await getExpoPushToken();
-  if (!token) {
-    logger.warn('skip register: no push token');
+  const tokenResult = await getExpoPushToken();
+  if (!tokenResult.ok) {
+    if (tokenResult.reason === 'fetch-failed') {
+      logger.warn('skip register: token fetch failed', { error: tokenResult.error });
+      return { ok: false, reason: 'token-fetch-failed' };
+    }
+    logger.warn('skip register: no push token', { reason: tokenResult.reason });
     return { ok: false, reason: 'no-token' };
   }
+  const token = tokenResult.token;
   const body: RegisterPayload = { ...input, expoPushToken: token };
   const raw = JSON.stringify(body);
   const headers: Record<string, string> = {
@@ -116,8 +126,8 @@ export async function registerDevice(
  * still proceeds with the local wipe so the user is never trapped.
  */
 export async function unregisterDevice(): Promise<boolean> {
-  const token = await getExpoPushToken();
-  if (!token) return true;
+  const tokenResult = await getExpoPushToken();
+  if (!tokenResult.ok) return true;
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/unregister-device`, {
       method: 'POST',
@@ -126,7 +136,7 @@ export async function unregisterDevice(): Promise<boolean> {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       },
-      body: JSON.stringify({ expoPushToken: token }),
+      body: JSON.stringify({ expoPushToken: tokenResult.token }),
     });
     if (!res.ok) {
       logger.warn('unregister-device non-2xx', { status: res.status });

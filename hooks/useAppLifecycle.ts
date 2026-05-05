@@ -70,7 +70,8 @@ export async function runLifecycleOnce(): Promise<void> {
     const cur = ui.lastError;
     if (
       cur?.code === 'device-registration-failed' ||
-      cur?.code === 'device-registration-incompatible'
+      cur?.code === 'device-registration-incompatible' ||
+      cur?.code === 'push-token-unavailable'
     ) {
       ui.setError(null);
     }
@@ -85,9 +86,17 @@ export async function runLifecycleOnce(): Promise<void> {
   } else if (result.reason === 'transient') {
     settingsActions.setDeviceRegistrationPending(true);
     ui.setError({ code: 'device-registration-failed' });
+  } else if (result.reason === 'token-fetch-failed') {
+    // Issue #13: permission was granted but Expo's SDK couldn't issue a
+    // token. Treat as transient — set the pending flag so AppState 'active'
+    // retries, but use a distinct banner code so the user knows the issue
+    // is push-side (Expo backend / network), not server-side.
+    settingsActions.setDeviceRegistrationPending(true);
+    ui.setError({ code: 'push-token-unavailable' });
   }
-  // 'no-token': nothing actionable. The user never granted push permission
-  // (V5 already surfaced that path through notificationPermissionDenied).
+  // 'no-token' → simulator OR permission-denied. Permission denial is
+  // already surfaced through V5's notificationPermissionDenied; simulator
+  // is a dev-mode no-op.
 }
 
 /**
