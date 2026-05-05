@@ -74,3 +74,7 @@ supabase/.branches/
 # ── Local scratch (gh pr diff dumps, scratch notes) ──
 *.diff
 !docs/**/*.diff
+
+# ── Local-only secrets (never commit) ──
+*.local
+.cron-secret*
