@@ -5,12 +5,13 @@ import { colors, fonts, spacing } from './Theme';
 
 type Props = {
   date?: Date;
+  dateIso?: string | null;
 };
 
-export function BrandRow({ date = new Date() }: Props) {
+export function BrandRow({ date = new Date(), dateIso }: Props) {
   const { t } = useTranslation();
   const months = t('screens.home.monthsShort', { returnObjects: true }) as string[];
-  const dateLabel = formatDateLabel(date, months);
+  const dateLabel = dateIso ? formatDateIsoLabel(dateIso, months) : formatDateLabel(date, months);
 
   return (
     <View style={styles.row}>
@@ -31,6 +32,24 @@ export function BrandRow({ date = new Date() }: Props) {
 function formatDateLabel(d: Date, months: string[]): string {
   const dd = String(d.getDate()).padStart(2, '0');
   return `${dd} · ${months[d.getMonth()]} · ${d.getFullYear()}`;
+}
+
+function formatDateIsoLabel(dateIso: string, months: string[]): string {
+  const parts = dateIso.slice(0, 10).split('-').map(Number);
+  const year = parts[0];
+  const month = parts[1];
+  const day = parts[2];
+  if (
+    typeof year !== 'number' ||
+    typeof month !== 'number' ||
+    typeof day !== 'number' ||
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day)
+  ) {
+    return formatDateLabel(new Date(), months);
+  }
+  return `${String(day).padStart(2, '0')} Â· ${months[month - 1]} Â· ${year}`;
 }
 
 const styles = StyleSheet.create({
@@ -59,7 +78,7 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
     backgroundColor: colors.bgGreenTop,
-    right: -4,
+    end: -4,
     top: 1,
   },
   wordmark: {

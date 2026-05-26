@@ -4,12 +4,14 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, Vi
 
 import { colors, fonts, radius, spacing } from './Theme';
 
-import { lowercaseInLocale } from '@/utils/textCase';
+import { normalizeSearchText } from '@/utils/textCase';
 
 export type LocationListItem = {
   id: string;
   name: string;
   nameEn: string;
+  searchText?: string[];
+  experimental?: boolean;
 };
 
 type Props = {
@@ -27,10 +29,14 @@ export function LocationList({ items, loading, error, onRetry, onSelect }: Props
   const filtered = useMemo(() => {
     if (!q.trim()) return items;
     const lang = i18n.language;
-    const needle = lowercaseInLocale(q.trim(), lang);
+    const needle = normalizeSearchText(q.trim(), lang);
     return items.filter((it) => {
-      const name = lowercaseInLocale(lang === 'tr' ? it.name : it.nameEn, lang);
-      return name.includes(needle);
+      const searchHaystack = [
+        it.name,
+        it.nameEn,
+        ...(it.searchText ?? []),
+      ].map((value) => normalizeSearchText(value, lang));
+      return searchHaystack.some((name) => name.includes(needle));
     });
   }, [items, q, i18n.language]);
 
@@ -77,11 +83,23 @@ export function LocationList({ items, loading, error, onRetry, onSelect }: Props
         keyExtractor={(it) => it.id}
         contentContainerStyle={styles.listPad}
         renderItem={({ item, index }) => (
-          <Pressable style={({ pressed }) => [styles.row, pressed && styles.rowPressed]} onPress={() => onSelect(item)}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.row,
+              item.experimental && styles.rowExperimental,
+              pressed && styles.rowPressed,
+            ]}
+            onPress={() => onSelect(item)}
+          >
             <Text style={styles.index}>{String(index + 1).padStart(2, '0')}</Text>
-            <Text style={styles.rowText}>
-              {i18n.language === 'tr' ? item.name : item.nameEn}
-            </Text>
+            <View style={styles.rowCopy}>
+              <Text style={styles.rowText}>
+                {i18n.language === 'tr' ? item.name : item.nameEn}
+              </Text>
+              {item.experimental && (
+                <Text style={styles.rowMeta}>{t('screens.onboarding.unsupportedCountry')}</Text>
+              )}
+            </View>
             <Text style={styles.chevron}>→</Text>
           </Pressable>
         )}
@@ -153,6 +171,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md + 2,
   },
   rowPressed: { backgroundColor: colors.primaryGlow, borderRadius: radius.sm },
+  rowExperimental: { opacity: 0.62 },
   index: {
     fontFamily: fonts.serif,
     fontStyle: 'italic',
@@ -161,12 +180,20 @@ const styles = StyleSheet.create({
     width: 32,
     letterSpacing: 0.5,
   },
+  rowCopy: { flex: 1 },
   rowText: {
-    flex: 1,
     fontFamily: fonts.serif,
     fontSize: 18,
     color: colors.cream,
     letterSpacing: 0.2,
+  },
+  rowMeta: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 9,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+    color: colors.textFaint,
+    marginTop: 4,
   },
   chevron: {
     fontFamily: fonts.serif,

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LocationList, type LocationListItem } from '@/components/LocationList';
 import { colors, fonts, spacing } from '@/components/Theme';
+import { locationNameAliases } from '@/constants/locationAliases';
 import { locationCache } from '@/services/locationCache';
 import { logger } from '@/utils/logger';
 
@@ -23,14 +24,21 @@ export default function SelectState() {
   const [error, setError] = useState(false);
 
   const load = useCallback(
-    async (signal?: { cancelled: boolean }) => {
+    async (signal?: { cancelled: boolean }, force = false) => {
       if (!params.countryId) return;
       setLoading(true);
       setError(false);
       try {
-        const data = await locationCache.states(params.countryId);
+        const data = await locationCache.states(params.countryId, { force });
         if (signal?.cancelled) return;
-        setItems(data.map((c) => ({ id: c._id, name: c.name, nameEn: c.name_en })));
+        setItems(
+          data.map((c) => ({
+            id: c._id,
+            name: c.name,
+            nameEn: c.name_en,
+            searchText: locationNameAliases(c.name, c.name_en),
+          })),
+        );
       } catch (e) {
         logger.error('states-fetch', { error: String(e) });
         if (!signal?.cancelled) setError(true);
@@ -61,7 +69,7 @@ export default function SelectState() {
         items={items}
         loading={loading}
         error={error}
-        onRetry={() => void load()}
+        onRetry={() => void load(undefined, true)}
         onSelect={(it) =>
           router.push({
             pathname: '/onboarding/select-district',

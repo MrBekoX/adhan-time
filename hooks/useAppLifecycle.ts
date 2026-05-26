@@ -2,7 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 
-import { registerDevice } from '@/services/deviceRegistry';
+import { registerDeviceDetailed } from '@/services/deviceRegistry';
 import { syncYearly } from '@/services/prayerService';
 import { useLocationStore } from '@/store/locationStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -50,7 +50,7 @@ export async function runLifecycleOnce(): Promise<void> {
   // banner with a retry. The 'incompatible' branch (4xx — schema drift,
   // signing-key rotation) emits a distinct banner pointing the user at an
   // app update; we do NOT set pending because retry won't help.
-  const result = await registerDevice({
+  const result = await registerDeviceDetailed({
     districtId: loc.districtId,
     districtName: loc.districtName,
     countryName: loc.countryName,
@@ -79,21 +79,28 @@ export async function runLifecycleOnce(): Promise<void> {
     if (settingsActions.deviceRegistrationPending) {
       settingsActions.setDeviceRegistrationPending(false);
     }
-    ui.setError({
+    setDeviceError({
       code: 'device-registration-incompatible',
       data: { status: result.status },
     });
   } else if (result.reason === 'transient') {
     settingsActions.setDeviceRegistrationPending(true);
-    ui.setError({ code: 'device-registration-failed' });
+    setDeviceError({ code: 'device-registration-failed' });
   } else if (result.reason === 'token-fetch-failed') {
     // Distinct from 'transient' so the banner copy points at the push
     // side (Expo backend / network), not at server-side registration.
     settingsActions.setDeviceRegistrationPending(true);
-    ui.setError({ code: 'push-token-unavailable' });
+    setDeviceError({ code: 'push-token-unavailable' });
   }
   // 'no-token' covers simulator + permission-denied. Permission state is
   // already surfaced through notificationPermissionDenied elsewhere.
+}
+
+function setDeviceError(error: NonNullable<ReturnType<typeof useUiStore.getState>['lastError']>): void {
+  const ui = useUiStore.getState();
+  const current = ui.lastError;
+  if (current?.code === 'sync-failed' || current?.code === 'partial-sync') return;
+  ui.setError(error);
 }
 
 // Keep notificationPermissionDenied in sync with the OS on every foreground

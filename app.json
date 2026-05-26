@@ -16,7 +16,8 @@
         "UIBackgroundModes": [
           "fetch",
           "remote-notification"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -24,7 +25,9 @@
       "backgroundColor": "#0A0D18",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE"
+        "VIBRATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -36,7 +39,10 @@
       [
         "expo-notifications",
         {
-          "color": "#10B981"
+          "color": "#10B981",
+          "sounds": [
+            "./assets/sounds/adhan_short.wav"
+          ]
         }
       ],
       "expo-localization",
@@ -58,6 +64,12 @@
         "origin": false
       }
     },
-    "owner": "mrbeko"
+    "owner": "mrbeko",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/0c7ed0e3-6aad-490f-b042-0616031622b9"
+    }
   }
 }

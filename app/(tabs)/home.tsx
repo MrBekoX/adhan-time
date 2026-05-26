@@ -53,7 +53,7 @@ export default function Home() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <BrandRow />
+        <BrandRow dateIso={today?.dateIso} />
 
         <NotificationDeniedBanner />
         <SyncErrorBanner onRetry={() => void runLifecycleOnce()} />

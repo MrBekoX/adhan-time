@@ -34,6 +34,12 @@ type ReconcileOptions = {
   districtName?: string;
 };
 
+type TargetComputation = {
+  targets: ScheduledPrayer[];
+  parseAttempted: number;
+  parseSkipped: number;
+};
+
 export async function ensureAndroidChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
@@ -74,10 +80,20 @@ export async function reconcile(
   const tz = cache.timezone;
   const now = new Date();
 
-  const target = computeTargets(cache, tz, now, windowDays, enabled).slice(
+  const computed = computeTargetsWithStats(cache, tz, now, windowDays, enabled);
+  const target = computed.targets.slice(
     0,
     PENDING_NOTIFICATION_HARD_CAP,
   );
+  if (
+    computed.parseAttempted > 0 &&
+    (computed.parseAttempted - computed.parseSkipped) / computed.parseAttempted < 0.8
+  ) {
+    useUiStore.getState().setError({
+      code: 'parse-skipped',
+      data: { skipped: computed.parseSkipped, total: computed.parseAttempted },
+    });
+  }
 
   const pendingAll = await Notifications.getAllScheduledNotificationsAsync();
   const pendingPrayer = pendingAll.filter((n) => isPrayerNotificationId(n.identifier));
@@ -145,7 +161,19 @@ export function computeTargets(
   windowDays: number,
   enabled: PrayerKey[],
 ): ScheduledPrayer[] {
+  return computeTargetsWithStats(cache, tz, now, windowDays, enabled).targets;
+}
+
+function computeTargetsWithStats(
+  cache: YearlyPrayerCache,
+  tz: string,
+  now: Date,
+  windowDays: number,
+  enabled: PrayerKey[],
+): TargetComputation {
   const out: ScheduledPrayer[] = [];
+  let parseAttempted = 0;
+  let parseSkipped = 0;
   const todayIso = isoDateInTz(now, tz);
   for (let d = 0; d < windowDays; d++) {
     const dateIso = addLocalDays(todayIso, d);
@@ -154,22 +182,24 @@ export function computeTargets(
     for (const key of enabled) {
       const value = entry.times?.[key];
       if (!value) continue;
+      parseAttempted++;
       try {
         const fireAt = parsePrayerTime(value, dateIso, tz);
         if (fireAt.getTime() <= now.getTime()) continue;
         out.push({
-          id: buildNotificationId(cache.districtId, dateIso, key),
+          id: buildNotificationId(cache.districtId, dateIso, key, tz, fireAt.toISOString()),
           prayerKey: key,
           dateIso,
           fireAt,
         });
       } catch (e) {
         // A single malformed entry must not abort the whole window.
+        parseSkipped++;
         logger.warn('parsePrayerTime-failed', { dateIso, key, value, error: String(e) });
       }
     }
   }
-  return out;
+  return { targets: out, parseAttempted, parseSkipped };
 }
 
 function findEntryForDate(entries: PrayerTime[], dateIso: string): PrayerTime | undefined {
@@ -191,7 +221,12 @@ async function scheduleOne(
         ? i18n.t(`prayer.${s.prayerKey}.bodyWithCity`, { city: districtName })
         : i18n.t(`prayer.${s.prayerKey}.body`),
       sound: SOUNDS[soundKey],
-      data: { prayerKey: s.prayerKey, dateIso: s.dateIso },
+      data: {
+        prayerKey: s.prayerKey,
+        dateIso: s.dateIso,
+        timezone: tz,
+        fireAt: s.fireAt.toISOString(),
+      },
     },
     trigger: {
       type: SchedulableTriggerInputTypes.CALENDAR,

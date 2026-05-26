@@ -42,4 +42,16 @@ describe('push-prayer i18n parity', () => {
       expect(shared[locale]?.prayer).toEqual(mobile.prayer);
     },
   );
+
+  it('is enforced by the repository CI workflow', () => {
+    const workflowDir = path.resolve(__dirname, '../../.github/workflows');
+    expect(fs.existsSync(workflowDir)).toBe(true);
+    const workflowText = fs
+      .readdirSync(workflowDir)
+      .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))
+      .map((name) => fs.readFileSync(path.join(workflowDir, name), 'utf8'))
+      .join('\n');
+    expect(workflowText).toContain('npm test');
+    expect(workflowText).toContain('npm run build:supabase-i18n');
+  });
 });

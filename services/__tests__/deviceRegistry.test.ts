@@ -1,5 +1,5 @@
 import { computeBodyHmac } from '../../supabase/functions/_shared/hmac';
-import { registerDevice } from '../deviceRegistry';
+import { registerDevice, registerDeviceDetailed } from '../deviceRegistry';
 import { signRegisterBody } from '../deviceRegistry.signing';
 import { getExpoPushToken } from '../pushService';
 
@@ -35,7 +35,7 @@ describe('signRegisterBody', () => {
   });
 });
 
-describe('registerDevice — V16 retry + F6 boolean return', () => {
+describe('registerDeviceDetailed — V16 retry + UI reason surface', () => {
   const VALID_INPUT = {
     districtId: '9541',
     districtName: 'Istanbul',
@@ -67,7 +67,7 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
       new Response(JSON.stringify({ ok: true, id: 'dev-1' }), { status: 200 }),
     );
 
-    const result = await registerDevice(VALID_INPUT);
+    const result = await registerDeviceDetailed(VALID_INPUT);
 
     expect(result.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -79,7 +79,7 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
       .mockResolvedValueOnce(new Response('boom', { status: 503 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
 
-    const result = await registerDevice(VALID_INPUT);
+    const result = await registerDeviceDetailed(VALID_INPUT);
 
     expect(result.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -88,7 +88,7 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
   it("returns ok=false reason='transient' after 3 retries when every attempt fails with 5xx", async () => {
     fetchMock.mockResolvedValue(new Response('still failing', { status: 500 }));
 
-    const result = await registerDevice(VALID_INPUT);
+    const result = await registerDeviceDetailed(VALID_INPUT);
 
     expect(result).toEqual({ ok: false, reason: 'transient' });
     // withRetry default `retries: 3` produces up to 4 total attempts.
@@ -99,7 +99,7 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
   it("returns ok=false reason='transient' on persistent network failure", async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
 
-    const result = await registerDevice(VALID_INPUT);
+    const result = await registerDeviceDetailed(VALID_INPUT);
 
     expect(result).toEqual({ ok: false, reason: 'transient' });
   });
@@ -107,7 +107,7 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
   it("returns ok=false reason='no-token' when permission was denied (V5 surfaces it elsewhere)", async () => {
     getTokenMock.mockResolvedValueOnce({ ok: false, reason: 'permission-denied' });
 
-    const result = await registerDevice(VALID_INPUT);
+    const result = await registerDeviceDetailed(VALID_INPUT);
 
     expect(result).toEqual({ ok: false, reason: 'no-token' });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -116,7 +116,7 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
   it("returns ok=false reason='no-token' when running on a simulator (push not supported)", async () => {
     getTokenMock.mockResolvedValueOnce({ ok: false, reason: 'simulator' });
 
-    const result = await registerDevice(VALID_INPUT);
+    const result = await registerDeviceDetailed(VALID_INPUT);
 
     expect(result).toEqual({ ok: false, reason: 'no-token' });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -133,7 +133,7 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
       error: 'expo-backend-503',
     });
 
-    const result = await registerDevice(VALID_INPUT);
+    const result = await registerDeviceDetailed(VALID_INPUT);
 
     expect(result).toEqual({ ok: false, reason: 'token-fetch-failed' });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -142,7 +142,7 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
   it("returns ok=false reason='incompatible' on 4xx (client error — retry will not help)", async () => {
     fetchMock.mockResolvedValueOnce(new Response('bad payload', { status: 400 }));
 
-    const result = await registerDevice(VALID_INPUT);
+    const result = await registerDeviceDetailed(VALID_INPUT);
 
     expect(result).toEqual({ ok: false, reason: 'incompatible', status: 400 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -151,8 +151,45 @@ describe('registerDevice — V16 retry + F6 boolean return', () => {
   it('reports the actual 4xx status code so admin can distinguish 401 vs 403 vs 422', async () => {
     fetchMock.mockResolvedValueOnce(new Response('hmac fail', { status: 401 }));
 
-    const result = await registerDevice(VALID_INPUT);
+    const result = await registerDeviceDetailed(VALID_INPUT);
 
     expect(result).toEqual({ ok: false, reason: 'incompatible', status: 401 });
+  });
+});
+
+describe('registerDevice — F6 boolean wrapper', () => {
+  const VALID_INPUT = {
+    districtId: '9541',
+    districtName: 'Istanbul',
+    countryName: 'TÃœRKÄ°YE',
+    timezone: 'Europe/Istanbul',
+    locale: 'tr',
+    sound: 'default',
+    enabledPrayers: ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'],
+  };
+
+  let fetchMock: jest.SpyInstance;
+
+  beforeEach(() => {
+    getTokenMock
+      .mockReset()
+      .mockResolvedValue({ ok: true, token: 'ExponentPushToken[abc123]' });
+    process.env.REGISTER_DEVICE_BASE_DELAY_MS = '0';
+    fetchMock = jest.spyOn(globalThis, 'fetch');
+  });
+
+  afterEach(() => {
+    fetchMock.mockRestore();
+    delete process.env.REGISTER_DEVICE_BASE_DELAY_MS;
+  });
+
+  it('returns true when detailed registration succeeds', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    await expect(registerDevice(VALID_INPUT)).resolves.toBe(true);
+  });
+
+  it('returns false when detailed registration fails', async () => {
+    fetchMock.mockResolvedValue(new Response('still failing', { status: 500 }));
+    await expect(registerDevice(VALID_INPUT)).resolves.toBe(false);
   });
 });

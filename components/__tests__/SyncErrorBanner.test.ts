@@ -14,6 +14,7 @@ const REQUIRED_ERROR_KEYS = [
   'sync-failed',
   'partial-schedule',
   'hydration-timeout',
+  'parse-skipped',
   'device-registration-failed',
 ];
 

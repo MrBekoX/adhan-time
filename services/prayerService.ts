@@ -4,6 +4,7 @@ import {
   ensureAndroidChannel,
   reconcile,
 } from './notificationScheduler';
+import { assertPrayerTimes } from './prayerValidation';
 import type { PrayerTime, YearlyPrayerCache } from './types';
 
 import { PRAYER_CACHE_TTL_MS } from '@/constants/api';
@@ -19,9 +20,10 @@ export async function syncYearly(
   districtId: string,
   districtName: string,
   timezone: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; schedule?: boolean } = {},
 ): Promise<YearlyPrayerCache> {
   const force = options.force ?? false;
+  const shouldSchedule = options.schedule ?? true;
   const now = new Date();
   const localYear = yearInTz(now, timezone);
   const todayIso = isoDateInTz(now, timezone);
@@ -42,12 +44,15 @@ export async function syncYearly(
     cacheCovers &&
     Date.now() - new Date(cached.fetchedAt).getTime() < PRAYER_CACHE_TTL_MS
   ) {
-    await scheduleAll(cached, districtName);
+    if (shouldSchedule) await scheduleAll(cached, districtName);
     return cached;
   }
 
   logger.info('fetching yearly', { districtId, localYear });
-  const entries = await ezanvakti.prayerTimesYearly(districtId);
+  const entries = assertPrayerTimes(
+    await ezanvakti.prayerTimesYearly(districtId),
+    'yearly prayer sync',
+  );
 
   if (rollingEndYear > localYear) {
     const nextYearStart = `${rollingEndYear}-01-01`;
@@ -64,7 +69,7 @@ export async function syncYearly(
     entries,
   };
   usePrayerStore.getState().setCache(fresh);
-  await scheduleAll(fresh, districtName);
+  if (shouldSchedule) await scheduleAll(fresh, districtName);
   return fresh;
 }
 
@@ -74,7 +79,10 @@ async function fetchNextYearStart(
   endDate: string,
 ): Promise<PrayerTime[]> {
   try {
-    return await ezanvakti.prayerTimesRange(districtId, startDate, endDate);
+    return assertPrayerTimes(
+      await ezanvakti.prayerTimesRange(districtId, startDate, endDate),
+      'range prayer sync',
+    );
   } catch (e) {
     // Returning [] keeps the current-year cache writeable so the user isn't
     // left with nothing — but the rolling window can no longer cover the
@@ -100,8 +108,9 @@ export async function scheduleAfterToggle(
   districtName: string,
   timezone: string,
 ): Promise<void> {
+  const cache = await syncYearly(districtId, districtName, timezone, { schedule: false });
   await cancelAllPrayerNotifications();
-  await syncYearly(districtId, districtName, timezone);
+  await scheduleAll(cache, districtName);
 }
 
 async function scheduleAll(cache: YearlyPrayerCache, districtName: string): Promise<void> {

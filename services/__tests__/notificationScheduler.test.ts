@@ -1,6 +1,8 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import appJson from '../../app.json';
+
 import { computeTargets, ensureAndroidChannel, reconcile } from '../notificationScheduler';
 import type { PrayerTime, YearlyPrayerCache } from '../types';
 
@@ -8,6 +10,7 @@ import {
   ANDROID_CHANNEL_CUSTOM_ID,
   ANDROID_CHANNEL_ID,
   PENDING_NOTIFICATION_HARD_CAP,
+  buildNotificationId,
 } from '@/constants/notifications';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
 import { useUiStore } from '@/store/uiStore';
@@ -26,6 +29,14 @@ function entry(date: string, override: Partial<PrayerTime['times']> = {}): Praye
     },
   };
 }
+
+describe('notification identity', () => {
+  it('scopes notification identifiers by timezone', () => {
+    expect(buildNotificationId('9541', '2026-05-27', 'imsak', 'Europe/Istanbul')).not.toBe(
+      buildNotificationId('9541', '2026-05-27', 'imsak', 'America/New_York'),
+    );
+  });
+});
 
 function range(start: string, days: number): PrayerTime[] {
   const out: PrayerTime[] = [];
@@ -163,6 +174,39 @@ describe('computeTargets — V11 defensive parsing', () => {
     const targets = computeTargets(cache, TZ, now, 10, enabled);
 
     expect(targets).toHaveLength(49);
+  });
+
+  it('surfaces a parse-skipped banner when fewer than 80% of parseable values survive', async () => {
+    const schedule = Notifications.scheduleNotificationAsync as jest.Mock;
+    const getAll = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-02T00:00:00Z'));
+    schedule.mockReset().mockResolvedValue('id');
+    getAll.mockReset().mockResolvedValue([]);
+    useUiStore.setState({ lastError: null });
+
+    try {
+      const allBad: PrayerTime = {
+        date: '2026-05-02T00:00:00.000Z',
+        times: {
+          imsak: 'xx:yy',
+          gunes: 'bad',
+          ogle: 'noon',
+          ikindi: '25:99',
+          aksam: '##:##',
+          yatsi: '???',
+        },
+      };
+      await reconcile(makeCache([allBad]), {
+        enabledPrayers: [...PRAYER_KEYS],
+        windowDays: 1,
+      });
+
+      const err = useUiStore.getState().lastError;
+      expect(err?.code).toBe('parse-skipped');
+      expect(err?.data).toMatchObject({ skipped: 6, total: 6 });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 
@@ -442,5 +486,15 @@ describe('V8 — sound key mapping + Android custom channel', () => {
     } finally {
       Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
     }
+  });
+
+  it('declares the iOS custom sound asset in the Expo notifications plugin', () => {
+    const notificationsPlugin = appJson.expo.plugins.find(
+      (p: unknown) => Array.isArray(p) && p[0] === 'expo-notifications',
+    );
+    const config = Array.isArray(notificationsPlugin)
+      ? (notificationsPlugin[1] as { sounds?: string[] })
+      : null;
+    expect(config?.sounds).toContain('./assets/sounds/adhan_short.wav');
   });
 });

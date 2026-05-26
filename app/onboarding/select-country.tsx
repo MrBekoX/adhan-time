@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LocationList, type LocationListItem } from '@/components/LocationList';
 import { colors, fonts, spacing } from '@/components/Theme';
+import { COUNTRY_SEARCH_ALIASES } from '@/constants/locationAliases';
 import { COUNTRIES_REQUIRING_TZ_SELECTION } from '@/constants/timezones';
 import { locationCache } from '@/services/locationCache';
 import { isCountrySupported } from '@/services/timezoneResolver';
@@ -19,13 +20,21 @@ export default function SelectCountry() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const load = useCallback(async (signal?: { cancelled: boolean }) => {
+  const load = useCallback(async (signal?: { cancelled: boolean }, force = false) => {
     setLoading(true);
     setError(false);
     try {
-      const data = await locationCache.countries();
+      const data = await locationCache.countries({ force });
       if (signal?.cancelled) return;
-      setItems(data.map((c) => ({ id: c._id, name: c.name, nameEn: c.name_en })));
+      setItems(
+        data.map((c) => ({
+          id: c._id,
+          name: c.name,
+          nameEn: c.name_en,
+          searchText: COUNTRY_SEARCH_ALIASES[c._id],
+          experimental: !isCountrySupported(c._id),
+        })),
+      );
     } catch (e) {
       logger.error('countries-fetch', { error: String(e) });
       if (!signal?.cancelled) setError(true);
@@ -52,10 +61,10 @@ export default function SelectCountry() {
         items={items}
         loading={loading}
         error={error}
-        onRetry={() => void load()}
+        onRetry={() => void load(undefined, true)}
         onSelect={(it) => {
           if (!isCountrySupported(it.id)) {
-            logger.warn('tz-resolver-unsupported-country', { countryId: it.id, name: it.name });
+            logger.error('tz-resolver-unknown-country', { countryId: it.id, name: it.name });
             Alert.alert(
               t('errors.tzUnsupported.title'),
               t('errors.tzUnsupported.body', { country: it.name }),

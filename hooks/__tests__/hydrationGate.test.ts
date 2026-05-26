@@ -1,4 +1,4 @@
-import { evaluateHydrationGate } from '../hydrationGate';
+import { evaluateHydrationGate, forceHydrationFlags } from '../hydrationGate';
 
 describe('evaluateHydrationGate (F10)', () => {
   const TIMEOUT = 5000;
@@ -42,5 +42,13 @@ describe('evaluateHydrationGate (F10)', () => {
     expect(
       evaluateHydrationGate({ flags: [], elapsedMs: 0, timeoutMs: TIMEOUT }),
     ).toEqual({ ready: true, timedOut: false });
+  });
+
+  it('forces every store hydrated flag when the timeout path fires', () => {
+    const setters = [jest.fn(), jest.fn(), jest.fn()];
+    forceHydrationFlags(setters);
+    for (const setHydrated of setters) {
+      expect(setHydrated).toHaveBeenCalledWith(true);
+    }
   });
 });

@@ -42,18 +42,19 @@ export async function handleRegisterDevice(
     return new Response('Method Not Allowed', { status: 405, headers: corsHeaders });
   }
 
+  const raw = await req.text();
+  if (!deps.hmacSecret) {
+    return jsonError('hmac_secret_not_configured', 503);
+  }
+
+  const sig = req.headers.get('x-body-signature');
+  const ok = await verifyBodyHmac(raw, sig, deps.hmacSecret);
+  if (!ok) return jsonError('invalid_signature', 401);
+
   const ip = await ipHash(req);
   const allowed = await checkRateLimit(deps.rateLimit, ip, deps.now());
   if (!allowed) {
     return jsonError('rate_limited', 429);
-  }
-
-  const raw = await req.text();
-
-  if (deps.hmacSecret) {
-    const sig = req.headers.get('x-body-signature');
-    const ok = await verifyBodyHmac(raw, sig, deps.hmacSecret);
-    if (!ok) return jsonError('invalid_signature', 401);
   }
 
   let body: unknown;

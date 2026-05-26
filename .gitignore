@@ -56,7 +56,10 @@ yarn-error.*
 .sisyphus/
 
 # ── Docs / Audit Reports (local, not committed) ──
-docs/
+docs/*
+!docs/privacy-policy.md
+!docs/__tests__/
+!docs/__tests__/privacyPolicy.test.ts
 
 # ── TypeScript ─────────────────────────────────
 *.tsbuildinfo

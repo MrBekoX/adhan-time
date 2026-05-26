@@ -5,7 +5,7 @@ import TestRenderer from 'react-test-renderer';
 
 import { runLifecycleOnce, useAppLifecycle } from '../useAppLifecycle';
 
-import { registerDevice } from '@/services/deviceRegistry';
+import { registerDeviceDetailed } from '@/services/deviceRegistry';
 import { syncYearly } from '@/services/prayerService';
 import { useLocationStore } from '@/store/locationStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -16,11 +16,11 @@ jest.mock('@/services/prayerService', () => ({
 }));
 
 jest.mock('@/services/deviceRegistry', () => ({
-  registerDevice: jest.fn(async () => ({ ok: true })),
+  registerDeviceDetailed: jest.fn(async () => ({ ok: true })),
 }));
 
 const syncMock = syncYearly as jest.Mock;
-const registerMock = registerDevice as jest.Mock;
+const registerMock = registerDeviceDetailed as jest.Mock;
 const getPermissionsAsync = Notifications.getPermissionsAsync as jest.Mock;
 
 const VALID_LOCATION = {
@@ -259,6 +259,16 @@ describe('runLifecycleOnce — V16+F6 device registration retry surface', () => 
 
     expect(useSettingsStore.getState().deviceRegistrationPending).toBe(true);
     expect(useUiStore.getState().lastError?.code).toBe('device-registration-failed');
+  });
+
+  it("does not overwrite a fresh 'sync-failed' banner with device registration errors", async () => {
+    syncMock.mockRejectedValueOnce(new Error('sync-boom'));
+    registerMock.mockResolvedValueOnce({ ok: false, reason: 'transient' });
+
+    await runLifecycleOnce();
+
+    expect(useSettingsStore.getState().deviceRegistrationPending).toBe(true);
+    expect(useUiStore.getState().lastError?.code).toBe('sync-failed');
   });
 
   it("'no-token' result is a no-op for both flag and banner", async () => {

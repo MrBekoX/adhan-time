@@ -51,7 +51,7 @@ export type RegisterResult =
 //     push side, so the banner copy points at "check connection" instead.
 //   - 'no-token' covers both simulator and permission-denied; the latter
 //     is already surfaced through notificationPermissionDenied elsewhere.
-export async function registerDevice(
+export async function registerDeviceDetailed(
   input: Omit<RegisterPayload, 'expoPushToken'>,
 ): Promise<RegisterResult> {
   const tokenResult = await getExpoPushToken();
@@ -110,6 +110,12 @@ export async function registerDevice(
     logger.warn('register-device-failed-after-retries', { error: String(e) });
     return { ok: false, reason: 'transient' };
   }
+}
+
+export async function registerDevice(
+  input: Omit<RegisterPayload, 'expoPushToken'>,
+): Promise<boolean> {
+  return (await registerDeviceDetailed(input)).ok;
 }
 
 // Returns false (not throws) on transport failure or non-2xx — the caller

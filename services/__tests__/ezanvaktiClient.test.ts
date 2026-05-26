@@ -1,5 +1,7 @@
-import { ApiError, ApiNotFoundError } from '../errors';
+import { ApiError, ApiNotFoundError, NetworkError } from '../errors';
 import { ezanvakti } from '../ezanvaktiClient';
+
+import { API_TIMEOUT_MS } from '@/constants/api';
 
 const fetchMock = jest.fn();
 global.fetch = fetchMock as unknown as typeof fetch;
@@ -97,5 +99,79 @@ describe('ezanvaktiClient withRetry integration (V1)', () => {
     const result = await ezanvakti.countries();
 
     expect(result).toEqual([{ _id: '1', name: 'X', name_en: 'X' }]);
+  });
+
+  it('wraps invalid JSON responses as ApiError', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('{bad-json', { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    );
+
+    await expect(ezanvakti.countries()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('rejects malformed prayer-time rows before callers can cache them', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonRes(
+        envelope([
+          {
+            date: '2026-05-27',
+            times: {
+              imsak: '04:00',
+            },
+          },
+        ]),
+      ),
+    );
+
+    await expect(ezanvakti.prayerTimesYearly('9541')).rejects.toThrow(/prayer/i);
+  });
+
+  it('rejects searchStates results that do not belong to the requested country', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonRes(envelope([{ _id: 'x', name: 'Paris', name_en: 'Paris', country_id: '33' }])),
+    );
+
+    await expect(ezanvakti.searchStates('21', 'paris')).rejects.toThrow(/country/i);
+  });
+
+  it('rejects searchDistricts results that do not belong to the requested state', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonRes(
+        envelope([
+          {
+            _id: 'medina-oh',
+            name: 'Medina',
+            name_en: 'Medina',
+            country_id: '33',
+            state_id: 'ohio',
+          },
+        ]),
+      ),
+    );
+
+    await expect(ezanvakti.searchDistricts('saudi-medina-state', 'medina')).rejects.toThrow(/state/i);
+  });
+
+  it('aborts slow API calls instead of waiting forever', async () => {
+    jest.useFakeTimers();
+    fetchMock.mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        }),
+    );
+
+    const promise = ezanvakti.countries().catch((e: unknown) => e);
+    await jest.advanceTimersByTimeAsync(API_TIMEOUT_MS);
+    await jest.advanceTimersByTimeAsync(1_000);
+    await jest.advanceTimersByTimeAsync(API_TIMEOUT_MS);
+    await jest.advanceTimersByTimeAsync(2_000);
+    await jest.advanceTimersByTimeAsync(API_TIMEOUT_MS);
+    await jest.advanceTimersByTimeAsync(4_000);
+    await jest.advanceTimersByTimeAsync(API_TIMEOUT_MS);
+    const err = await promise;
+
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 });

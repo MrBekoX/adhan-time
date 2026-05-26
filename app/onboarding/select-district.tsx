@@ -1,11 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LocationList, type LocationListItem } from '@/components/LocationList';
 import { colors, fonts, spacing } from '@/components/Theme';
+import { locationNameAliases } from '@/constants/locationAliases';
 import { locationCache } from '@/services/locationCache';
 import { resolveTimezone } from '@/services/timezoneResolver';
 import { useLocationStore } from '@/store/locationStore';
@@ -28,14 +29,21 @@ export default function SelectDistrict() {
   const selectLocation = useLocationStore((s) => s.selectLocation);
 
   const load = useCallback(
-    async (signal?: { cancelled: boolean }) => {
+    async (signal?: { cancelled: boolean }, force = false) => {
       if (!params.stateId) return;
       setLoading(true);
       setError(false);
       try {
-        const data = await locationCache.districts(params.stateId);
+        const data = await locationCache.districts(params.stateId, { force });
         if (signal?.cancelled) return;
-        setItems(data.map((c) => ({ id: c._id, name: c.name, nameEn: c.name_en })));
+        setItems(
+          data.map((c) => ({
+            id: c._id,
+            name: c.name,
+            nameEn: c.name_en,
+            searchText: locationNameAliases(c.name, c.name_en),
+          })),
+        );
       } catch (e) {
         logger.error('districts-fetch', { error: String(e) });
         if (!signal?.cancelled) setError(true);
@@ -66,9 +74,21 @@ export default function SelectDistrict() {
         items={items}
         loading={loading}
         error={error}
-        onRetry={() => void load()}
+        onRetry={() => void load(undefined, true)}
         onSelect={(it) => {
-          const tz = params.userSelectedTimezone ?? resolveTimezone(params.countryId, params.stateId);
+          let tz: string;
+          try {
+            tz = params.userSelectedTimezone ?? resolveTimezone(params.countryId, params.stateId, it.id);
+          } catch (e) {
+            logger.error('timezone-resolve-failed', {
+              countryId: params.countryId,
+              stateId: params.stateId,
+              districtId: it.id,
+              error: String(e),
+            });
+            Alert.alert(t('errors.tzUnsupported.title'), t('errors.tzUnsupported.body', { country: it.name }));
+            return;
+          }
           selectLocation({
             countryId: params.countryId,
             countryName: params.countryName,

@@ -24,6 +24,7 @@ export type ExpoResponseBody = {
 };
 
 export type PushLogRow = {
+  id?: number;
   device_id: string;
   prayer_key: string;
   scheduled_for: string;
@@ -42,6 +43,54 @@ export type BatchOutcome = {
 export type BatchResponse =
   | { ok: true; body?: ExpoResponseBody }
   | { ok: false; status: number; reason?: string };
+
+export type ReservedLogRow = {
+  id: number;
+  device_id: string;
+  prayer_key: string;
+  local_date: string;
+};
+
+export type ReceiptTicket =
+  | { status: 'ok' }
+  | {
+      status: 'error';
+      message?: string;
+      details?: { error?: string; expoPushToken?: string };
+    };
+
+export type ReceiptPair = {
+  receiptId: string;
+  token: string;
+  logId: number;
+};
+
+export type ReceiptResponseBody = {
+  data?: Record<string, ReceiptTicket>;
+  errors?: unknown;
+};
+
+export type ReceiptResponse =
+  | { ok: true; body?: ReceiptResponseBody }
+  | { ok: false; status: number; reason?: string };
+
+export type ReceiptOutcome = {
+  receiptLogs: Array<{ logId: number; expo_response: ReceiptTicket }>;
+  tokensToRemove: string[];
+  rateLimitedTokens: string[];
+};
+
+function logKey(row: Pick<PushLogRow, 'device_id' | 'prayer_key' | 'local_date'>): string {
+  return `${row.device_id}\u0000${row.prayer_key}\u0000${row.local_date}`;
+}
+
+export function filterPairsByReservedLogs(pairs: Pair[], reservedRows: ReservedLogRow[]): Pair[] {
+  const reserved = new Map(reservedRows.map((row) => [logKey(row), row.id]));
+  return pairs.flatMap((pair) => {
+    const id = reserved.get(logKey(pair.log));
+    return id === undefined ? [] : [{ ...pair, log: { ...pair.log, id } }];
+  });
+}
 
 export function processBatchResponse(pairs: Pair[], response: BatchResponse): BatchOutcome {
   const enrichedLogs: PushLogRow[] = [];
@@ -80,6 +129,43 @@ export function processBatchResponse(pairs: Pair[], response: BatchResponse): Ba
 
   return {
     enrichedLogs,
+    tokensToRemove: Array.from(removeSet),
+    rateLimitedTokens: Array.from(rateLimitSet),
+  };
+}
+
+export function processReceiptResponse(
+  pairs: ReceiptPair[],
+  response: ReceiptResponse,
+): ReceiptOutcome {
+  const receiptLogs: ReceiptOutcome['receiptLogs'] = [];
+  const removeSet = new Set<string>();
+  const rateLimitSet = new Set<string>();
+
+  if (!response.ok) {
+    const ticket: ReceiptTicket = {
+      status: 'error',
+      message: response.reason ?? `receipts-non-2xx-${response.status}`,
+    };
+    for (const pair of pairs) receiptLogs.push({ logId: pair.logId, expo_response: ticket });
+    return { receiptLogs, tokensToRemove: [], rateLimitedTokens: [] };
+  }
+
+  const data = response.body?.data ?? {};
+  for (const pair of pairs) {
+    const ticket = data[pair.receiptId] ?? {
+      status: 'error',
+      message: 'missing-receipt',
+    };
+    receiptLogs.push({ logId: pair.logId, expo_response: ticket });
+    if (ticket.status !== 'error') continue;
+    const code = ticket.details?.error;
+    if (code === 'DeviceNotRegistered') removeSet.add(pair.token);
+    else if (code === 'MessageRateExceeded') rateLimitSet.add(pair.token);
+  }
+
+  return {
+    receiptLogs,
     tokensToRemove: Array.from(removeSet),
     rateLimitedTokens: Array.from(rateLimitSet),
   };

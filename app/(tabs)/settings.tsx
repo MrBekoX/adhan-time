@@ -10,10 +10,11 @@ import { BrandRow } from '@/components/BrandRow';
 import { Button } from '@/components/Button';
 import { GradientCanvas } from '@/components/GradientCanvas';
 import { HorizonRule } from '@/components/HorizonRule';
+import { SyncErrorBanner } from '@/components/SyncErrorBanner';
 import { colors, fonts, radius, spacing } from '@/components/Theme';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
 import type { Locale } from '@/locales/i18n';
-import { registerDevice, unregisterDevice } from '@/services/deviceRegistry';
+import { registerDeviceDetailed, unregisterDevice } from '@/services/deviceRegistry';
 import { applyLocale } from '@/services/localeService';
 import { cancelAllPrayerNotifications } from '@/services/notificationScheduler';
 import { scheduleAfterToggle, syncYearly } from '@/services/prayerService';
@@ -80,7 +81,7 @@ export default function Settings() {
     if (!location) return;
     setRetryingRegistration(true);
     try {
-      const result = await registerDevice({
+      const result = await registerDeviceDetailed({
         districtId: location.districtId,
         districtName: location.districtName,
         countryName: location.countryName,
@@ -169,6 +170,7 @@ export default function Settings() {
         showsVerticalScrollIndicator={false}
       >
         <BrandRow />
+        <SyncErrorBanner onRetry={() => void onRetryDeviceRegistration()} />
 
         <View style={styles.pageHead}>
           <View style={styles.cityRule} />

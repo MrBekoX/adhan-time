@@ -15,3 +15,9 @@ export function evaluateHydrationGate(input: HydrationGateInput): HydrationGateR
   if (input.elapsedMs >= input.timeoutMs) return { ready: true, timedOut: true };
   return { ready: false, timedOut: false };
 }
+
+export function forceHydrationFlags(setters: ((hydrated: boolean) => void)[]): void {
+  for (const setHydrated of setters) {
+    setHydrated(true);
+  }
+}

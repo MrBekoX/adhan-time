@@ -20,3 +20,4 @@ export const API_PATHS = {
 
 export const LOCATION_CACHE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 export const PRAYER_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export const API_TIMEOUT_MS = 15_000;

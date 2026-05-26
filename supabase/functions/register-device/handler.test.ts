@@ -60,6 +60,24 @@ function jsonRequest(body: unknown, headers: Record<string, string> = {}): Reque
   });
 }
 
+async function signedJsonRequest(
+  body: unknown,
+  secret = 'topsecret',
+  headers: Record<string, string> = {},
+): Promise<Request> {
+  const raw = JSON.stringify(body);
+  return new Request('https://x/functions/v1/register-device', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-real-ip': '1.2.3.4',
+      'x-body-signature': await computeBodyHmac(raw, secret),
+      ...headers,
+    },
+    body: raw,
+  });
+}
+
 describe('handleRegisterDevice', () => {
   it('handles a CORS preflight without invoking the rate limiter or DB', async () => {
     const deps = makeDeps();
@@ -83,8 +101,8 @@ describe('handleRegisterDevice', () => {
   });
 
   it('returns 200 + id on a valid payload', async () => {
-    const deps = makeDeps();
-    const r = await handleRegisterDevice(jsonRequest(validBody), deps);
+    const deps = makeDeps({ hmacSecret: 'topsecret' });
+    const r = await handleRegisterDevice(await signedJsonRequest(validBody), deps);
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ id: 'dev-123' });
     expect(deps.upsertCalls).toHaveLength(1);
@@ -96,34 +114,39 @@ describe('handleRegisterDevice', () => {
   });
 
   it('returns 400 invalid_token on a malformed token', async () => {
-    const deps = makeDeps();
-    const r = await handleRegisterDevice(jsonRequest({ ...validBody, expoPushToken: 'hack' }), deps);
+    const deps = makeDeps({ hmacSecret: 'topsecret' });
+    const r = await handleRegisterDevice(await signedJsonRequest({ ...validBody, expoPushToken: 'hack' }), deps);
     expect(r.status).toBe(400);
     expect(await r.json()).toEqual({ error: 'invalid_token' });
     expect(deps.upsertCalls).toHaveLength(0);
   });
 
   it('returns 400 invalid_timezone on a bogus tz', async () => {
-    const deps = makeDeps();
-    const r = await handleRegisterDevice(jsonRequest({ ...validBody, timezone: 'Mars/Phobos' }), deps);
+    const deps = makeDeps({ hmacSecret: 'topsecret' });
+    const r = await handleRegisterDevice(await signedJsonRequest({ ...validBody, timezone: 'Mars/Phobos' }), deps);
     expect(r.status).toBe(400);
     expect(await r.json()).toEqual({ error: 'invalid_timezone' });
   });
 
   it('returns 400 invalid_locale on an unsupported locale', async () => {
-    const deps = makeDeps();
-    const r = await handleRegisterDevice(jsonRequest({ ...validBody, locale: 'fr' }), deps);
+    const deps = makeDeps({ hmacSecret: 'topsecret' });
+    const r = await handleRegisterDevice(await signedJsonRequest({ ...validBody, locale: 'fr' }), deps);
     expect(r.status).toBe(400);
     expect(await r.json()).toEqual({ error: 'invalid_locale' });
   });
 
   it('returns 400 invalid_body on malformed JSON', async () => {
-    const deps = makeDeps();
+    const deps = makeDeps({ hmacSecret: 'topsecret' });
+    const raw = '{not valid';
     const r = await handleRegisterDevice(
       new Request('https://x', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-real-ip': '1.2.3.4' },
-        body: '{not valid',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-real-ip': '1.2.3.4',
+          'x-body-signature': await computeBodyHmac(raw, 'topsecret'),
+        },
+        body: raw,
       }),
       deps,
     );
@@ -132,9 +155,9 @@ describe('handleRegisterDevice', () => {
   });
 
   it('returns 429 when the rate limiter denies', async () => {
-    const deps = makeDeps();
+    const deps = makeDeps({ hmacSecret: 'topsecret' });
     deps.rateLimit.always = 'deny';
-    const r = await handleRegisterDevice(jsonRequest(validBody), deps);
+    const r = await handleRegisterDevice(await signedJsonRequest(validBody), deps);
     expect(r.status).toBe(429);
     expect(await r.json()).toEqual({ error: 'rate_limited' });
     expect(deps.upsertCalls).toHaveLength(0);
@@ -177,9 +200,10 @@ describe('handleRegisterDevice', () => {
 
   it('returns 500 db_error when upsert fails', async () => {
     const deps = makeDeps({
+      hmacSecret: 'topsecret',
       upsertDevice: async () => ({ error: 'connection refused' }),
     });
-    const r = await handleRegisterDevice(jsonRequest(validBody), deps);
+    const r = await handleRegisterDevice(await signedJsonRequest(validBody), deps);
     expect(r.status).toBe(500);
     expect(await r.json()).toEqual({ error: 'db_error' });
   });
@@ -190,6 +214,15 @@ describe('handleRegisterDevice', () => {
       new Request('https://x', { method: 'OPTIONS', headers: { 'x-real-ip': '1.2.3.4' } }),
       deps,
     );
+    expect(deps.rateLimit.rows.size).toBe(0);
+  });
+
+  it('fails closed when the server HMAC secret is not configured', async () => {
+    const deps = makeDeps({ hmacSecret: null });
+    const r = await handleRegisterDevice(jsonRequest(validBody), deps);
+    expect(r.status).toBe(503);
+    expect(await r.json()).toEqual({ error: 'hmac_secret_not_configured' });
+    expect(deps.upsertCalls).toHaveLength(0);
     expect(deps.rateLimit.rows.size).toBe(0);
   });
 });

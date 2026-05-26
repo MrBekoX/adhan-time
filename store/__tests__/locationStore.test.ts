@@ -29,7 +29,7 @@ describe('migrateLocationState (V7 — locationStore v1 → v2)', () => {
       { selected: { ...goodLocation, countryId: '33', countryName: 'ABD', stateId: 'unknown' } },
       1,
     );
-    expect(result.selected?.timezone).toBe('America/New_York');
+    expect(result.selected).toBeNull();
   });
 
   it('re-resolves USA + California → America/Los_Angeles', () => {

@@ -42,7 +42,8 @@
       "device-registration-failed": "通知所需的服务器注册失败。",
       "device-registration-incompatible": "当前应用版本与服务器不兼容,请从应用商店更新。",
       "push-token-unavailable": "暂时无法获取推送通知 ID,请检查网络后稍后重试。",
-      "toggle-failed": "偏好已保存,但通知重新安排失败。"
+      "toggle-failed": "偏好已保存,但通知重新安排失败。",
+      "parse-skipped": "部分礼拜时间无法读取,因此可能缺少一些通知。"
     },
     "onboardingFinalize": {
       "title": "初始化未完成",
@@ -56,6 +57,7 @@
       "welcomeBody": "为世界各地提供礼拜时间提醒。",
       "selectLanguage": "选择语言",
       "selectCountry": "选择国家",
+      "unsupportedCountry": "不支持",
       "selectTimezone": {
         "title": "选择时区",
         "options": {

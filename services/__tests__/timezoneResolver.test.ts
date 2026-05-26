@@ -67,14 +67,14 @@ describe('resolveTimezone — single-tz countries', () => {
 });
 
 describe('resolveTimezone — multi-tz countries default', () => {
-  it('USA (33) defaults to America/New_York when state unknown', () => {
+  it('USA (33) defaults to America/New_York only when state is missing', () => {
     expect(resolveTimezone('33')).toBe('America/New_York');
-    expect(resolveTimezone('33', 'unknown-state')).toBe('America/New_York');
+    expect(() => resolveTimezone('33', 'unknown-state')).toThrow(/timezone/i);
   });
 
   it('Canada (52) defaults to America/Toronto', () => {
     expect(resolveTimezone('52')).toBe('America/Toronto');
-    expect(resolveTimezone('52', 'unknown')).toBe('America/Toronto');
+    expect(() => resolveTimezone('52', 'unknown')).toThrow(/timezone/i);
   });
 
   it('Australia (59) defaults to Australia/Sydney', () => {
@@ -151,8 +151,8 @@ describe('resolveTimezone — USA state-level mapping (V6.2)', () => {
     expect(resolveTimezone('33', stateId)).toBe(expected);
   });
 
-  it('falls back to America/New_York when USA state id is unknown', () => {
-    expect(resolveTimezone('33', 'not-a-real-state-id')).toBe('America/New_York');
+  it('throws when USA state id is unknown', () => {
+    expect(() => resolveTimezone('33', 'not-a-real-state-id')).toThrow(/timezone/i);
   });
 });
 
@@ -174,8 +174,8 @@ describe('resolveTimezone — Canada province-level mapping (V6.3)', () => {
     expect(resolveTimezone('52', provinceId)).toBe(expected);
   });
 
-  it('falls back to America/Toronto when Canada province id is unknown', () => {
-    expect(resolveTimezone('52', 'not-a-real-province-id')).toBe('America/Toronto');
+  it('throws when Canada province id is unknown', () => {
+    expect(() => resolveTimezone('52', 'not-a-real-province-id')).toThrow(/timezone/i);
   });
 });
 

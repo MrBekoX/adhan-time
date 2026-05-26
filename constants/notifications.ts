@@ -27,8 +27,19 @@ export function channelIdForSound(soundKey: SoundKey): string {
   return soundKey === 'default' ? ANDROID_CHANNEL_ID : ANDROID_CHANNEL_CUSTOM_ID;
 }
 
-export function buildNotificationId(districtId: string, dateIso: string, prayerKey: string): string {
-  return `${NOTIFICATION_ID_PREFIX}-${districtId}-${dateIso}-${prayerKey}`;
+function idPart(value: string): string {
+  return value.replace(/[^A-Za-z0-9_-]+/g, '_');
+}
+
+export function buildNotificationId(
+  districtId: string,
+  dateIso: string,
+  prayerKey: string,
+  timezone = 'tz-na',
+  fireAtIso = '',
+): string {
+  const firePart = fireAtIso ? `-${idPart(fireAtIso.slice(11, 16))}` : '';
+  return `${NOTIFICATION_ID_PREFIX}-${idPart(districtId)}-${dateIso}-${idPart(prayerKey)}-${idPart(timezone)}${firePart}`;
 }
 
 export function isPrayerNotificationId(id: string): boolean {

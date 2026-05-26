@@ -1,4 +1,10 @@
-import { buildDeviceErrorLog, processBatchResponse, type Pair } from './expo-push';
+import {
+  buildDeviceErrorLog,
+  filterPairsByReservedLogs,
+  processBatchResponse,
+  processReceiptResponse,
+  type Pair,
+} from './expo-push';
 
 const TOKEN_A = 'ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaa]';
 const TOKEN_B = 'ExponentPushToken[bbbbbbbbbbbbbbbbbbbbbb]';
@@ -136,6 +142,75 @@ describe('processBatchResponse', () => {
     expect(
       result.enrichedLogs[0].expo_response,
     ).toMatchObject({ status: 'error', message: 'body-parse-failed' });
+  });
+});
+
+describe('filterPairsByReservedLogs (V12 pre-send dedup)', () => {
+  it('keeps only pairs whose push_log reservation was newly inserted', () => {
+    const pairs = [
+      pair(TOKEN_A, 'd-a', 'imsak', '2026-05-04'),
+      pair(TOKEN_B, 'd-b', 'imsak', '2026-05-04'),
+    ];
+
+    const reserved = filterPairsByReservedLogs(pairs, [
+      {
+        id: 42,
+        device_id: 'd-b',
+        prayer_key: 'imsak',
+        local_date: '2026-05-04',
+      },
+    ]);
+
+    expect(reserved).toHaveLength(1);
+    expect(reserved[0].message.to).toBe(TOKEN_B);
+    expect(reserved[0].log.id).toBe(42);
+  });
+});
+
+describe('processReceiptResponse (F1 receipts polling)', () => {
+  const receiptPairs = [
+    { receiptId: 'ticket-a', token: TOKEN_A, logId: 101 },
+    { receiptId: 'ticket-b', token: TOKEN_B, logId: 102 },
+  ];
+
+  it('classifies DeviceNotRegistered receipts for token cleanup', () => {
+    const result = processReceiptResponse(receiptPairs, {
+      ok: true,
+      body: {
+        data: {
+          'ticket-a': { status: 'ok' },
+          'ticket-b': {
+            status: 'error',
+            message: 'gone',
+            details: { error: 'DeviceNotRegistered' },
+          },
+        },
+      },
+    });
+
+    expect(result.tokensToRemove).toEqual([TOKEN_B]);
+    expect(result.rateLimitedTokens).toEqual([]);
+    expect(result.receiptLogs.find((r) => r.logId === 102)?.expo_response).toMatchObject({
+      status: 'error',
+      details: { error: 'DeviceNotRegistered' },
+    });
+  });
+
+  it('classifies MessageRateExceeded receipts for cooldown without deleting the token', () => {
+    const result = processReceiptResponse(receiptPairs, {
+      ok: true,
+      body: {
+        data: {
+          'ticket-a': {
+            status: 'error',
+            details: { error: 'MessageRateExceeded' },
+          },
+        },
+      },
+    });
+
+    expect(result.tokensToRemove).toEqual([]);
+    expect(result.rateLimitedTokens).toEqual([TOKEN_A]);
   });
 });
 

@@ -8,3 +8,13 @@
 export function lowercaseInLocale(value: string, locale: string): string {
   return value.toLocaleLowerCase(locale);
 }
+
+export function normalizeSearchText(value: string, locale: string): string {
+  return lowercaseInLocale(value, locale)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/['’`.-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}

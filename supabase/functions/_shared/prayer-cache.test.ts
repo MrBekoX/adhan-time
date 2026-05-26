@@ -6,11 +6,23 @@ function fakeFetcher(handler: (url: string) => Response | Promise<Response>): ty
 }
 
 describe('fetchPrayerYear', () => {
+  const completeEntry = {
+    date: '2026-05-04',
+    times: {
+      imsak: '03:30',
+      gunes: '05:05',
+      ogle: '12:58',
+      ikindi: '16:50',
+      aksam: '20:30',
+      yatsi: '22:00',
+    },
+  };
+
   it('hits the yearly endpoint with the given districtId', async () => {
     let captured = '';
     const fetcher = fakeFetcher((url) => {
       captured = url;
-      return new Response(JSON.stringify({ success: true, data: [] }), {
+      return new Response(JSON.stringify({ success: true, data: [completeEntry] }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -21,7 +33,7 @@ describe('fetchPrayerYear', () => {
   });
 
   it('returns ok:true with the entry array on a well-formed envelope', async () => {
-    const entries = [{ date: '2026-05-04', times: { imsak: '03:30' } }];
+    const entries = [completeEntry];
     const fetcher = fakeFetcher(() =>
       new Response(JSON.stringify({ success: true, data: entries }), {
         status: 200,
@@ -74,6 +86,36 @@ describe('fetchPrayerYear', () => {
     );
     const r = await fetchPrayerYear(fetcher, '9541');
     expect(r).toEqual<EnvelopeResult>({ ok: false, reason: 'data-not-array' });
+  });
+
+  it('returns ok:false empty-data when data is an empty array', async () => {
+    const fetcher = fakeFetcher(
+      () =>
+        new Response(JSON.stringify({ success: true, data: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    );
+    const r = await fetchPrayerYear(fetcher, '9541');
+    expect(r).toEqual<EnvelopeResult>({ ok: false, reason: 'empty-data' });
+  });
+
+  it('returns ok:false bad-prayer-entry when a prayer time key is missing', async () => {
+    const fetcher = fakeFetcher(
+      () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: [{ date: '2026-05-04', times: { imsak: '03:30' } }],
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
+    );
+    const r = await fetchPrayerYear(fetcher, '9541');
+    expect(r).toEqual<EnvelopeResult>({ ok: false, reason: 'bad-prayer-entry' });
   });
 
   it('returns ok:false bad-envelope when the response is a JSON null', async () => {

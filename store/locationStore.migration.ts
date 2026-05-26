@@ -48,7 +48,7 @@ export function migrateLocationState(
       sel = null;
     } else {
       try {
-        const tz = resolveTimezone(sel.countryId, sel.stateId);
+        const tz = resolveTimezone(sel.countryId, sel.stateId, sel.districtId);
         sel = { ...sel, timezone: tz };
       } catch {
         sel = null;

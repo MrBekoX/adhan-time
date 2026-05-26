@@ -5,7 +5,7 @@
  * presentational contract.
  */
 import * as React from 'react';
-import { Text } from 'react-native';
+import { Text, TextInput } from 'react-native';
 import TestRenderer, { type ReactTestInstance } from 'react-test-renderer';
 
 import { LocationList } from '../LocationList';
@@ -73,6 +73,60 @@ describe('LocationList — F5 error+retry surface', () => {
 
     const texts = t.root.findAllByType(Text).map((n) => n.props.children);
     expect(texts).not.toEqual(expect.arrayContaining(['common.tryAgain']));
+
+    TestRenderer.act(() => t.unmount());
+  });
+
+  it('marks unsupported country rows before the user selects them (V7)', () => {
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+
+    TestRenderer.act(() => {
+      tree = TestRenderer.create(
+        <LocationList
+          items={[
+            { id: '1216', name: 'Atlantik Okyanusu', nameEn: 'Atlantic Ocean', experimental: true },
+          ]}
+          loading={false}
+          onSelect={() => {}}
+        />,
+      );
+    });
+    if (!tree) throw new Error('renderer not created');
+    const t = tree as TestRenderer.ReactTestRenderer;
+
+    const texts = t.root.findAllByType(Text).map((n) => n.props.children);
+    expect(texts).toEqual(
+      expect.arrayContaining([expect.stringMatching(/screens\.onboarding\.unsupportedCountry/)]),
+    );
+
+    TestRenderer.act(() => t.unmount());
+  });
+
+  it('matches accented city names with unaccented search input', () => {
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+
+    TestRenderer.act(() => {
+      tree = TestRenderer.create(
+        <LocationList
+          items={[
+            { id: 'sao-paulo', name: 'São Paulo', nameEn: 'Sao Paulo' },
+            { id: 'paris', name: 'Paris', nameEn: 'Paris' },
+          ]}
+          loading={false}
+          onSelect={() => {}}
+        />,
+      );
+    });
+    if (!tree) throw new Error('renderer not created');
+    const t = tree as TestRenderer.ReactTestRenderer;
+
+    TestRenderer.act(() => {
+      t.root.findByType(TextInput).props.onChangeText('sao');
+    });
+
+    const texts = t.root.findAllByType(Text).map((n) => n.props.children);
+    expect(texts).toEqual(expect.arrayContaining(['São Paulo']));
+    expect(texts).not.toEqual(expect.arrayContaining(['Paris']));
 
     TestRenderer.act(() => t.unmount());
   });

@@ -4,14 +4,20 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { verifyCronSecret } from '../_shared/cron-auth.ts';
 import {
   buildDeviceErrorLog,
+  filterPairsByReservedLogs,
   type ExpoMessage,
   type ExpoResponseBody,
   type Pair,
   type PushLogRow,
+  type ReservedLogRow,
   processBatchResponse,
 } from '../_shared/expo-push.ts';
 import { prayerBody, prayerTitle } from '../_shared/i18n.ts';
-import { fetchPrayerYear, type PrayerEntry } from '../_shared/prayer-cache.ts';
+import {
+  fetchPrayerYear,
+  isPrayerEntryArray,
+  type PrayerEntry,
+} from '../_shared/prayer-cache.ts';
 import {
   formatInTz,
   isWithinPrayerWindow,
@@ -39,6 +45,7 @@ type Device = {
   locale: string;
   sound: string;
   enabled_prayers: string[];
+  rate_limited_until?: string | null;
 };
 
 
@@ -47,18 +54,20 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'forbidden' }, 403);
   }
   try {
+    const now = new Date();
+    const nowIso = now.toISOString();
     const cutoff = new Date(Date.now() - STALE_DAYS * 86400_000).toISOString();
     const { data: devices, error } = await supabase
       .from('devices')
       .select('*')
-      .lt('last_seen_at', cutoff);
+      .lt('last_seen_at', cutoff)
+      .or(`rate_limited_until.is.null,rate_limited_until.lt.${nowIso}`);
 
     if (error) throw error;
     if (!devices || devices.length === 0) {
       return jsonResponse({ sent: 0, reason: 'no_stale_devices' });
     }
 
-    const now = new Date();
     const pairs: Pair[] = [];
     const deviceErrorLogs: PushLogRow[] = [];
 
@@ -107,26 +116,54 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const enrichedLogs: PushLogRow[] = [...deviceErrorLogs];
-
     if (pairs.length === 0) {
       // Even when nothing was sent, flush any per-device audit rows so a
       // silently-failing device doesn't disappear from push_log forever.
-      if (enrichedLogs.length > 0) {
-        await supabase
-          .from('push_log')
-          .upsert(enrichedLogs, {
-            onConflict: 'device_id,prayer_key,local_date',
-            ignoreDuplicates: true,
-          });
-      }
+      await flushPushLogs(deviceErrorLogs);
       return jsonResponse({ sent: 0, deviceErrors: deviceErrorLogs.length });
     }
 
+    // Reserve the dedup key before touching Expo. If the cron fires twice
+    // inside the 60-second window, the second invocation sees no inserted
+    // reservation row and skips the send entirely.
+    const { data: reservedRows, error: reservationError } = await supabase
+      .from('push_log')
+      .upsert(
+        pairs.map((p) => ({
+          ...p.log,
+          expo_response: { status: 'error', message: 'reserved-before-send' },
+        })),
+        {
+          onConflict: 'device_id,prayer_key,local_date',
+          ignoreDuplicates: true,
+        },
+      )
+      .select('id,device_id,prayer_key,local_date');
+
+    if (reservationError) throw reservationError;
+
+    const reservedPairs = filterPairsByReservedLogs(
+      pairs,
+      (reservedRows ?? []) as ReservedLogRow[],
+    );
+
+    if (reservedPairs.length === 0) {
+      await flushPushLogs(deviceErrorLogs);
+      return jsonResponse({
+        sent: 0,
+        attempted: 0,
+        candidates: pairs.length,
+        duplicateSkipped: pairs.length,
+        deviceErrors: deviceErrorLogs.length,
+      });
+    }
+
+    const enrichedLogs: PushLogRow[] = [...deviceErrorLogs];
     const tokensToRemove = new Set<string>();
+    const rateLimitedTokens = new Set<string>();
     let okCount = 0;
 
-    for (const chunkPairs of chunk(pairs, 100)) {
+    for (const chunkPairs of chunk(reservedPairs, 100)) {
       const messages: ExpoMessage[] = chunkPairs.map((p) => p.message);
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (EXPO_TOKEN) headers.Authorization = `Bearer ${EXPO_TOKEN}`;
@@ -174,6 +211,7 @@ Deno.serve(async (req: Request) => {
       );
       enrichedLogs.push(...outcome.enrichedLogs);
       for (const tok of outcome.tokensToRemove) tokensToRemove.add(tok);
+      for (const tok of outcome.rateLimitedTokens) rateLimitedTokens.add(tok);
       for (const log of outcome.enrichedLogs) {
         const t = log.expo_response;
         if (t && t.status === 'ok') okCount++;
@@ -193,19 +231,28 @@ Deno.serve(async (req: Request) => {
       console.info('devices-removed', { count: tokensToRemove.size });
     }
 
-    if (enrichedLogs.length > 0) {
-      // Dedup at the DB layer: a second insert for the same
-      // (device_id, prayer_key, local_date) tuple is silently dropped, so
-      // a cron double-fire (5s skew) doesn't double-push.
+    if (rateLimitedTokens.size > 0) {
+      const cooldownUntil = new Date(Date.now() + 5 * 60_000).toISOString();
       await supabase
-        .from('push_log')
-        .upsert(enrichedLogs, {
-          onConflict: 'device_id,prayer_key,local_date',
-          ignoreDuplicates: true,
-        });
+        .from('devices')
+        .update({ rate_limited_until: cooldownUntil })
+        .in('expo_push_token', Array.from(rateLimitedTokens));
+      console.info('devices-rate-limited', {
+        count: rateLimitedTokens.size,
+        until: cooldownUntil,
+      });
     }
 
-    return jsonResponse({ sent: okCount, attempted: pairs.length, removed: tokensToRemove.size });
+    await flushPushLogs(enrichedLogs);
+
+    return jsonResponse({
+      sent: okCount,
+      attempted: reservedPairs.length,
+      candidates: pairs.length,
+      duplicateSkipped: pairs.length - reservedPairs.length,
+      removed: tokensToRemove.size,
+      rateLimited: rateLimitedTokens.size,
+    });
   } catch (e) {
     console.error(e);
     return jsonResponse({ error: String(e) }, 500);
@@ -215,14 +262,19 @@ Deno.serve(async (req: Request) => {
 async function ensurePrayerCache(districtId: string, year: number): Promise<PrayerEntry[]> {
   // Composite (district_id, year) lookup so the same district can hold
   // data for both the current and the rolling-window-next year.
-  const { data: row } = await supabase
+  const { data: row, error: selectError } = await supabase
     .from('prayer_cache')
     .select('*')
     .eq('district_id', districtId)
     .eq('year', year)
     .maybeSingle();
+  if (selectError) throw selectError;
   const TTL_MS = 30 * 86400_000;
-  if (row && Date.now() - new Date(row.fetched_at).getTime() < TTL_MS) {
+  if (
+    row &&
+    Date.now() - new Date(row.fetched_at).getTime() < TTL_MS &&
+    isPrayerEntryArray(row.data)
+  ) {
     return row.data as PrayerEntry[];
   }
 
@@ -232,7 +284,7 @@ async function ensurePrayerCache(districtId: string, year: number): Promise<Pray
   const result = await fetchPrayerYear(fetch, districtId);
   if (!result.ok) throw new Error(result.reason);
 
-  await supabase.from('prayer_cache').upsert(
+  const { error: upsertError } = await supabase.from('prayer_cache').upsert(
     {
       district_id: districtId,
       year,
@@ -241,6 +293,7 @@ async function ensurePrayerCache(districtId: string, year: number): Promise<Pray
     },
     { onConflict: 'district_id,year' },
   );
+  if (upsertError) throw upsertError;
   return result.data;
 }
 
@@ -248,6 +301,29 @@ function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
+}
+
+async function flushPushLogs(logs: PushLogRow[]): Promise<void> {
+  for (const log of logs) {
+    if (typeof log.id === 'number') {
+      const { error } = await supabase
+        .from('push_log')
+        .update({ expo_response: log.expo_response })
+        .eq('id', log.id);
+      if (error) throw error;
+    }
+  }
+
+  const inserts = logs.filter((log) => typeof log.id !== 'number');
+  if (inserts.length === 0) return;
+
+  const { error } = await supabase
+    .from('push_log')
+    .upsert(inserts, {
+      onConflict: 'device_id,prayer_key,local_date',
+      ignoreDuplicates: true,
+    });
+  if (error) throw error;
 }
 
 function jsonResponse(body: unknown, status = 200): Response {

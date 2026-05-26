@@ -56,6 +56,33 @@ describe('QiblaCompass — RTL geometry lock (K8)', () => {
       t.unmount();
     });
   });
+
+  it('does not render the aligned Kaaba ring when heading is unreliable', () => {
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    TestRenderer.act(() => {
+      tree = TestRenderer.create(
+        <QiblaCompass
+          size={260}
+          deviceHeading={0}
+          qiblaBearing={151}
+          aligned
+          unreliable
+        />,
+      );
+    });
+    if (!tree) throw new Error('renderer not created');
+    const t = tree as TestRenderer.ReactTestRenderer;
+
+    const ringNodes = t.root.findAll((n) => {
+      const style = flattenStyle(n.props?.style);
+      return style.borderRadius === 4 && style.borderWidth === 1.5;
+    });
+    expect(ringNodes).toHaveLength(0);
+
+    TestRenderer.act(() => {
+      t.unmount();
+    });
+  });
 });
 
 describe('CompassRose — RTL geometry lock (K8)', () => {

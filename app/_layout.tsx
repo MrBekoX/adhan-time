@@ -1,13 +1,13 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { colors } from '@/components/Theme';
-import { evaluateHydrationGate } from '@/hooks/hydrationGate';
+import { evaluateHydrationGate, forceHydrationFlags } from '@/hooks/hydrationGate';
 import { i18n } from '@/locales/i18n';
 import { setupForegroundHandler } from '@/services/notificationScheduler';
 import { useLocationStore } from '@/store/locationStore';
@@ -25,6 +25,7 @@ export default function RootLayout() {
   const locale = useSettingsStore((s) => s.locale);
 
   const [timedOutFlag, setTimedOutFlag] = useState(false);
+  const timeoutHandledRef = useRef(false);
 
   const { ready, timedOut } = evaluateHydrationGate({
     flags: [locHydrated, settingsHydrated, prayerHydrated],
@@ -48,8 +49,14 @@ export default function RootLayout() {
   }, [locHydrated, settingsHydrated, prayerHydrated, timedOutFlag]);
 
   useEffect(() => {
-    if (!timedOut) return;
+    if (!timedOut || timeoutHandledRef.current) return;
+    timeoutHandledRef.current = true;
     logger.warn('hydration-timeout', { locHydrated, settingsHydrated, prayerHydrated });
+    forceHydrationFlags([
+      useLocationStore.getState().setHydrated,
+      useSettingsStore.getState().setHydrated,
+      usePrayerStore.getState().setHydrated,
+    ]);
     useUiStore.getState().setError({ code: 'hydration-timeout' });
   }, [timedOut, locHydrated, settingsHydrated, prayerHydrated]);
 
