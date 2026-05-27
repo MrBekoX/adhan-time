@@ -7,6 +7,9 @@ export type ExpoMessage = {
   title: string;
   body: string;
   sound?: string | null;
+  // Android plays the sound configured on this channel (custom adhan sounds
+  // can't ride the `sound` field on Android); iOS ignores it and uses `sound`.
+  channelId?: string;
   data?: Record<string, unknown>;
 };
 

@@ -1,10 +1,14 @@
 export const ANDROID_CHANNEL_ID = 'adhan';
 export const ANDROID_CHANNEL_NAME = 'Ezan Vakitleri';
-// Android freezes a channel's sound at first registration, so the custom
-// ringtone needs its own channel. The scheduler picks per-notification
-// based on the user's current sound preference.
-export const ANDROID_CHANNEL_CUSTOM_ID = 'adhan-custom';
-export const ANDROID_CHANNEL_CUSTOM_NAME = 'Ezan Vakitleri (Kısa Ezan)';
+// Android freezes a channel's sound at first registration, so each distinct
+// adhan recording needs its own channel. The fajr (sabah) adhan differs
+// melodically from the one called at the remaining prayers, so they get
+// separate channels; the scheduler routes each notification to the channel
+// matching its prayer.
+export const ANDROID_CHANNEL_FAJR_ID = 'adhan-fajr';
+export const ANDROID_CHANNEL_FAJR_NAME = 'Sabah Ezanı';
+export const ANDROID_CHANNEL_REGULAR_ID = 'adhan-regular';
+export const ANDROID_CHANNEL_REGULAR_NAME = 'Ezan Vakitleri (Ezan Sesi)';
 
 export const NOTIFICATION_ID_PREFIX = 'prayer';
 export const ROLLING_WINDOW_DAYS = 10;
@@ -16,15 +20,53 @@ export const PENDING_NOTIFICATION_HARD_CAP = 50;
 export const ROLLING_WINDOW_DAYS_ALL_PRAYERS = 8;
 export const ALL_PRAYERS_COUNT = 6;
 
-export const SOUNDS = {
-  default: 'default',
-  adhanShort: 'adhan_short.wav',
+// Two short (<=30s) clips ship in assets/sounds/. iOS plays them by filename;
+// Android plays them via the matching channel above. Bundled and declared in
+// app.json's expo-notifications plugin.
+export const SOUND_FILES = {
+  fajr: 'adhan_fajr.wav',
+  regular: 'adhan_regular.wav',
 } as const;
 
-export type SoundKey = keyof typeof SOUNDS;
+export const DEFAULT_SOUND = 'default';
 
-export function channelIdForSound(soundKey: SoundKey): string {
-  return soundKey === 'default' ? ANDROID_CHANNEL_ID : ANDROID_CHANNEL_CUSTOM_ID;
+// User-facing preference: system default vs. the adhan recordings. Kept as a
+// standalone union (not derived from the file map) because the persisted
+// settings store and the register-device validators share these exact
+// literals — 'adhanShort' now means "per-prayer adhan enabled".
+export type SoundKey = 'default' | 'adhanShort';
+
+// imsak is the dawn (sabah/fajr) prayer; every other slot — including gunes —
+// uses the regular adhan.
+function isFajrPrayer(prayerKey: string): boolean {
+  return prayerKey === 'imsak';
+}
+
+export function soundForPrayer(prayerKey: string, pref: SoundKey): string {
+  if (pref === 'default') return DEFAULT_SOUND;
+  return isFajrPrayer(prayerKey) ? SOUND_FILES.fajr : SOUND_FILES.regular;
+}
+
+export function channelIdForPrayer(prayerKey: string, pref: SoundKey): string {
+  if (pref === 'default') return ANDROID_CHANNEL_ID;
+  return isFajrPrayer(prayerKey) ? ANDROID_CHANNEL_FAJR_ID : ANDROID_CHANNEL_REGULAR_ID;
+}
+
+// The five prayers at which an adhan is actually called. gunes (sunrise) has
+// no adhan, so it never routes to the full-adhan native player.
+const NATIVE_ADHAN_PRAYERS = new Set<string>(['imsak', 'ogle', 'ikindi', 'aksam', 'yatsi']);
+
+// Android + adhan preference → the full-adhan native player for the 5 adhan
+// prayers; gunes (no sunrise adhan), iOS, and the default-sound preference all
+// stay on expo-notifications (committed <=30s clips).
+export function adhanPlaybackBackend(
+  prayerKey: string,
+  platform: 'ios' | 'android',
+  pref: SoundKey,
+): 'native' | 'expo' {
+  if (platform !== 'android') return 'expo';
+  if (pref === 'default') return 'expo';
+  return NATIVE_ADHAN_PRAYERS.has(prayerKey) ? 'native' : 'expo';
 }
 
 function idPart(value: string): string {

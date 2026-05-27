@@ -36,6 +36,27 @@ const STALE_DAYS = 5;
 const PRAYER_KEYS = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'] as const;
 type PrayerKey = (typeof PRAYER_KEYS)[number];
 
+// Per-prayer adhan sound routing — mirrors constants/notifications.ts on the
+// app side (the RN/Deno boundary can't share a module, same as PRAYER_KEYS
+// above). imsak = the dawn (sabah/fajr) adhan; every other prayer, including
+// gunes, uses the regular adhan. iOS plays the file via `sound`; Android via
+// the matching channel created by ensureAndroidChannel() on the device.
+const SOUND_FAJR = 'adhan_fajr.wav';
+const SOUND_REGULAR = 'adhan_regular.wav';
+const CHANNEL_DEFAULT = 'adhan';
+const CHANNEL_FAJR = 'adhan-fajr';
+const CHANNEL_REGULAR = 'adhan-regular';
+
+function pushSoundFor(pref: string, key: PrayerKey): string {
+  if (pref === 'default') return 'default';
+  return key === 'imsak' ? SOUND_FAJR : SOUND_REGULAR;
+}
+
+function pushChannelFor(pref: string, key: PrayerKey): string {
+  if (pref === 'default') return CHANNEL_DEFAULT;
+  return key === 'imsak' ? CHANNEL_FAJR : CHANNEL_REGULAR;
+}
+
 type Device = {
   id: string;
   expo_push_token: string;
@@ -91,7 +112,8 @@ Deno.serve(async (req: Request) => {
               to: dev.expo_push_token,
               title: prayerTitle(dev.locale, key),
               body: prayerBody(dev.locale, key, dev.district_name),
-              sound: dev.sound === 'default' ? 'default' : null,
+              sound: pushSoundFor(dev.sound, key),
+              channelId: pushChannelFor(dev.sound, key),
               data: { prayerKey: key, source: 'server' },
             },
             log: {

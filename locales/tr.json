@@ -43,7 +43,8 @@
       "device-registration-incompatible": "Bu uygulama sürümü sunucuyla uyumlu değil — lütfen mağazadan güncelle.",
       "push-token-unavailable": "Bildirim kimliği şu anda alınamıyor. Bağlantını kontrol edip biraz sonra tekrar dene.",
       "toggle-failed": "Bildirim ayarın kaydedildi ama yeniden zamanlanamadı.",
-      "parse-skipped": "Bazı vakitler okunamadı; bu yüzden birkaç bildirim eksik kalabilir."
+      "parse-skipped": "Bazı vakitler okunamadı; bu yüzden birkaç bildirim eksik kalabilir.",
+      "native-arm-failed": "Tam ezan çalması için alarm kurulamadı. Diğer bildirimler etkilenmedi."
     },
     "onboardingFinalize": {
       "title": "Kurulum tamamlanamadı",
@@ -159,6 +160,12 @@
       "instructionTurnRight": "Telefonu {{degrees}}° sağa çevir",
       "instructionAligned": "Kıbleye dönüksün",
       "instructionUnreliable": "Pusulayı kalibre et"
+    },
+    "permissions": {
+      "exactAlarmTitle": "Ezan için tam zamanlı alarm izni",
+      "exactAlarmBody": "Android'de ezanın tam vaktinde, uygulama kapalıyken bile çalabilmesi için 'Alarmlar ve hatırlatıcılar' iznini açman gerekir. Ayarları açıp izin ver.",
+      "batteryOptTitle": "Pil optimizasyonu istisnası",
+      "batteryOptBody": "Bazı cihazlar (Xiaomi, Huawei, Samsung) pil tasarrufu için arka plan alarmlarını kısıtlar; bu da ezanın gecikmesine veya gelmemesine yol açabilir. Pil optimizasyonu istisnası bunu azaltır ama tamamen garanti etmez."
     },
     "placeholder": "..."
   },

@@ -41,7 +41,8 @@
         {
           "color": "#10B981",
           "sounds": [
-            "./assets/sounds/adhan_short.wav"
+            "./assets/sounds/adhan_fajr.wav",
+            "./assets/sounds/adhan_regular.wav"
           ]
         }
       ],

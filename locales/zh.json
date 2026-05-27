@@ -43,7 +43,8 @@
       "device-registration-incompatible": "当前应用版本与服务器不兼容,请从应用商店更新。",
       "push-token-unavailable": "暂时无法获取推送通知 ID,请检查网络后稍后重试。",
       "toggle-failed": "偏好已保存,但通知重新安排失败。",
-      "parse-skipped": "部分礼拜时间无法读取,因此可能缺少一些通知。"
+      "parse-skipped": "部分礼拜时间无法读取,因此可能缺少一些通知。",
+      "native-arm-failed": "无法设置完整宣礼闹钟。其他通知不受影响。"
     },
     "onboardingFinalize": {
       "title": "初始化未完成",
@@ -159,6 +160,12 @@
       "instructionTurnRight": "将手机向右转 {{degrees}}°",
       "instructionAligned": "已朝向克尔白",
       "instructionUnreliable": "请校准指南针"
+    },
+    "permissions": {
+      "exactAlarmTitle": "宣礼所需的精确闹钟权限",
+      "exactAlarmBody": "在 Android 上,宣礼需要「闹钟和提醒」权限,才能在礼拜时间准时播放,即使应用已关闭。请打开设置并授予权限。",
+      "batteryOptTitle": "电池优化豁免",
+      "batteryOptBody": "部分设备(小米、华为、三星)会为省电限制后台闹钟,这可能导致宣礼延迟或不响。电池优化豁免可减轻此问题,但不能完全保证。"
     },
     "placeholder": "..."
   },

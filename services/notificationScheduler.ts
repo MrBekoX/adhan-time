@@ -6,21 +6,27 @@ import type { PrayerTime, ScheduledPrayer, YearlyPrayerCache } from './types';
 
 import {
   ALL_PRAYERS_COUNT,
-  ANDROID_CHANNEL_CUSTOM_ID,
-  ANDROID_CHANNEL_CUSTOM_NAME,
+  ANDROID_CHANNEL_FAJR_ID,
+  ANDROID_CHANNEL_FAJR_NAME,
   ANDROID_CHANNEL_ID,
   ANDROID_CHANNEL_NAME,
+  ANDROID_CHANNEL_REGULAR_ID,
+  ANDROID_CHANNEL_REGULAR_NAME,
+  DEFAULT_SOUND,
   PENDING_NOTIFICATION_HARD_CAP,
   ROLLING_WINDOW_DAYS,
   ROLLING_WINDOW_DAYS_ALL_PRAYERS,
-  SOUNDS,
+  SOUND_FILES,
   type SoundKey,
+  adhanPlaybackBackend,
   buildNotificationId,
-  channelIdForSound,
+  channelIdForPrayer,
   isPrayerNotificationId,
+  soundForPrayer,
 } from '@/constants/notifications';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
 import { i18n } from '@/locales/i18n';
+import { armPrayers, cancelAll as cancelNativeAdhan } from '@/modules/adhan-player';
 import { useUiStore } from '@/store/uiStore';
 import { logger } from '@/utils/logger';
 import { addLocalDays, getDateComponentsInTz, isoDateInTz, parsePrayerTime } from '@/utils/time';
@@ -45,18 +51,26 @@ export async function ensureAndroidChannel(): Promise<void> {
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
     name: ANDROID_CHANNEL_NAME,
     importance: Notifications.AndroidImportance.HIGH,
-    sound: SOUNDS.default,
+    sound: DEFAULT_SOUND,
     vibrationPattern: [0, 500, 250, 500],
     enableVibrate: true,
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   });
-  // Separate channel for the custom adhan ringtone: Android freezes a
-  // channel's sound at first registration, so a runtime sound change
-  // requires swapping channel IDs rather than mutating the existing one.
-  await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_CUSTOM_ID, {
-    name: ANDROID_CHANNEL_CUSTOM_NAME,
+  // Android freezes a channel's sound at first registration, so each adhan
+  // recording needs its own channel: the scheduler routes imsak to the fajr
+  // channel and every other prayer to the regular one.
+  await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_FAJR_ID, {
+    name: ANDROID_CHANNEL_FAJR_NAME,
     importance: Notifications.AndroidImportance.HIGH,
-    sound: SOUNDS.adhanShort,
+    sound: SOUND_FILES.fajr,
+    vibrationPattern: [0, 500, 250, 500],
+    enableVibrate: true,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  });
+  await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_REGULAR_ID, {
+    name: ANDROID_CHANNEL_REGULAR_NAME,
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: SOUND_FILES.regular,
     vibrationPattern: [0, 500, 250, 500],
     enableVibrate: true,
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
@@ -76,7 +90,7 @@ export async function reconcile(
       ? ROLLING_WINDOW_DAYS_ALL_PRAYERS
       : ROLLING_WINDOW_DAYS;
   const windowDays = options.windowDays ?? defaultWindow;
-  const soundKey: SoundKey = options.sound ?? 'default';
+  const soundPref: SoundKey = options.sound ?? 'default';
   const tz = cache.timezone;
   const now = new Date();
 
@@ -95,13 +109,53 @@ export async function reconcile(
     });
   }
 
+  // Android + adhan-on routes the 5 adhan prayers to the native full-adhan
+  // player (AlarmManager + foreground service); gunes, iOS, and the
+  // default-sound path stay on expo-notifications (committed <=30s clips).
+  const platform = Platform.OS === 'android' ? 'android' : 'ios';
+  const nativeTargets = target.filter(
+    (t) => adhanPlaybackBackend(t.prayerKey, platform, soundPref) === 'native',
+  );
+  const expoTargets = target.filter(
+    (t) => adhanPlaybackBackend(t.prayerKey, platform, soundPref) === 'expo',
+  );
+
+  try {
+    if (platform === 'android' && soundPref !== DEFAULT_SOUND) {
+      // Full replace; the Kotlin side clears prior alarms before re-arming, so
+      // this stays idempotent like the expo pending-diff below.
+      await armPrayers(
+        nativeTargets.map((t) => ({
+          id: t.id,
+          prayerKey: t.prayerKey,
+          fireAtEpochMs: t.fireAt.getTime(),
+          soundKind: t.prayerKey === 'imsak' ? 'fajr' : 'regular',
+          title: i18n.t(`prayer.${t.prayerKey}.title`),
+          body: options.districtName
+            ? i18n.t(`prayer.${t.prayerKey}.bodyWithCity`, { city: options.districtName })
+            : i18n.t(`prayer.${t.prayerKey}.body`),
+        })),
+      );
+    } else {
+      // Pref turned off or not Android → clear any native alarms so a previously
+      // armed adhan never fires after the user opted out / switched platforms.
+      await cancelNativeAdhan();
+    }
+  } catch (e) {
+    // Isolate the native bridge like the expo schedule/cancel passes below: a
+    // rejected arm/cancel must not abort reconcile (which would also drop the
+    // gunes expo schedule + the stale-cancel pass). Surface, never swallow.
+    logger.warn('native-adhan-failed', { error: String(e) });
+    useUiStore.getState().setError({ code: 'native-arm-failed' });
+  }
+
   const pendingAll = await Notifications.getAllScheduledNotificationsAsync();
   const pendingPrayer = pendingAll.filter((n) => isPrayerNotificationId(n.identifier));
   const pendingMap = new Map(pendingPrayer.map((n) => [n.identifier, n]));
-  const targetMap = new Map(target.map((s) => [s.id, s]));
+  const targetMap = new Map(expoTargets.map((s) => [s.id, s]));
 
   const toCancel = pendingPrayer.filter((p) => !targetMap.has(p.identifier));
-  const toSchedule = target.filter((s) => !pendingMap.has(s.id));
+  const toSchedule = expoTargets.filter((s) => !pendingMap.has(s.id));
 
   // Mirror the schedule pass below: a native crash cancelling one stale
   // notification must not block the rest, otherwise a single corrupted
@@ -118,7 +172,7 @@ export async function reconcile(
   }
 
   const results = await Promise.allSettled(
-    toSchedule.map((s) => scheduleOne(s, tz, soundKey, options.districtName)),
+    toSchedule.map((s) => scheduleOne(s, tz, soundPref, options.districtName)),
   );
   const failed = results.filter((r) => r.status === 'rejected').length;
   const scheduled = toSchedule.length - failed;
@@ -146,6 +200,12 @@ export async function reconcile(
 }
 
 export async function cancelAllPrayerNotifications(): Promise<void> {
+  // Clear native adhan alarms too (no-op on iOS / when none armed). Otherwise
+  // "delete my data" and city resets — which call this without a trailing
+  // reconcile — leave the AlarmManager alarms + persisted schedule intact, so
+  // the full adhan keeps firing (and re-arms across reboot) after the user
+  // opted out. (Review C1)
+  await cancelNativeAdhan();
   const pending = await Notifications.getAllScheduledNotificationsAsync();
   for (const n of pending) {
     if (isPrayerNotificationId(n.identifier)) {
@@ -209,7 +269,7 @@ function findEntryForDate(entries: PrayerTime[], dateIso: string): PrayerTime | 
 async function scheduleOne(
   s: ScheduledPrayer,
   tz: string,
-  soundKey: SoundKey,
+  soundPref: SoundKey,
   districtName?: string,
 ): Promise<void> {
   const c = getDateComponentsInTz(s.fireAt, tz);
@@ -220,7 +280,7 @@ async function scheduleOne(
       body: districtName
         ? i18n.t(`prayer.${s.prayerKey}.bodyWithCity`, { city: districtName })
         : i18n.t(`prayer.${s.prayerKey}.body`),
-      sound: SOUNDS[soundKey],
+      sound: soundForPrayer(s.prayerKey, soundPref),
       data: {
         prayerKey: s.prayerKey,
         dateIso: s.dateIso,
@@ -238,7 +298,9 @@ async function scheduleOne(
       minute: c.minute,
       second: 0,
       repeats: false,
-      ...(Platform.OS === 'android' ? { channelId: channelIdForSound(soundKey) } : {}),
+      ...(Platform.OS === 'android'
+        ? { channelId: channelIdForPrayer(s.prayerKey, soundPref) }
+        : {}),
     },
   });
 }
