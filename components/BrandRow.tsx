@@ -49,7 +49,7 @@ function formatDateIsoLabel(dateIso: string, months: string[]): string {
   ) {
     return formatDateLabel(new Date(), months);
   }
-  return `${String(day).padStart(2, '0')} Â· ${months[month - 1]} Â· ${year}`;
+  return `${String(day).padStart(2, '0')} · ${months[month - 1]} · ${year}`;
 }
 
 const styles = StyleSheet.create({

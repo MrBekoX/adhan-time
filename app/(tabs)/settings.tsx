@@ -100,6 +100,16 @@ export default function Settings() {
         ) {
           ui.setError(null);
         }
+      } else if (result.reason === 'registration-disabled') {
+        useSettingsStore.getState().setDeviceRegistrationPending(false);
+        const cur = ui.lastError;
+        if (
+          cur?.code === 'device-registration-failed' ||
+          cur?.code === 'device-registration-incompatible' ||
+          cur?.code === 'push-token-unavailable'
+        ) {
+          ui.setError(null);
+        }
       } else if (result.reason === 'incompatible') {
         // Retry from Settings still hit a 4xx — the build is incompatible
         // with the edge function. Drop pending so the section disappears

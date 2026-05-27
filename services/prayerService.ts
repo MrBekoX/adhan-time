@@ -3,6 +3,7 @@ import {
   cancelAllPrayerNotifications,
   ensureAndroidChannel,
   reconcile,
+  resetAllScheduledNotifications,
 } from './notificationScheduler';
 import { assertPrayerTimes } from './prayerValidation';
 import type { PrayerTime, YearlyPrayerCache } from './types';
@@ -110,6 +111,27 @@ export async function scheduleAfterToggle(
 ): Promise<void> {
   const cache = await syncYearly(districtId, districtName, timezone, { schedule: false });
   await cancelAllPrayerNotifications();
+  await scheduleAll(cache, districtName);
+}
+
+// City change: fetch the new city's year WITHOUT scheduling, hard-reset every
+// prior notification (enumeration-independent — see
+// resetAllScheduledNotifications), then schedule the new city. This is the
+// rules/00 S4 contract ("Şehir değiştirme → tüm pending iptal → yeniden
+// zamanla"). The previous (force-only) path relied solely on reconcile's diff
+// to drop the old city, which left it firing when getAll/id-recognition fell
+// short on device — surfacing as notifications for BOTH cities. The fetch is
+// awaited first so a failed switch resets nothing (errors propagate).
+export async function resetScheduleForLocation(
+  districtId: string,
+  districtName: string,
+  timezone: string,
+): Promise<void> {
+  const cache = await syncYearly(districtId, districtName, timezone, {
+    force: true,
+    schedule: false,
+  });
+  await resetAllScheduledNotifications();
   await scheduleAll(cache, districtName);
 }
 

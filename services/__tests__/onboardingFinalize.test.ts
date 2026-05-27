@@ -1,7 +1,7 @@
 import { registerDevice } from '../deviceRegistry';
 import { ensureAndroidChannel } from '../notificationScheduler';
 import { finalizeOnboarding } from '../onboardingFinalize';
-import { syncYearly } from '../prayerService';
+import { resetScheduleForLocation } from '../prayerService';
 import { requestPermission } from '../pushService';
 
 import type { PersistedLocation } from '@/store/locationStore.migration';
@@ -15,7 +15,7 @@ jest.mock('../notificationScheduler', () => ({
 }));
 
 jest.mock('../prayerService', () => ({
-  syncYearly: jest.fn(),
+  resetScheduleForLocation: jest.fn(),
 }));
 
 jest.mock('../deviceRegistry', () => ({
@@ -24,7 +24,7 @@ jest.mock('../deviceRegistry', () => ({
 
 const requestPermissionMock = requestPermission as jest.Mock;
 const ensureChannelMock = ensureAndroidChannel as jest.Mock;
-const syncYearlyMock = syncYearly as jest.Mock;
+const resetScheduleMock = resetScheduleForLocation as jest.Mock;
 const registerMock = registerDevice as jest.Mock;
 
 const LOCATION: PersistedLocation = {
@@ -47,7 +47,7 @@ const INPUT = {
 beforeEach(() => {
   requestPermissionMock.mockReset().mockResolvedValue(true);
   ensureChannelMock.mockReset().mockResolvedValue(undefined);
-  syncYearlyMock.mockReset().mockResolvedValue({ entries: [] });
+  resetScheduleMock.mockReset().mockResolvedValue(undefined);
   registerMock.mockReset().mockResolvedValue(undefined);
 });
 
@@ -55,7 +55,9 @@ describe('finalizeOnboarding (V5)', () => {
   it('returns ok:true with permissionGranted=true on the happy path', async () => {
     const result = await finalizeOnboarding(INPUT);
     expect(result).toEqual({ ok: true, permissionGranted: true });
-    expect(syncYearlyMock).toHaveBeenCalledWith('9541', 'Istanbul', 'Europe/Istanbul', { force: true });
+    // City change/onboarding must hard-reset prior notifications for the new
+    // location (S4), not just force a diff-based reschedule.
+    expect(resetScheduleMock).toHaveBeenCalledWith('9541', 'Istanbul', 'Europe/Istanbul');
     expect(registerMock).toHaveBeenCalledTimes(1);
   });
 
@@ -67,14 +69,14 @@ describe('finalizeOnboarding (V5)', () => {
     expect(result).toEqual({ ok: true, permissionGranted: false });
   });
 
-  it('returns ok:false when syncYearly rejects (network down on Finish tap)', async () => {
-    syncYearlyMock.mockRejectedValue(new Error('network'));
+  it('returns ok:false when resetScheduleForLocation rejects (network down on Finish tap)', async () => {
+    resetScheduleMock.mockRejectedValue(new Error('network'));
     const result = await finalizeOnboarding(INPUT);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(String(result.error)).toContain('network');
     }
-    // registerDevice must not run when sync failed — we have nothing to schedule.
+    // registerDevice must not run when scheduling failed — nothing to register.
     expect(registerMock).not.toHaveBeenCalled();
   });
 
@@ -88,7 +90,7 @@ describe('finalizeOnboarding (V5)', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('orders the side effects: permission → channel → sync → register', async () => {
+  it('orders the side effects: permission → channel → resetSchedule → register', async () => {
     const calls: string[] = [];
     requestPermissionMock.mockImplementation(async () => {
       calls.push('permission');
@@ -97,15 +99,14 @@ describe('finalizeOnboarding (V5)', () => {
     ensureChannelMock.mockImplementation(async () => {
       calls.push('channel');
     });
-    syncYearlyMock.mockImplementation(async () => {
-      calls.push('sync');
-      return { entries: [] };
+    resetScheduleMock.mockImplementation(async () => {
+      calls.push('resetSchedule');
     });
     registerMock.mockImplementation(async () => {
       calls.push('register');
     });
 
     await finalizeOnboarding(INPUT);
-    expect(calls).toEqual(['permission', 'channel', 'sync', 'register']);
+    expect(calls).toEqual(['permission', 'channel', 'resetSchedule', 'register']);
   });
 });

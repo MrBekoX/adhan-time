@@ -21,9 +21,13 @@ describe('BrandRow', () => {
     });
     const tree = renderer.toJSON();
 
-    expect(JSON.stringify(tree)).toContain('31');
-    expect(JSON.stringify(tree)).toContain('DEC');
-    expect(JSON.stringify(tree)).toContain('2026');
+    const text = JSON.stringify(tree);
+    expect(text).toContain('31');
+    expect(text).toContain('DEC');
+    expect(text).toContain('2026');
+    // must use the correct middle-dot separator, not mojibake (Â·)
+    expect(text).toContain('31 · DEC · 2026');
+    expect(text).not.toContain('Â');
     TestRenderer.act(() => renderer.unmount());
   });
 });

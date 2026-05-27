@@ -292,6 +292,21 @@ describe('runLifecycleOnce — V16+F6 device registration retry surface', () => 
     expect(useUiStore.getState().lastError?.code).toBe('push-token-unavailable');
   });
 
+  it("clears pending registration state when server registration is disabled by local config", async () => {
+    useSettingsStore.setState({ deviceRegistrationPending: true });
+    useUiStore.setState({ lastError: { code: 'device-registration-failed' } });
+    registerMock.mockResolvedValueOnce({
+      ok: false,
+      reason: 'registration-disabled',
+      code: 'missing-client-hmac',
+    });
+
+    await runLifecycleOnce();
+
+    expect(useSettingsStore.getState().deviceRegistrationPending).toBe(false);
+    expect(useUiStore.getState().lastError).toBeNull();
+  });
+
   it("clears a stale 'push-token-unavailable' banner once registerDevice succeeds", async () => {
     useUiStore.setState({ lastError: { code: 'push-token-unavailable' } });
     useSettingsStore.setState({ deviceRegistrationPending: true });

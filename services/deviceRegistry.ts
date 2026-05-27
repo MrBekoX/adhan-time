@@ -18,7 +18,11 @@ type RegisterPayload = {
   enabledPrayers: string[];
 };
 
-const HMAC_SECRET = process.env.EXPO_PUBLIC_REGISTER_HMAC_KEY ?? null;
+function getHmacSecret(): string | null {
+  const raw = process.env.EXPO_PUBLIC_REGISTER_HMAC_KEY;
+  if (!raw || raw.trim().length === 0) return null;
+  return raw.trim();
+}
 
 // Resolved per call rather than at module load so tests can override
 // REGISTER_DEVICE_BASE_DELAY_MS to skip the 1s/2s/4s exponential sleeps
@@ -42,6 +46,7 @@ export type RegisterResult =
   | { ok: false; reason: 'no-token' }
   | { ok: false; reason: 'token-fetch-failed' }
   | { ok: false; reason: 'transient' }
+  | { ok: false; reason: 'registration-disabled'; code: 'missing-client-hmac' }
   | { ok: false; reason: 'incompatible'; status: number };
 
 // Branches the caller relies on:
@@ -54,6 +59,12 @@ export type RegisterResult =
 export async function registerDeviceDetailed(
   input: Omit<RegisterPayload, 'expoPushToken'>,
 ): Promise<RegisterResult> {
+  const hmacSecret = getHmacSecret();
+  if (!hmacSecret) {
+    logger.warn('register-device-disabled', { reason: 'missing-client-hmac' });
+    return { ok: false, reason: 'registration-disabled', code: 'missing-client-hmac' };
+  }
+
   const tokenResult = await getExpoPushToken();
   if (!tokenResult.ok) {
     if (tokenResult.reason === 'fetch-failed') {
@@ -71,7 +82,7 @@ export async function registerDeviceDetailed(
     apikey: SUPABASE_ANON_KEY,
     Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
   };
-  const signature = signRegisterBody(raw, HMAC_SECRET);
+  const signature = signRegisterBody(raw, hmacSecret);
   if (signature) headers['x-body-signature'] = signature;
 
   try {
@@ -99,9 +110,9 @@ export async function registerDeviceDetailed(
     return { ok: true };
   } catch (e) {
     if (e instanceof RegisterDeviceClientError) {
-      // error-level so a build-vs-server schema drift surfaces in admin
-      // dashboards as actionable, not a routine warning.
-      logger.error('register-device-incompatible', {
+      // Auth/config 4xx responses are actionable, but in Expo dev they
+      // should not surface as red runtime errors with a stack trace.
+      logger.warn('register-device-incompatible', {
         status: e.status,
         name: e.name,
       });

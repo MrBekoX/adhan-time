@@ -1,6 +1,6 @@
 import { ezanvakti } from '../ezanvaktiClient';
 import * as scheduler from '../notificationScheduler';
-import { scheduleAfterToggle, syncYearly } from '../prayerService';
+import { resetScheduleForLocation, scheduleAfterToggle, syncYearly } from '../prayerService';
 import type { PrayerTime, YearlyPrayerCache } from '../types';
 
 import { PRAYER_CACHE_TTL_MS } from '@/constants/api';
@@ -18,6 +18,7 @@ jest.mock('../notificationScheduler', () => ({
   ensureAndroidChannel: jest.fn(),
   reconcile: jest.fn(async () => ({ scheduled: 0, cancelled: 0, total: 0 })),
   cancelAllPrayerNotifications: jest.fn(async () => undefined),
+  resetAllScheduledNotifications: jest.fn(async () => undefined),
 }));
 
 const yearlyMock = ezanvakti.prayerTimesYearly as jest.Mock;
@@ -57,6 +58,7 @@ beforeEach(() => {
   rangeMock.mockReset();
   (scheduler.reconcile as jest.Mock).mockClear();
   (scheduler.cancelAllPrayerNotifications as jest.Mock).mockClear();
+  (scheduler.resetAllScheduledNotifications as jest.Mock).mockClear();
   usePrayerStore.setState({ cache: null });
   jest.useRealTimers();
 });
@@ -268,5 +270,52 @@ describe('scheduleAfterToggle (V4)', () => {
     cancelMock.mockRejectedValueOnce(new Error('cancel-boom'));
 
     await expect(scheduleAfterToggle(DISTRICT, NAME, TZ)).rejects.toThrow('cancel-boom');
+  });
+});
+
+describe('resetScheduleForLocation — city switch hard reset (S4)', () => {
+  const resetMock = scheduler.resetAllScheduledNotifications as jest.Mock;
+  const reconcileMock = scheduler.reconcile as jest.Mock;
+
+  beforeEach(() => {
+    resetMock.mockClear();
+    reconcileMock.mockClear();
+    yearlyMock.mockReset();
+    usePrayerStore.setState({ cache: null });
+  });
+
+  it('fetches the new city, hard-resets ALL notifications, then schedules — in that order', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-01T12:00:00Z'));
+    const order: string[] = [];
+    yearlyMock.mockImplementationOnce(async () => {
+      order.push('fetch');
+      return range('2026-01-01', 365);
+    });
+    resetMock.mockImplementationOnce(async () => {
+      order.push('reset');
+    });
+    reconcileMock.mockImplementationOnce(async () => {
+      order.push('schedule');
+      return { scheduled: 0, cancelled: 0, total: 0 };
+    });
+
+    await resetScheduleForLocation('9805', 'Gaziantep', 'Europe/Istanbul');
+
+    // Reset MUST happen before scheduling the new city — otherwise the old
+    // city survives (the whole bug).
+    expect(order).toEqual(['fetch', 'reset', 'schedule']);
+    expect(resetMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT reset or schedule when the new-city fetch fails', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-01T12:00:00Z'));
+    yearlyMock.mockRejectedValueOnce(new Error('fetch-boom'));
+
+    await expect(
+      resetScheduleForLocation('9805', 'Gaziantep', 'Europe/Istanbul'),
+    ).rejects.toThrow('fetch-boom');
+
+    expect(resetMock).not.toHaveBeenCalled();
+    expect(reconcileMock).not.toHaveBeenCalled();
   });
 });

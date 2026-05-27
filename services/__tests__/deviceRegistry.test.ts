@@ -49,6 +49,7 @@ describe('registerDeviceDetailed — V16 retry + UI reason surface', () => {
   let fetchMock: jest.SpyInstance;
 
   beforeEach(() => {
+    process.env.EXPO_PUBLIC_REGISTER_HMAC_KEY = 'topsecret';
     getTokenMock
       .mockReset()
       .mockResolvedValue({ ok: true, token: 'ExponentPushToken[abc123]' });
@@ -60,6 +61,7 @@ describe('registerDeviceDetailed — V16 retry + UI reason surface', () => {
   afterEach(() => {
     fetchMock.mockRestore();
     delete process.env.REGISTER_DEVICE_BASE_DELAY_MS;
+    delete process.env.EXPO_PUBLIC_REGISTER_HMAC_KEY;
   });
 
   it('returns ok=true on a single 2xx response', async () => {
@@ -155,6 +157,30 @@ describe('registerDeviceDetailed — V16 retry + UI reason surface', () => {
 
     expect(result).toEqual({ ok: false, reason: 'incompatible', status: 401 });
   });
+
+  it('skips server registration when the client HMAC key is not configured', async () => {
+    delete process.env.EXPO_PUBLIC_REGISTER_HMAC_KEY;
+
+    const result = await registerDeviceDetailed(VALID_INPUT);
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'registration-disabled',
+      code: 'missing-client-hmac',
+    });
+    expect(getTokenMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not log 4xx registration responses with console.error', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    fetchMock.mockResolvedValueOnce(new Response('hmac fail', { status: 401 }));
+
+    await registerDeviceDetailed(VALID_INPUT);
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
 });
 
 describe('registerDevice — F6 boolean wrapper', () => {
@@ -171,6 +197,7 @@ describe('registerDevice — F6 boolean wrapper', () => {
   let fetchMock: jest.SpyInstance;
 
   beforeEach(() => {
+    process.env.EXPO_PUBLIC_REGISTER_HMAC_KEY = 'topsecret';
     getTokenMock
       .mockReset()
       .mockResolvedValue({ ok: true, token: 'ExponentPushToken[abc123]' });
@@ -181,6 +208,7 @@ describe('registerDevice — F6 boolean wrapper', () => {
   afterEach(() => {
     fetchMock.mockRestore();
     delete process.env.REGISTER_DEVICE_BASE_DELAY_MS;
+    delete process.env.EXPO_PUBLIC_REGISTER_HMAC_KEY;
   });
 
   it('returns true when detailed registration succeeds', async () => {

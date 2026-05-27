@@ -75,6 +75,18 @@ export async function runLifecycleOnce(): Promise<void> {
     ) {
       ui.setError(null);
     }
+  } else if (result.reason === 'registration-disabled') {
+    if (settingsActions.deviceRegistrationPending) {
+      settingsActions.setDeviceRegistrationPending(false);
+    }
+    const cur = ui.lastError;
+    if (
+      cur?.code === 'device-registration-failed' ||
+      cur?.code === 'device-registration-incompatible' ||
+      cur?.code === 'push-token-unavailable'
+    ) {
+      ui.setError(null);
+    }
   } else if (result.reason === 'incompatible') {
     if (settingsActions.deviceRegistrationPending) {
       settingsActions.setDeviceRegistrationPending(false);

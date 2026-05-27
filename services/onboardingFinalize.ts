@@ -2,7 +2,7 @@ import { Alert, Platform } from 'react-native';
 
 import { registerDevice } from './deviceRegistry';
 import { ensureAndroidChannel } from './notificationScheduler';
-import { syncYearly } from './prayerService';
+import { resetScheduleForLocation } from './prayerService';
 import { requestPermission } from './pushService';
 
 import { i18n } from '@/locales/i18n';
@@ -67,11 +67,13 @@ export async function finalizeOnboarding(input: FinalizeInput): Promise<Finalize
   try {
     const permissionGranted = await requestPermission();
     await ensureAndroidChannel();
-    await syncYearly(
+    // Hard-reset prior notifications before scheduling the new location so a
+    // previously-configured city can't keep firing (rules/00 S4). This is also
+    // the first-onboarding path, where the reset is a harmless no-op.
+    await resetScheduleForLocation(
       input.location.districtId,
       input.location.districtName,
       input.location.timezone,
-      { force: true },
     );
     await registerDevice({
       districtId: input.location.districtId,

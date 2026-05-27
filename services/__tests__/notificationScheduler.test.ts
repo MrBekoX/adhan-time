@@ -8,6 +8,7 @@ import {
   computeTargets,
   ensureAndroidChannel,
   reconcile,
+  resetAllScheduledNotifications,
 } from '../notificationScheduler';
 import type { PrayerTime, YearlyPrayerCache } from '../types';
 
@@ -681,5 +682,27 @@ describe('V9 — Android adhan routes to the native full-adhan player', () => {
     getAll.mockResolvedValue([]);
     await cancelAllPrayerNotifications();
     expect(cancelNative).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('resetAllScheduledNotifications — enumeration-independent hard reset', () => {
+  const cancelAllExpo = Notifications.cancelAllScheduledNotificationsAsync as jest.Mock;
+  const getAll = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
+  const cancelNative = cancelNativeAdhan as jest.Mock;
+
+  beforeEach(() => {
+    cancelAllExpo.mockReset().mockResolvedValue(undefined);
+    getAll.mockReset().mockResolvedValue([]);
+    cancelNative.mockClear();
+  });
+
+  // The whole point of the hard reset: clear every pending notification WITHOUT
+  // enumerating, so a previous city can't survive a getAll()/id-recognition gap.
+  it('cancels all scheduled notifications without enumerating + clears native alarms', async () => {
+    await resetAllScheduledNotifications();
+
+    expect(cancelAllExpo).toHaveBeenCalledTimes(1);
+    expect(cancelNative).toHaveBeenCalledTimes(1);
+    expect(getAll).not.toHaveBeenCalled();
   });
 });

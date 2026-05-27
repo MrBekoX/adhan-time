@@ -199,6 +199,21 @@ export async function reconcile(
   return { scheduled, cancelled: toCancel.length, failed, total: target.length };
 }
 
+// Hard reset for a city change: cancel EVERY pending notification WITHOUT
+// enumerating. cancelAllPrayerNotifications() below depends on
+// getAllScheduledNotificationsAsync() returning every prior request AND on
+// isPrayerNotificationId() recognizing each one — guarantees that don't always
+// hold on device (cross-session enumeration, id-scheme drift across updates),
+// which let a previous city's notifications survive a switch and fire alongside
+// the new one. cancelAllScheduledNotificationsAsync() clears them in one call,
+// no enumeration. The app only ever schedules prayer notifications, so
+// "cancel all" == "cancel all adhan notifications" (safe). Native alarms too
+// (rules/00 S4: "Şehir değiştirme → tüm pending iptal → yeniden zamanla").
+export async function resetAllScheduledNotifications(): Promise<void> {
+  await cancelNativeAdhan();
+  await Notifications.cancelAllScheduledNotificationsAsync();
+}
+
 export async function cancelAllPrayerNotifications(): Promise<void> {
   // Clear native adhan alarms too (no-op on iOS / when none armed). Otherwise
   // "delete my data" and city resets — which call this without a trailing
