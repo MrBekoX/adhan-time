@@ -93,6 +93,31 @@ export function applyEma(prev: number | null, raw: number, alpha: number): numbe
   return normalize360(next);
 }
 
+export type HeadingPublishInput = {
+  previousHeading: number | null;
+  nextHeading: number;
+  elapsedMs: number;
+  minIntervalMs: number;
+  minDeltaDeg: number;
+};
+
+/**
+ * Decides whether a smoothed heading should cross from the sensor callback into
+ * React state. EMA still consumes every raw sample; this only drops tiny burst
+ * publishes that make release APK rendering fight with Reanimated animations.
+ */
+export function shouldPublishHeadingUpdate({
+  previousHeading,
+  nextHeading,
+  elapsedMs,
+  minIntervalMs,
+  minDeltaDeg,
+}: HeadingPublishInput): boolean {
+  if (previousHeading === null) return true;
+  if (elapsedMs >= minIntervalMs) return true;
+  return Math.abs(signedDelta(nextHeading, previousHeading)) >= minDeltaDeg;
+}
+
 /**
  * Signed shortest-arc difference (a − b) wrapped to (−180, 180].
  *

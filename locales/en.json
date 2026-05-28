@@ -151,6 +151,7 @@
       "openSettings": "Open settings",
       "locationServicesOff": "Location services are off. Please enable them in system settings.",
       "acquiringLocation": "Acquiring location",
+      "searchingSlow": "Still searching for your location… Make sure location is on and step into the open.",
       "sensorMissing": "This device has no compass sensor.",
       "headingFallbackNote": "True north unavailable; magnetic north can deviate 5–25° depending on your region. Enable precise location and calibrate the compass.",
       "calibrationTitle": "Compass calibration",

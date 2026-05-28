@@ -151,6 +151,7 @@
       "openSettings": "Ayarları aç",
       "locationServicesOff": "Konum servisleri kapalı. Lütfen sistem ayarlarından aç.",
       "acquiringLocation": "Konum alınıyor",
+      "searchingSlow": "Konum hâlâ aranıyor… Konumun açık olduğundan emin ol ve açık bir alana çık.",
       "sensorMissing": "Bu cihazda pusula sensörü bulunmuyor.",
       "headingFallbackNote": "Coğrafi kuzey alınamadı; manyetik kuzey bölgenize göre 5–25° sapabilir. Konum hassasiyetini açın ve pusulayı kalibre edin.",
       "calibrationTitle": "Pusula kalibrasyonu",

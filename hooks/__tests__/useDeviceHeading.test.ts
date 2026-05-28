@@ -1,9 +1,31 @@
+import * as Location from 'expo-location';
+import * as React from 'react';
+import TestRenderer from 'react-test-renderer';
+
 import {
   classifyQuality,
   isUnreliable,
   normalizeAccuracyForPlatform,
   showAlignmentVisuals,
 } from '@/utils/heading';
+
+import { useDeviceHeading } from '../useDeviceHeading';
+
+jest.mock('expo-location', () => ({
+  watchHeadingAsync: jest.fn(),
+}));
+
+const watchHeadingAsyncMock = Location.watchHeadingAsync as jest.Mock;
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
 
 describe('classifyQuality', () => {
   it('returns "unknown" when accuracy is null', () => {
@@ -93,5 +115,40 @@ describe('showAlignmentVisuals (K3b)', () => {
   it('hides halo + ring when not aligned', () => {
     expect(showAlignmentVisuals(false, false)).toBe(false);
     expect(showAlignmentVisuals(false, true)).toBe(false);
+  });
+});
+
+describe('useDeviceHeading subscription lifecycle', () => {
+  beforeEach(() => {
+    watchHeadingAsyncMock.mockReset();
+  });
+
+  function Probe(): null {
+    useDeviceHeading({ enabled: true });
+    return null;
+  }
+
+  it('removes a heading subscription when watchHeadingAsync resolves after unmount', async () => {
+    const remove = jest.fn();
+    const pendingWatch = deferred<Location.LocationSubscription>();
+    watchHeadingAsyncMock.mockReturnValueOnce(pendingWatch.promise);
+
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await TestRenderer.act(async () => {
+      tree = TestRenderer.create(React.createElement(Probe));
+    });
+    expect(watchHeadingAsyncMock).toHaveBeenCalledTimes(1);
+
+    await TestRenderer.act(async () => {
+      tree?.unmount();
+    });
+    expect(remove).not.toHaveBeenCalled();
+
+    await TestRenderer.act(async () => {
+      pendingWatch.resolve({ remove } as Location.LocationSubscription);
+      await pendingWatch.promise;
+    });
+
+    expect(remove).toHaveBeenCalledTimes(1);
   });
 });

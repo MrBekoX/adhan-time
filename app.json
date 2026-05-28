@@ -23,6 +23,7 @@
     "android": {
       "package": "com.adhantime.app",
       "backgroundColor": "#0A0D18",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",

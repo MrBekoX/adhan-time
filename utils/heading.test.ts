@@ -1,4 +1,9 @@
-import { applyEma, shortestRotationDelta, signedDelta } from './heading';
+import {
+  applyEma,
+  shouldPublishHeadingUpdate,
+  shortestRotationDelta,
+  signedDelta,
+} from './heading';
 
 describe('applyEma', () => {
   it('returns raw on first reading', () => {
@@ -116,5 +121,43 @@ describe('shortestRotationDelta', () => {
 
   it('chooses +180 (not -180) for an exact half-turn', () => {
     expect(shortestRotationDelta(0, 180)).toBe(180);
+  });
+});
+
+describe('shouldPublishHeadingUpdate', () => {
+  it('suppresses tiny burst updates before the publish interval', () => {
+    expect(
+      shouldPublishHeadingUpdate({
+        previousHeading: 120,
+        nextHeading: 120.4,
+        elapsedMs: 8,
+        minIntervalMs: 33,
+        minDeltaDeg: 2,
+      }),
+    ).toBe(false);
+  });
+
+  it('publishes large changes immediately so fast turns do not lag behind', () => {
+    expect(
+      shouldPublishHeadingUpdate({
+        previousHeading: 120,
+        nextHeading: 124,
+        elapsedMs: 8,
+        minIntervalMs: 33,
+        minDeltaDeg: 2,
+      }),
+    ).toBe(true);
+  });
+
+  it('publishes at the interval even when movement is small', () => {
+    expect(
+      shouldPublishHeadingUpdate({
+        previousHeading: 120,
+        nextHeading: 120.4,
+        elapsedMs: 33,
+        minIntervalMs: 33,
+        minDeltaDeg: 2,
+      }),
+    ).toBe(true);
   });
 });

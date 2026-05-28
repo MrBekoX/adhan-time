@@ -121,6 +121,7 @@ function Body({ location, heading, qibla }: { location: LocationStatus; heading:
   if (location.kind === 'denied') return <PermissionCard />;
   if (location.kind === 'servicesOff') return <Centered text={t('screens.qibla.locationServicesOff')} />;
   if (location.kind === 'error') return <Centered text={t('errors.unknown')} />;
+  if (location.kind === 'searchingSlow') return <Centered text={t('screens.qibla.searchingSlow')} />;
   if (location.kind !== 'ready' || !qibla) {
     return <Centered text={t('screens.qibla.acquiringLocation') + '…'} />;
   }

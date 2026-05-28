@@ -35,10 +35,14 @@ class AdhanPlayerModule : Module() {
     }
 
     Function("stopPlayback") {
-      val ctx = appContext.reactContext ?: return@Function
-      ctx.startService(Intent(ctx, AdhanPlaybackService::class.java).apply {
-        action = AdhanPlaybackService.ACTION_STOP
-      })
+      val ctx = appContext.reactContext
+      if (ctx != null) {
+        ctx.startService(
+          Intent(ctx, AdhanPlaybackService::class.java).apply {
+            action = AdhanPlaybackService.ACTION_STOP
+          },
+        )
+      }
     }
 
     Function("canScheduleExactAlarms") {
@@ -46,8 +50,8 @@ class AdhanPlayerModule : Module() {
     }
 
     Function("openExactAlarmSettings") {
-      val ctx = appContext.reactContext ?: return@Function
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      val ctx = appContext.reactContext
+      if (ctx != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         ctx.startActivity(
           Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
             .setData(Uri.parse("package:${ctx.packageName}"))
@@ -63,12 +67,14 @@ class AdhanPlayerModule : Module() {
     }
 
     Function("requestIgnoreBatteryOptimizations") {
-      val ctx = appContext.reactContext ?: return@Function
-      ctx.startActivity(
-        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-          .setData(Uri.parse("package:${ctx.packageName}"))
-          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-      )
+      val ctx = appContext.reactContext
+      if (ctx != null) {
+        ctx.startActivity(
+          Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            .setData(Uri.parse("package:${ctx.packageName}"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+      }
     }
   }
 }

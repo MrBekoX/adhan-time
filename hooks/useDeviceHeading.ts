@@ -2,12 +2,17 @@ import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
-import { HEADING_EMA_ALPHA } from '@/constants/qibla';
+import {
+  HEADING_EMA_ALPHA,
+  HEADING_PUBLISH_MIN_DELTA_DEG,
+  HEADING_PUBLISH_MIN_INTERVAL_MS,
+} from '@/constants/qibla';
 import { selectHeadingSource } from '@/utils/declination';
 import {
   applyEma,
   classifyQuality,
   normalizeAccuracyForPlatform,
+  shouldPublishHeadingUpdate,
   type HeadingQuality,
   type PlatformOS,
 } from '@/utils/heading';
@@ -57,10 +62,14 @@ export function useDeviceHeading({ enabled, location = null }: Options): Heading
     let cancelled = false;
     let subscription: Location.LocationSubscription | null = null;
     let smoothed: number | null = null;
+    let lastPublishedHeading: number | null = null;
+    let lastPublishedAt = 0;
+    let lastPublishedQuality: HeadingQuality | null = null;
+    let lastPublishedSource: 'true' | 'magnetic' | null = null;
 
     void (async () => {
       try {
-        subscription = await Location.watchHeadingAsync((reading) => {
+        const nextSubscription = await Location.watchHeadingAsync((reading) => {
           if (cancelled) return;
 
           const selected = selectHeadingSource({
@@ -75,15 +84,40 @@ export function useDeviceHeading({ enabled, location = null }: Options): Heading
             reading.accuracy,
             Platform.OS as PlatformOS,
           );
+          const quality = classifyQuality(accuracyDeg);
+          const metadataChanged =
+            selected.source !== lastPublishedSource || quality !== lastPublishedQuality;
+          const now = Date.now();
+          if (
+            !metadataChanged &&
+            !shouldPublishHeadingUpdate({
+              previousHeading: lastPublishedHeading,
+              nextHeading: smoothed,
+              elapsedMs: now - lastPublishedAt,
+              minIntervalMs: HEADING_PUBLISH_MIN_INTERVAL_MS,
+              minDeltaDeg: HEADING_PUBLISH_MIN_DELTA_DEG,
+            })
+          ) {
+            return;
+          }
+          lastPublishedHeading = smoothed;
+          lastPublishedAt = now;
+          lastPublishedQuality = quality;
+          lastPublishedSource = selected.source;
 
           setStatus({
             kind: 'ready',
             heading: smoothed,
             source: selected.source,
             accuracyDeg,
-            quality: classifyQuality(accuracyDeg),
+            quality,
           });
         });
+        if (cancelled) {
+          nextSubscription.remove();
+          return;
+        }
+        subscription = nextSubscription;
       } catch (e) {
         logger.error('useDeviceHeading failed', { error: String(e) });
         if (!cancelled) setStatus({ kind: 'error', message: String(e) });

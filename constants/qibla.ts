@@ -33,6 +33,17 @@ export const AT_KAABA_RADIUS_KM = 0.1;
 export const HEADING_EMA_ALPHA = 0.3;
 
 /**
+ * Publish smoothed heading into React at a display cadence instead of on every
+ * native sensor callback. Installed Android builds can deliver heading readings
+ * in tiny bursts; feeding each burst into React restarts the compass animation
+ * before the previous frame settles.
+ */
+export const HEADING_PUBLISH_MIN_INTERVAL_MS = 33;
+
+/** Heading changes at or above this size bypass the cadence gate to avoid turn lag. */
+export const HEADING_PUBLISH_MIN_DELTA_DEG = 2;
+
+/**
  * Alignment thresholds (degrees) for "facing qibla" with hysteresis.
  *
  * Without hysteresis at a single 3° threshold the indicator flickered on/off when |delta|
