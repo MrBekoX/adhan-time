@@ -280,16 +280,31 @@ describe('runLifecycleOnce — V16+F6 device registration retry surface', () => 
     expect(useUiStore.getState().lastError).toBeNull();
   });
 
-  it("'token-fetch-failed' sets pending=true and 'push-token-unavailable' banner (Issue #13)", async () => {
-    // Permission granted but Expo SDK couldn't issue a token. Distinct from
-    // device-registration-failed (server-side) so the banner copy can point
-    // at the push-side issue.
+  it("'token-fetch-failed' sets pending=true for silent retry but does NOT alarm with a banner", async () => {
+    // Push token registration is the OPTIONAL server-side fallback path
+    // (rules/04). Local notifications schedule independently and keep working
+    // without it. Older builds surfaced a 'push-token-unavailable' banner here,
+    // which pinned forever on APKs lacking FCM v1 (no amount of user retry
+    // fixes a missing native credential). Pending=true still drives the next
+    // foreground retry for transient cases; the banner is intentionally absent.
     registerMock.mockResolvedValueOnce({ ok: false, reason: 'token-fetch-failed' });
 
     await runLifecycleOnce();
 
     expect(useSettingsStore.getState().deviceRegistrationPending).toBe(true);
-    expect(useUiStore.getState().lastError?.code).toBe('push-token-unavailable');
+    expect(useUiStore.getState().lastError).toBeNull();
+  });
+
+  it("clears a stale 'push-token-unavailable' banner from an older build on the next lifecycle tick", async () => {
+    // After an EAS Update propagates this fix to an existing APK, the
+    // persisted banner from the pre-update behavior should disappear on the
+    // first foreground tick rather than waiting for a successful registration.
+    useUiStore.setState({ lastError: { code: 'push-token-unavailable' } });
+    registerMock.mockResolvedValueOnce({ ok: false, reason: 'token-fetch-failed' });
+
+    await runLifecycleOnce();
+
+    expect(useUiStore.getState().lastError).toBeNull();
   });
 
   it("clears pending registration state when server registration is disabled by local config", async () => {

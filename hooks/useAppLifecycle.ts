@@ -99,10 +99,18 @@ export async function runLifecycleOnce(): Promise<void> {
     settingsActions.setDeviceRegistrationPending(true);
     setDeviceError({ code: 'device-registration-failed' });
   } else if (result.reason === 'token-fetch-failed') {
-    // Distinct from 'transient' so the banner copy points at the push
-    // side (Expo backend / network), not at server-side registration.
+    // Push token fetch is the OPTIONAL server-side fallback path (rules/04):
+    // local notifications schedule independently and keep working without it.
+    // The original design surfaced a banner here, but on builds without FCM v1
+    // it pins forever — and no amount of user retry fixes a missing native
+    // credential. Set pending=true so the next foreground silently retries
+    // (handles transient network), but DO NOT alarm the user: a missing
+    // optional fallback is not worth blocking the home screen. The underlying
+    // SDK exception is still logged via logger.error → adb logcat for
+    // diagnosis. Clear any stale banner left by older builds.
     settingsActions.setDeviceRegistrationPending(true);
-    setDeviceError({ code: 'push-token-unavailable' });
+    const cur = ui.lastError;
+    if (cur?.code === 'push-token-unavailable') ui.setError(null);
   }
   // 'no-token' covers simulator + permission-denied. Permission state is
   // already surfaced through notificationPermissionDenied elsewhere.

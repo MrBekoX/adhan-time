@@ -13,6 +13,8 @@
     "test": "jest",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "build:supabase-i18n": "node tools/scripts/build-supabase-i18n.js",
+    "validate:build-env": "node tools/scripts/validate-build-env.js",
+    "eas-build-pre-install": "node tools/scripts/validate-build-env.js",
     "prepare": "husky"
   },
   "dependencies": {

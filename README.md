@@ -21,6 +21,14 @@ npx expo install --fix    # SDK ile uyumlu versiyonlara hizala
 `.env` dosyası mevcut (Supabase URL + publishable key dolu).
 Production veya başka cihaz için: `.env.example`'ı `.env`'e kopyalayıp doldur.
 
+APK / EAS build için `EXPO_PUBLIC_REGISTER_HMAC_KEY` zorunludur (Supabase
+`REGISTER_HMAC_KEY` ile aynı değer; aksi halde telefon `register-device`
+isteğini imzalayamaz). Ortamı build'den önce doğrula:
+
+```bash
+npm run validate:build-env
+```
+
 ### 3. EAS Projesi
 
 ```bash
@@ -50,7 +58,28 @@ Token: https://expo.dev → Account Settings → Access Tokens → "Enhanced Sec
 
 `assets/images/icon.png` (1024×1024), `adaptive-icon.png`, `favicon.png` ve opsiyonel `assets/sounds/adhan_short.wav` (≤30 sn) ekleyince `app.json`'daki ilgili anahtarları geri aç.
 
-### 8. Development Build
+### 8. Android Push (FCM v1) — zorunlu
+
+Android push token (`Notifications.getExpoPushTokenAsync`) FCM olmadan **runtime'da
+çöker** ve banner "Bildirim kimliği şu anda alınamıyor" gösterir. İki ayrı parça gerekir:
+
+1. **İstemci config** — `google-services.json` (proje + app id + paket-kısıtlı API key).
+   `app.json` → `android.googleServicesFile` buna referans verir; dosya yoksa prebuild
+   fail eder. Dosya `.gitignore`'da (commit edilmez) ama `.easignore` onu hariç
+   tutmadığı için EAS Build APK'ya gömer. Servis hesabı anahtarından üret:
+   ```bash
+   node tools/scripts/fetch-google-services.mjs <firebase-service-account.json>
+   ```
+2. **Sunucu kimliği** — FCM v1 servis hesabı anahtarı EAS'a yüklenir (Expo'nun push
+   servisi FCM'e gönderebilsin). Bu olmadan banner gitmez ama gönderim de olmaz:
+   ```bash
+   eas credentials   # Android → <profile> → Google Service Account → Manage FCM V1 → upload
+   ```
+
+> `npm run validate:build-env` (ve EAS'ta `eas-build-pre-install` hook'u) FCM dosyası
+> veya zorunlu env eksikse build'i **baştan reddeder** — bozuk APK göndermez.
+
+### 9. Development Build
 
 ```bash
 eas build --profile development --platform ios     # veya android
@@ -70,6 +99,7 @@ npm run start
 | `npm run lint` | ESLint |
 | `npm run type-check` | `tsc --noEmit` |
 | `npm run test` | Jest |
+| `npm run validate:build-env` | Build öncesi env + FCM dosyası kontrolü |
 
 Slash komutlar: `.claude/commands/` altında. Örn `/commit`, `/supabase-deploy`, `/eas-build`, `/prayer-test`.
 
