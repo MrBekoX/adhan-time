@@ -853,3 +853,53 @@ describe('reconcile — serialization guard (overlapping passes must not interle
     expect(useUiStore.getState().lastError).toBeNull();
   });
 });
+
+describe('scheduleOne — Android uses DATE trigger (CALENDAR is iOS-only)', () => {
+  const schedule = Notifications.scheduleNotificationAsync as jest.Mock;
+  const getAll = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
+
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-02T00:00:00Z'));
+    schedule.mockReset().mockResolvedValue('id');
+    getAll.mockReset().mockResolvedValue([]);
+    useUiStore.setState({ lastError: null });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  async function onPlatform<T>(os: 'android' | 'ios', fn: () => Promise<T>): Promise<T> {
+    const original = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
+    try {
+      return await fn();
+    } finally {
+      Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+    }
+  }
+
+  it('uses a DATE trigger with an absolute epoch on Android (not the unsupported CALENDAR)', async () => {
+    await onPlatform('android', async () => {
+      const cache = makeCache([entry('2026-05-03', { ogle: '12:00' })]);
+      await reconcile(cache, { enabledPrayers: ['ogle'], windowDays: 2 });
+
+      expect(schedule).toHaveBeenCalledTimes(1);
+      const trigger = schedule.mock.calls[0][0].trigger;
+      expect(trigger.type).toBe('date'); // CALENDAR is rejected by the Android native scheduler
+      expect(typeof trigger.date).toBe('number'); // absolute ms instant (DST-correct via fireAt)
+      expect(trigger.channelId).toBeDefined(); // channel routing preserved
+    });
+  });
+
+  it('keeps the CALENDAR trigger on iOS', async () => {
+    await onPlatform('ios', async () => {
+      const cache = makeCache([entry('2026-05-03', { ogle: '12:00' })]);
+      await reconcile(cache, { enabledPrayers: ['ogle'], windowDays: 2 });
+
+      const trigger = schedule.mock.calls[0][0].trigger;
+      expect(trigger.type).toBe('calendar');
+      expect(trigger.timezone).toBeDefined();
+    });
+  });
+});

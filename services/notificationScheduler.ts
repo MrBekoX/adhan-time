@@ -346,22 +346,45 @@ async function scheduleOne(
   soundPref: SoundKey,
   districtName?: string,
 ): Promise<void> {
+  const content = {
+    title: i18n.t(`prayer.${s.prayerKey}.title`),
+    body: districtName
+      ? i18n.t(`prayer.${s.prayerKey}.bodyWithCity`, { city: districtName })
+      : i18n.t(`prayer.${s.prayerKey}.body`),
+    sound: soundForPrayer(s.prayerKey, soundPref),
+    data: {
+      prayerKey: s.prayerKey,
+      dateIso: s.dateIso,
+      timezone: tz,
+      fireAt: s.fireAt.toISOString(),
+    },
+  };
+
+  // expo-notifications' CALENDAR trigger is iOS-only: the Android native scheduler
+  // REJECTS it ("Trigger of type: calendar is not supported on Android"), so every
+  // Android schedule failed (confirmed on device: reconcile failed===total, ×12) and
+  // raised the partial-schedule banner. s.fireAt is already an absolute, tz-correct
+  // instant (parsePrayerTime → fromZonedTime with the district IANA tz), so a one-shot
+  // DATE trigger fires at the right wall-clock moment and preserves DST without needing
+  // Android calendar support. channelId carries the per-prayer sound routing.
+  if (Platform.OS === 'android') {
+    await Notifications.scheduleNotificationAsync({
+      identifier: s.id,
+      content,
+      trigger: {
+        type: SchedulableTriggerInputTypes.DATE,
+        date: s.fireAt.getTime(),
+        channelId: channelIdForPrayer(s.prayerKey, soundPref),
+      },
+    });
+    return;
+  }
+
+  // iOS keeps the native UNCalendarNotificationTrigger (handles DST internally).
   const c = getDateComponentsInTz(s.fireAt, tz);
   await Notifications.scheduleNotificationAsync({
     identifier: s.id,
-    content: {
-      title: i18n.t(`prayer.${s.prayerKey}.title`),
-      body: districtName
-        ? i18n.t(`prayer.${s.prayerKey}.bodyWithCity`, { city: districtName })
-        : i18n.t(`prayer.${s.prayerKey}.body`),
-      sound: soundForPrayer(s.prayerKey, soundPref),
-      data: {
-        prayerKey: s.prayerKey,
-        dateIso: s.dateIso,
-        timezone: tz,
-        fireAt: s.fireAt.toISOString(),
-      },
-    },
+    content,
     trigger: {
       type: SchedulableTriggerInputTypes.CALENDAR,
       timezone: tz,
@@ -372,9 +395,6 @@ async function scheduleOne(
       minute: c.minute,
       second: 0,
       repeats: false,
-      ...(Platform.OS === 'android'
-        ? { channelId: channelIdForPrayer(s.prayerKey, soundPref) }
-        : {}),
     },
   });
 }

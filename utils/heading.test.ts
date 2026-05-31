@@ -58,8 +58,10 @@ describe('applyEma', () => {
 });
 
 describe('headingSmoothingAlphaForPlatform', () => {
-  it('does not add EMA lag on Android because Expo Android heading is already natively gated', () => {
-    expect(headingSmoothingAlphaForPlatform('android', 0.3)).toBe(1);
+  it('smooths Android more strongly (lower alpha) since its raw azimuth is unfiltered/noisy', () => {
+    const alpha = headingSmoothingAlphaForPlatform('android', 0.3);
+    expect(alpha).toBe(0.2);
+    expect(alpha).toBeLessThan(1); // must NOT bypass EMA (that caused on-device jitter)
   });
 
   it('keeps the configured smoothing alpha on iOS', () => {

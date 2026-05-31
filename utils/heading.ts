@@ -93,8 +93,18 @@ export function applyEma(prev: number | null, raw: number, alpha: number): numbe
   return normalize360(next);
 }
 
+/**
+ * EMA smoothing factor per platform. Android's raw azimuth (expo-location
+ * getOrientation) is UNFILTERED and tilt-sensitive — noisier than iOS's
+ * OS-smoothed trueHeading — so it needs MORE smoothing, not less. A prior change
+ * set Android to 1 (EMA bypass) believing EMA caused lag; the real on-device
+ * symptom was JITTER (needle shakes while stationary — confirmed on a Galaxy
+ * A30s / Android 11), and bypassing EMA removed the only noise filter. Use a
+ * stronger (lower) alpha on Android; the publish-cadence gate downstream keeps the
+ * needle responsive to real turns.
+ */
 export function headingSmoothingAlphaForPlatform(platformOS: PlatformOS, baseAlpha: number): number {
-  return platformOS === 'android' ? 1 : baseAlpha;
+  return platformOS === 'android' ? Math.min(baseAlpha, 0.2) : baseAlpha;
 }
 
 export type HeadingPublishInput = {

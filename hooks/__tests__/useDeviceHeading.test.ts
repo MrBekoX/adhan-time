@@ -153,7 +153,7 @@ describe('useDeviceHeading subscription lifecycle', () => {
     expect(remove).toHaveBeenCalledTimes(1);
   });
 
-  it('publishes Android heading steps without adding EMA lag on top of the native heading gate', async () => {
+  it('smooths the Android heading (damps a raw step) instead of passing the raw value through', async () => {
     const original = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
@@ -192,7 +192,10 @@ describe('useDeviceHeading subscription lifecycle', () => {
       const ready = statuses.filter((s) => s.kind === 'ready').at(-1);
       expect(ready?.kind).toBe('ready');
       if (ready?.kind !== 'ready') throw new Error('expected ready heading');
-      expect(ready.heading).toBeCloseTo(90, 5);
+      // EMA restored on Android: a raw 0->90 step must be DAMPED (≈18 at alpha 0.2),
+      // not passed straight through as 90 (the bypass that caused on-device jitter).
+      expect(ready.heading).toBeGreaterThan(0);
+      expect(ready.heading).toBeLessThan(45);
 
       await TestRenderer.act(async () => tree?.unmount());
     } finally {

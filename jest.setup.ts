@@ -10,7 +10,7 @@ jest.mock('expo-notifications', () => ({
   getExpoPushTokenAsync: jest.fn(async () => ({ data: 'ExponentPushToken[mock]' })),
   AndroidImportance: { HIGH: 4 },
   AndroidNotificationVisibility: { PUBLIC: 1 },
-  SchedulableTriggerInputTypes: { CALENDAR: 'calendar' },
+  SchedulableTriggerInputTypes: { CALENDAR: 'calendar', DATE: 'date' },
 }));
 
 jest.mock('expo-localization', () => ({
