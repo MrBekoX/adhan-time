@@ -11,9 +11,10 @@ import { selectHeadingSource } from '@/utils/declination';
 import {
   applyEma,
   classifyQuality,
-  headingSmoothingAlphaForPlatform,
+  headingEmaAlpha,
   normalizeAccuracyForPlatform,
   shouldPublishHeadingUpdate,
+  signedDelta,
   type HeadingQuality,
   type PlatformOS,
 } from '@/utils/heading';
@@ -81,10 +82,10 @@ export function useDeviceHeading({ enabled, location = null }: Options): Heading
           if (selected === null) return;
 
           const platformOS = Platform.OS as PlatformOS;
-          const smoothingAlpha = headingSmoothingAlphaForPlatform(
-            platformOS,
-            HEADING_EMA_ALPHA,
-          );
+          // Adaptive EMA: feed the raw sample's delta from the current smoothed value
+          // so the filter smooths hard when near-still and tracks fast on a quick turn.
+          const rawDelta = smoothed === null ? 0 : signedDelta(selected.heading, smoothed);
+          const smoothingAlpha = headingEmaAlpha(platformOS, rawDelta, HEADING_EMA_ALPHA);
           smoothed = applyEma(smoothed, selected.heading, smoothingAlpha);
           const accuracyDeg = normalizeAccuracyForPlatform(reading.accuracy, platformOS);
           const quality = classifyQuality(accuracyDeg);

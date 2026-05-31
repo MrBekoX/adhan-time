@@ -153,7 +153,7 @@ describe('useDeviceHeading subscription lifecycle', () => {
     expect(remove).toHaveBeenCalledTimes(1);
   });
 
-  it('smooths the Android heading (damps a raw step) instead of passing the raw value through', async () => {
+  it('tracks a large/fast Android turn responsively (adaptive EMA), not over-damped', async () => {
     const original = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
@@ -192,10 +192,11 @@ describe('useDeviceHeading subscription lifecycle', () => {
       const ready = statuses.filter((s) => s.kind === 'ready').at(-1);
       expect(ready?.kind).toBe('ready');
       if (ready?.kind !== 'ready') throw new Error('expected ready heading');
-      // EMA restored on Android: a raw 0->90 step must be DAMPED (≈18 at alpha 0.2),
-      // not passed straight through as 90 (the bypass that caused on-device jitter).
-      expect(ready.heading).toBeGreaterThan(0);
-      expect(ready.heading).toBeLessThan(45);
+      // Adaptive EMA: a raw 0->90 step is a FAST turn → tracked aggressively (≈81 at
+      // alpha 0.9) so the needle does not trail at a stale bearing during a quick spin.
+      // (Near-stationary jitter is smoothed instead — see headingEmaAlpha unit tests.)
+      expect(ready.heading).toBeGreaterThan(60);
+      expect(ready.heading).toBeLessThan(90);
 
       await TestRenderer.act(async () => tree?.unmount());
     } finally {
