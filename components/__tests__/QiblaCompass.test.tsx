@@ -131,7 +131,9 @@ describe('QiblaCompass — RTL geometry lock (K8)', () => {
     );
     expect(roseCall).toBeDefined();
     const config = roseCall?.[1] as { duration?: number; easing?: unknown };
-    expect(config.duration).toBeLessThanOrEqual(100);
+    // A large (90°) turn stays responsive (shorter than the small-delta glide of 300ms),
+    // while small per-sensor-step deltas use the longer continuous-glide duration.
+    expect(config.duration).toBeLessThanOrEqual(180);
     expect(config.easing).toBe(Reanimated.Easing.linear);
 
     TestRenderer.act(() => {

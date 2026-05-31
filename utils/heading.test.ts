@@ -216,11 +216,14 @@ describe('nextRoseRotation', () => {
 });
 
 describe('roseTweenDurationMs', () => {
-  it('keeps large phone turns under 100ms so the compass does not lag behind the device', () => {
-    expect(roseTweenDurationMs(90)).toBeLessThanOrEqual(100);
+  it('keeps large phone turns responsive (shorter than the small-step glide)', () => {
+    expect(roseTweenDurationMs(90)).toBeLessThanOrEqual(180);
+    expect(roseTweenDurationMs(90)).toBeLessThan(roseTweenDurationMs(2));
   });
 
-  it('keeps tiny native Android heading steps bridged across display frames', () => {
-    expect(roseTweenDurationMs(2)).toBeGreaterThanOrEqual(60);
+  it('gives tiny native Android heading steps a long enough tween to bridge into a continuous glide', () => {
+    // ~2° sensor steps can be 200-400ms apart on slow rotation; the tween must be
+    // long enough to still be animating when the next step lands (no "stepping").
+    expect(roseTweenDurationMs(2)).toBeGreaterThanOrEqual(250);
   });
 });

@@ -178,10 +178,17 @@ export function nextRoseRotation(prevTargetDeg: number, deviceHeadingDeg: number
 }
 
 export function roseTweenDurationMs(deltaDeg: number): number {
+  // expo-location delivers the Android heading in ~2° steps (native ~2°/50ms gate),
+  // so a short tween finishes between steps and the rose visibly "steps" instead of
+  // gliding (which, while the needle sits at a stale angle, also reads as a WRONG
+  // bearing). Use a long duration for small per-step deltas so the tween is still
+  // animating when the next step arrives — Reanimated then re-targets it into ONE
+  // continuous glide on the UI thread, independent of React re-render jank. Large
+  // deltas (fast turns / N-seam crossing) keep a shorter duration to stay responsive.
   const magnitude = Math.abs(deltaDeg);
-  if (magnitude >= 45) return 80;
-  if (magnitude >= 10) return 70;
-  return 90;
+  if (magnitude >= 45) return 160;
+  if (magnitude >= 12) return 220;
+  return 300;
 }
 
 function normalize360(v: number): number {
