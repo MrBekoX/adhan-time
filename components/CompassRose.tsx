@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, fonts } from './Theme';
@@ -13,7 +14,7 @@ const CARDINALS = [
 
 const TICK_COUNT = 36;
 
-export function CompassRose({ size }: Props) {
+function CompassRoseImpl({ size }: Props) {
   const radius = size / 2;
 
   return (
@@ -68,6 +69,16 @@ export function CompassRose({ size }: Props) {
     </View>
   );
 }
+
+/**
+ * Memoized: props are a constant { size }, but this 40-node subtree (36 ticks +
+ * 4 cardinals, each with per-render sin/cos + style arrays) sits under QiblaCompass,
+ * which re-renders on every heading publish (~20-30/s). Without memo it rebuilt all
+ * 40 nodes each publish, overloading the main thread on low-end devices (Galaxy A30s:
+ * "Choreographer: Skipped 40 frames") so the compass froze and pointed at a stale
+ * (wrong) bearing during the freeze. Memo renders it once.
+ */
+export const CompassRose = memo(CompassRoseImpl);
 
 const styles = StyleSheet.create({
   wrap: {

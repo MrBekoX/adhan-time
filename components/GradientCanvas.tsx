@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { colors } from './Theme';
@@ -10,7 +10,7 @@ type Props = {
   ornament?: boolean;
 };
 
-export function GradientCanvas({
+function GradientCanvasImpl({
   bands = 36,
   topColor = colors.bgGreenTop,
   bottomColor = colors.bgInkBottom,
@@ -34,6 +34,13 @@ export function GradientCanvas({
     </View>
   );
 }
+
+/**
+ * Memoized: ~38 band/glow Views with constant props. It sits in QiblaScreen, which
+ * re-renders on every heading publish; without memo all bands rebuilt each publish,
+ * adding to the main-thread frame drops on low-end devices. Memo renders it once.
+ */
+export const GradientCanvas = memo(GradientCanvasImpl);
 
 function buildStops(top: string, bottom: string, n: number): string[] {
   const a = parseHex(top);
