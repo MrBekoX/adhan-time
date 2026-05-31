@@ -574,11 +574,15 @@ describe('V9 — Android adhan routes to the native full-adhan player', () => {
     jest.useRealTimers();
   });
 
-  function withAndroid<T>(fn: () => T): T {
+  // Holds the Platform.OS override for the FULL async duration of fn. reconcile now
+  // runs its body in a microtask (serialization chain), so a synchronous finally
+  // would reset Platform.OS back before reconcileInner reads it; awaiting fn keeps
+  // 'android' in place until the reconcile actually completes.
+  async function withAndroid<T>(fn: () => T | Promise<T>): Promise<T> {
     const original = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
-      return fn();
+      return await fn();
     } finally {
       Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
     }
@@ -704,5 +708,58 @@ describe('resetAllScheduledNotifications — enumeration-independent hard reset'
     expect(cancelAllExpo).toHaveBeenCalledTimes(1);
     expect(cancelNative).toHaveBeenCalledTimes(1);
     expect(getAll).not.toHaveBeenCalled();
+  });
+});
+
+describe('reconcile — serialization guard (overlapping passes must not interleave)', () => {
+  const schedule = Notifications.scheduleNotificationAsync as jest.Mock;
+  const cancel = Notifications.cancelScheduledNotificationAsync as jest.Mock;
+  const getAll = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
+
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-02T00:00:00Z'));
+    schedule.mockReset().mockResolvedValue('id');
+    cancel.mockReset().mockResolvedValue(undefined);
+    getAll.mockReset().mockResolvedValue([]);
+    useUiStore.setState({ lastError: null });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('chains a second reconcile behind the first instead of interleaving their store access', async () => {
+    const cache = makeCache(range('2026-05-02', 12));
+    const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+
+    // getAll is entered exactly once per pass, right before the cancel/schedule
+    // diff. Park the FIRST pass there; a serialized second pass must not have
+    // entered getAll yet (it is chained behind the first, not running in parallel).
+    let getAllCalls = 0;
+    let releaseFirst: () => void = () => {};
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    getAll.mockImplementation(async () => {
+      getAllCalls += 1;
+      if (getAllCalls === 1) await firstGate;
+      return [];
+    });
+
+    const r1 = reconcile(cache, { enabledPrayers: enabled });
+    const r2 = reconcile(cache, { enabledPrayers: enabled });
+
+    // Flush microtasks: the first pass is parked inside its single getAll; a
+    // serialized second pass has not started, so getAll was entered exactly once.
+    for (let i = 0; i < 6; i += 1) await Promise.resolve();
+    expect(getAllCalls).toBe(1);
+
+    releaseFirst();
+    await Promise.all([r1, r2]);
+
+    // Both passes ran one-after-the-other — never concurrently — and no spurious
+    // partial-schedule banner was raised by interleaving.
+    expect(getAllCalls).toBe(2);
+    expect(useUiStore.getState().lastError).toBeNull();
   });
 });

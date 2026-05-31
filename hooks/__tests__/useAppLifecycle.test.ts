@@ -432,3 +432,47 @@ describe('useAppLifecycle — V16 AppState listener wiring', () => {
     expect(mockSub.remove).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('runLifecycleOnce — concurrency guard (overlapping runs race reconcile)', () => {
+  beforeEach(() => {
+    syncMock.mockReset().mockResolvedValue({ entries: [] });
+    registerMock.mockReset().mockResolvedValue({ ok: true });
+    getPermissionsAsync.mockReset().mockResolvedValue({ status: 'granted' });
+    useUiStore.setState({ lastError: null });
+    useLocationStore.setState({ selected: VALID_LOCATION });
+    useSettingsStore.setState({
+      locale: 'tr',
+      sound: 'default',
+      enabledPrayers: ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'],
+      notificationPermissionDenied: false,
+      deviceRegistrationPending: false,
+    });
+  });
+
+  it('collapses overlapping calls into a single run (mount + AppState active + retry)', async () => {
+    // Granting the Qibla location permission churns the activity → AppState
+    // 'active' re-fires runLifecycleOnce while the launch run is still in flight.
+    // Without a guard, each overlapping call runs its own reconcile pass and the
+    // two race on the same notification ids → a false partial-schedule banner.
+    await Promise.all([runLifecycleOnce(), runLifecycleOnce(), runLifecycleOnce()]);
+
+    expect(syncMock).toHaveBeenCalledTimes(1);
+    expect(registerMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs again on the next call after the in-flight run settles (guard is not a one-shot)', async () => {
+    await runLifecycleOnce();
+    await runLifecycleOnce();
+
+    expect(syncMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears the guard even when a run fails, so a later foreground tick still recovers', async () => {
+    syncMock.mockReset().mockRejectedValueOnce(new Error('network')).mockResolvedValue({ entries: [] });
+
+    await runLifecycleOnce(); // fails → sets sync-failed, must clear the guard
+    await runLifecycleOnce(); // must run again (no deadlock)
+
+    expect(syncMock).toHaveBeenCalledTimes(2);
+  });
+});

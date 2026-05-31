@@ -1,9 +1,12 @@
 import {
   applyEma,
+  nextRoseRotation,
   shouldPublishHeadingUpdate,
   shortestRotationDelta,
   signedDelta,
 } from './heading';
+
+const normalizeDeg = (x: number): number => ((x % 360) + 360) % 360;
 
 describe('applyEma', () => {
   it('returns raw on first reading', () => {
@@ -159,5 +162,41 @@ describe('shouldPublishHeadingUpdate', () => {
         minDeltaDeg: 2,
       }),
     ).toBe(true);
+  });
+});
+
+describe('nextRoseRotation', () => {
+  it('advances the target along the shortest signed arc toward -heading', () => {
+    expect(nextRoseRotation(0, 10)).toBe(-10);
+    expect(nextRoseRotation(-10, 20)).toBe(-20);
+  });
+
+  it('returns the previous target unchanged when the heading has not moved', () => {
+    // -10 is the target for heading 10; the same heading must produce delta 0.
+    expect(nextRoseRotation(-10, 10)).toBe(-10);
+  });
+
+  it('takes the SHORT way across the 0/360 seam (forward 359 -> 1)', () => {
+    const t1 = nextRoseRotation(0, 359);
+    const t2 = nextRoseRotation(t1, 1);
+    expect(Math.abs(t2 - t1)).toBeLessThanOrEqual(2 + 1e-9); // ~2°, NOT ~358° the long way
+  });
+
+  it('takes the SHORT way across the 0/360 seam (backward 1 -> 359)', () => {
+    const t1 = nextRoseRotation(0, 1);
+    const t2 = nextRoseRotation(t1, 359);
+    expect(Math.abs(t2 - t1)).toBeLessThanOrEqual(2 + 1e-9);
+  });
+
+  it('keeps the normalized visual rotation equal to -heading over a sequence, never jumping the long way', () => {
+    let target = 0;
+    for (const heading of [10, 80, 170, 300, 359, 1, 90, 180, 181, 0]) {
+      const next = nextRoseRotation(target, heading);
+      // Each step moves at most a half-turn (shortest arc).
+      expect(Math.abs(next - target)).toBeLessThanOrEqual(180 + 1e-9);
+      // The rose's visual angle (target mod 360) always renders -heading.
+      expect(normalizeDeg(-next)).toBeCloseTo(normalizeDeg(heading), 5);
+      target = next;
+    }
   });
 });

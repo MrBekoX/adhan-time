@@ -19,7 +19,27 @@ export function useAppLifecycle(): void {
   }, []);
 }
 
-export async function runLifecycleOnce(): Promise<void> {
+// Collapse overlapping lifecycle runs into one. runLifecycleOnce fires on mount,
+// on every AppState 'active', and from the Home retry button. Granting the Qibla
+// location permission churns the Android activity (pause → resume → 'active'), so a
+// second run can start while the slow launch run (syncYearly does network I/O) is
+// still mid-flight. Two overlapping reconcile() passes then dispatch schedule/cancel
+// for the SAME notification ids concurrently and one rejects → a FALSE
+// 'partial-schedule' banner. Returning the in-flight promise to a second caller makes
+// only one reconcile touch the store at a time. .finally clears the guard so the next
+// genuine foreground tick still runs; real-failure banners still surface because
+// runLifecycleInner routes failures to uiStore and does not throw here.
+let inFlight: Promise<void> | null = null;
+
+export function runLifecycleOnce(): Promise<void> {
+  if (inFlight) return inFlight;
+  inFlight = runLifecycleInner().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
+async function runLifecycleInner(): Promise<void> {
   const loc = useLocationStore.getState().selected;
   if (!loc) return;
   const settings = useSettingsStore.getState();

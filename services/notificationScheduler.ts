@@ -77,7 +77,26 @@ export async function ensureAndroidChannel(): Promise<void> {
   });
 }
 
-export async function reconcile(
+// Serialize reconcile passes. reconcile is reached from the lifecycle sync, the
+// prayer-toggle path, and the city-change reset; two concurrent passes dispatch
+// schedule/cancel for the same notification ids onto the single notification store +
+// AlarmManager and surface spurious rejections → a false 'partial-schedule' banner.
+// Chaining (run after the predecessor settles) — not collapsing — keeps correctness
+// when a later pass carries different enabledPrayers/cache. The returned promise still
+// rejects to its own caller on a real failure; only the internal chain link swallows,
+// so one failure cannot poison the next pass.
+let reconcileChain: Promise<unknown> = Promise.resolve();
+
+export function reconcile(
+  cache: YearlyPrayerCache,
+  options: ReconcileOptions = {},
+): Promise<{ scheduled: number; cancelled: number; failed: number; total: number }> {
+  const run = reconcileChain.then(() => reconcileInner(cache, options));
+  reconcileChain = run.catch(() => undefined);
+  return run;
+}
+
+async function reconcileInner(
   cache: YearlyPrayerCache,
   options: ReconcileOptions = {},
 ): Promise<{ scheduled: number; cancelled: number; failed: number; total: number }> {

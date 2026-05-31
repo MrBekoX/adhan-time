@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -7,7 +7,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import KAABA_IMAGE from '../assets/images/kaaba.png';
-import { shortestRotationDelta, showAlignmentVisuals } from '@/utils/heading';
+import { nextRoseRotation, showAlignmentVisuals } from '@/utils/heading';
 
 import { CompassRose } from './CompassRose';
 import { colors, spacing } from './Theme';
@@ -29,6 +29,12 @@ const KAABA_MARKER_SIZE = 44;
 const CENTER_DOT_SIZE = 14;
 const TOP_POINTER_HEIGHT = 14;
 const TOP_POINTER_WIDTH = 16;
+// Rose-rotation tween. 220ms (up from 80ms): heading publishes arrive ~100–200ms
+// apart after EMA smoothing + the 33ms/2° publish gate, so an 80ms tween finished
+// between publishes and the rose read as choppy stepping on release APKs. 220ms
+// bridges consecutive publishes into one continuous glide while staying well under
+// the EMA's ~1s convergence, so it adds no perceptible lag.
+const ROSE_TWEEN_MS = 220;
 
 export function QiblaCompass({ size, deviceHeading, qiblaBearing, aligned, unreliable }: Props) {
   // Allow the shared value to grow unboundedly so withTiming follows the shortest arc.
@@ -38,10 +44,18 @@ export function QiblaCompass({ size, deviceHeading, qiblaBearing, aligned, unrel
   // (modulo 360) while the tween always picks the short way around.
   const roseRotation = useSharedValue(0);
   const haloOpacity = useSharedValue(0);
+  // Deterministic JS-side accumulator for the rose target angle. We must NOT read
+  // roseRotation.value on the JS thread to derive the next target: that read blocks
+  // on the UI thread and returns a mid-tween value, so the shortest-arc baseline
+  // races and the rose stutters on release APKs. Keeping the unwrapped target in a
+  // ref makes each step deterministic; withTiming re-targets smoothly from wherever
+  // the in-flight animation currently is.
+  const roseTargetRef = useRef(0);
 
   useEffect(() => {
-    const delta = shortestRotationDelta(roseRotation.value, -deviceHeading);
-    roseRotation.value = withTiming(roseRotation.value + delta, { duration: 80 });
+    const nextTarget = nextRoseRotation(roseTargetRef.current, deviceHeading);
+    roseTargetRef.current = nextTarget;
+    roseRotation.value = withTiming(nextTarget, { duration: ROSE_TWEEN_MS });
   }, [deviceHeading, roseRotation]);
 
   // SPEC-K3b: halo and ring track `aligned && !unreliable`. Without the unreliable

@@ -147,6 +147,22 @@ export function shortestRotationDelta(current: number, target: number): number {
   return d;
 }
 
+/**
+ * Advances a monotonically-accumulated compass-rose rotation target toward the
+ * angle that renders the device facing `deviceHeadingDeg`. The rose rotates by
+ * −heading (so geographic north on the rose stays under true north as the phone
+ * turns); the target stays UNBOUNDED and moves along the shortest signed arc so a
+ * numeric tween never spins the long way across the 0/360 seam.
+ *
+ * Pure + deterministic: the caller keeps `prevTargetDeg` in a JS ref and feeds it
+ * back in, so the animation target never depends on reading a mid-flight Reanimated
+ * shared value on the JS thread (which blocks the thread and yields a racing
+ * baseline — the cause of the on-device rose stutter).
+ */
+export function nextRoseRotation(prevTargetDeg: number, deviceHeadingDeg: number): number {
+  return prevTargetDeg + shortestRotationDelta(prevTargetDeg, -deviceHeadingDeg);
+}
+
 function normalize360(v: number): number {
   return ((v % 360) + 360) % 360;
 }
