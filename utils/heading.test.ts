@@ -1,6 +1,6 @@
 import {
   applyEma,
-  headingEmaAlpha,
+  headingSmoothingAlphaForPlatform,
   nextRoseRotation,
   roseTweenDurationMs,
   shouldPublishHeadingUpdate,
@@ -57,26 +57,15 @@ describe('applyEma', () => {
   });
 });
 
-describe('headingEmaAlpha (adaptive Android smoothing)', () => {
-  it('smooths hard when near-stationary (small delta → baseAlpha kills jitter)', () => {
-    expect(headingEmaAlpha('android', 1, 0.2)).toBe(0.2);
-    expect(headingEmaAlpha('android', 3, 0.2)).toBe(0.2);
+describe('headingSmoothingAlphaForPlatform', () => {
+  it('smooths Android more strongly (lower alpha) since its raw azimuth is unfiltered/noisy', () => {
+    const alpha = headingSmoothingAlphaForPlatform('android', 0.3);
+    expect(alpha).toBe(0.2);
+    expect(alpha).toBeLessThan(1); // must NOT bypass EMA (that caused on-device jitter)
   });
 
-  it('tracks aggressively on a fast turn (large delta → near-raw, no lag)', () => {
-    expect(headingEmaAlpha('android', 45, 0.2)).toBeGreaterThanOrEqual(0.85);
-    expect(headingEmaAlpha('android', 30, 0.2)).toBe(0.9);
-  });
-
-  it('ramps monotonically between still and fast', () => {
-    const mid = headingEmaAlpha('android', 16, 0.2);
-    expect(mid).toBeGreaterThan(0.2);
-    expect(mid).toBeLessThan(0.9);
-    expect(headingEmaAlpha('android', 20, 0.2)).toBeGreaterThan(mid);
-  });
-
-  it('keeps the configured base alpha on iOS (OS already smooths)', () => {
-    expect(headingEmaAlpha('ios', 99, 0.3)).toBe(0.3);
+  it('keeps the configured smoothing alpha on iOS', () => {
+    expect(headingSmoothingAlphaForPlatform('ios', 0.3)).toBe(0.3);
   });
 });
 

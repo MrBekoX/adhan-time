@@ -94,32 +94,17 @@ export function applyEma(prev: number | null, raw: number, alpha: number): numbe
 }
 
 /**
- * Adaptive EMA factor for the heading low-pass filter.
- *
- * iOS heading is already OS-smoothed → use baseAlpha. Android's raw azimuth
- * (expo-location getOrientation) is UNFILTERED, and a single fixed alpha cannot win:
- * a low alpha kills the stationary jitter but lags badly on a fast turn (a quick 360°
- * spin leaves the needle at a stale/WRONG bearing until it catches up — confirmed on
- * a Galaxy A30s), while a high alpha tracks turns but lets the needle shake when still.
- *
- * So alpha tracks the motion: near-stationary (small per-sample delta) → baseAlpha
- * (heavy smoothing, stable needle); fast turn (large delta) → ~0.9 (near-raw, minimal
- * lag); linear ramp between. `rawDeltaDeg` is the raw sample's shortest-arc change from
- * the current smoothed value.
+ * EMA smoothing factor per platform. Android's raw azimuth (expo-location
+ * getOrientation) is UNFILTERED and tilt-sensitive — noisier than iOS's
+ * OS-smoothed trueHeading — so it needs MORE smoothing, not less. A prior change
+ * set Android to 1 (EMA bypass) believing EMA caused lag; the real on-device
+ * symptom was JITTER (needle shakes while stationary — confirmed on a Galaxy
+ * A30s / Android 11), and bypassing EMA removed the only noise filter. Use a
+ * stronger (lower) alpha on Android; the publish-cadence gate downstream keeps the
+ * needle responsive to real turns.
  */
-export function headingEmaAlpha(
-  platformOS: PlatformOS,
-  rawDeltaDeg: number,
-  baseAlpha: number,
-): number {
-  if (platformOS !== 'android') return baseAlpha;
-  const STILL_DEG = 3;
-  const FAST_DEG = 30;
-  const FAST_ALPHA = 0.9;
-  const m = Math.abs(rawDeltaDeg);
-  if (m <= STILL_DEG) return baseAlpha;
-  if (m >= FAST_DEG) return FAST_ALPHA;
-  return baseAlpha + ((m - STILL_DEG) / (FAST_DEG - STILL_DEG)) * (FAST_ALPHA - baseAlpha);
+export function headingSmoothingAlphaForPlatform(platformOS: PlatformOS, baseAlpha: number): number {
+  return platformOS === 'android' ? Math.min(baseAlpha, 0.2) : baseAlpha;
 }
 
 export type HeadingPublishInput = {
@@ -201,9 +186,8 @@ export function roseTweenDurationMs(deltaDeg: number): number {
   // continuous glide on the UI thread, independent of React re-render jank. Large
   // deltas (fast turns / N-seam crossing) keep a shorter duration to stay responsive.
   const magnitude = Math.abs(deltaDeg);
-  if (magnitude >= 90) return 70;
-  if (magnitude >= 45) return 110;
-  if (magnitude >= 12) return 200;
+  if (magnitude >= 45) return 160;
+  if (magnitude >= 12) return 220;
   return 300;
 }
 
