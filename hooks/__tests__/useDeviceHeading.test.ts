@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import * as React from 'react';
+import { Platform } from 'react-native';
 import TestRenderer from 'react-test-renderer';
 
 import {
@@ -150,5 +151,52 @@ describe('useDeviceHeading subscription lifecycle', () => {
     });
 
     expect(remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('publishes Android heading steps without adding EMA lag on top of the native heading gate', async () => {
+    const original = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+    try {
+      let headingCallback: ((reading: Location.LocationHeadingObject) => void) | null = null;
+      watchHeadingAsyncMock.mockImplementationOnce(
+        async (cb: (reading: Location.LocationHeadingObject) => void) => {
+          headingCallback = cb;
+          return { remove: jest.fn() } as Location.LocationSubscription;
+        },
+      );
+      const statuses: ReturnType<typeof useDeviceHeading>[] = [];
+
+      function StatusProbe(): null {
+        const status = useDeviceHeading({
+          enabled: true,
+          location: { lat: 41.0082, lon: 28.9784 },
+        });
+        statuses.push(status);
+        return null;
+      }
+
+      let tree: TestRenderer.ReactTestRenderer | null = null;
+      await TestRenderer.act(async () => {
+        tree = TestRenderer.create(React.createElement(StatusProbe));
+        await Promise.resolve();
+      });
+      expect(headingCallback).not.toBeNull();
+
+      await TestRenderer.act(async () => {
+        headingCallback?.({ trueHeading: 0, magHeading: 0, accuracy: 3 });
+      });
+      await TestRenderer.act(async () => {
+        headingCallback?.({ trueHeading: 90, magHeading: 90, accuracy: 3 });
+      });
+
+      const ready = statuses.filter((s) => s.kind === 'ready').at(-1);
+      expect(ready?.kind).toBe('ready');
+      if (ready?.kind !== 'ready') throw new Error('expected ready heading');
+      expect(ready.heading).toBeCloseTo(90, 5);
+
+      await TestRenderer.act(async () => tree?.unmount());
+    } finally {
+      Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+    }
   });
 });

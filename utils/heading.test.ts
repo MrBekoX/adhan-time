@@ -1,6 +1,8 @@
 import {
   applyEma,
+  headingSmoothingAlphaForPlatform,
   nextRoseRotation,
+  roseTweenDurationMs,
   shouldPublishHeadingUpdate,
   shortestRotationDelta,
   signedDelta,
@@ -52,6 +54,16 @@ describe('applyEma', () => {
     }
     // alpha=0.3 should take ~9 readings; alpha=0.15 needed ~18
     expect(readings).toBeLessThanOrEqual(10);
+  });
+});
+
+describe('headingSmoothingAlphaForPlatform', () => {
+  it('does not add EMA lag on Android because Expo Android heading is already natively gated', () => {
+    expect(headingSmoothingAlphaForPlatform('android', 0.3)).toBe(1);
+  });
+
+  it('keeps the configured smoothing alpha on iOS', () => {
+    expect(headingSmoothingAlphaForPlatform('ios', 0.3)).toBe(0.3);
   });
 });
 
@@ -198,5 +210,15 @@ describe('nextRoseRotation', () => {
       expect(normalizeDeg(-next)).toBeCloseTo(normalizeDeg(heading), 5);
       target = next;
     }
+  });
+});
+
+describe('roseTweenDurationMs', () => {
+  it('keeps large phone turns under 100ms so the compass does not lag behind the device', () => {
+    expect(roseTweenDurationMs(90)).toBeLessThanOrEqual(100);
+  });
+
+  it('keeps tiny native Android heading steps bridged across display frames', () => {
+    expect(roseTweenDurationMs(2)).toBeGreaterThanOrEqual(60);
   });
 });

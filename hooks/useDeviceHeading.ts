@@ -11,6 +11,7 @@ import { selectHeadingSource } from '@/utils/declination';
 import {
   applyEma,
   classifyQuality,
+  headingSmoothingAlphaForPlatform,
   normalizeAccuracyForPlatform,
   shouldPublishHeadingUpdate,
   type HeadingQuality,
@@ -79,11 +80,13 @@ export function useDeviceHeading({ enabled, location = null }: Options): Heading
           });
           if (selected === null) return;
 
-          smoothed = applyEma(smoothed, selected.heading, HEADING_EMA_ALPHA);
-          const accuracyDeg = normalizeAccuracyForPlatform(
-            reading.accuracy,
-            Platform.OS as PlatformOS,
+          const platformOS = Platform.OS as PlatformOS;
+          const smoothingAlpha = headingSmoothingAlphaForPlatform(
+            platformOS,
+            HEADING_EMA_ALPHA,
           );
+          smoothed = applyEma(smoothed, selected.heading, smoothingAlpha);
+          const accuracyDeg = normalizeAccuracyForPlatform(reading.accuracy, platformOS);
           const quality = classifyQuality(accuracyDeg);
           const metadataChanged =
             selected.source !== lastPublishedSource || quality !== lastPublishedQuality;

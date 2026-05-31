@@ -5,15 +5,24 @@
  */
 
 import * as React from 'react';
+import * as Reanimated from 'react-native-reanimated';
 import TestRenderer from 'react-test-renderer';
 
 import { CompassRose } from '../CompassRose';
 import { QiblaCompass } from '../QiblaCompass';
 
-jest.mock('react-native-reanimated', () =>
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  require('react-native-reanimated/mock'),
-);
+jest.mock('react-native-reanimated', () => {
+  const ReanimatedMock = jest.requireActual('react-native-reanimated/mock');
+  return {
+    ...ReanimatedMock,
+    withTiming: jest.fn(
+      (toValue: unknown, _config?: unknown, callback?: (finished?: boolean) => void) => {
+        callback?.(true);
+        return toValue;
+      },
+    ),
+  };
+});
 
 type StyleObject = Record<string, unknown>;
 
@@ -32,6 +41,10 @@ function rootStyleOf(tree: TestRenderer.ReactTestRenderer): StyleObject {
 }
 
 describe('QiblaCompass — RTL geometry lock (K8)', () => {
+  beforeEach(() => {
+    (Reanimated.withTiming as jest.Mock).mockClear();
+  });
+
   it('pins the compass root to LTR direction', () => {
     let tree: TestRenderer.ReactTestRenderer | null = null;
     TestRenderer.act(() => {
@@ -78,6 +91,48 @@ describe('QiblaCompass — RTL geometry lock (K8)', () => {
       return style.borderRadius === 4 && style.borderWidth === 1.5;
     });
     expect(ringNodes).toHaveLength(0);
+
+    TestRenderer.act(() => {
+      t.unmount();
+    });
+  });
+
+  it('uses low-latency linear rose timing for a large heading turn', () => {
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    TestRenderer.act(() => {
+      tree = TestRenderer.create(
+        <QiblaCompass
+          size={260}
+          deviceHeading={0}
+          qiblaBearing={151}
+          aligned={false}
+          unreliable={false}
+        />,
+      );
+    });
+    if (!tree) throw new Error('renderer not created');
+    const t = tree as TestRenderer.ReactTestRenderer;
+    (Reanimated.withTiming as jest.Mock).mockClear();
+
+    TestRenderer.act(() => {
+      t.update(
+        <QiblaCompass
+          size={260}
+          deviceHeading={90}
+          qiblaBearing={151}
+          aligned={false}
+          unreliable={false}
+        />,
+      );
+    });
+
+    const roseCall = (Reanimated.withTiming as jest.Mock).mock.calls.find(
+      ([toValue]) => toValue === -90,
+    );
+    expect(roseCall).toBeDefined();
+    const config = roseCall?.[1] as { duration?: number; easing?: unknown };
+    expect(config.duration).toBeLessThanOrEqual(100);
+    expect(config.easing).toBe(Reanimated.Easing.linear);
 
     TestRenderer.act(() => {
       t.unmount();

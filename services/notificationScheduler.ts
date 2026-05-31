@@ -86,6 +86,8 @@ export async function ensureAndroidChannel(): Promise<void> {
 // rejects to its own caller on a real failure; only the internal chain link swallows,
 // so one failure cannot poison the next pass.
 let reconcileChain: Promise<unknown> = Promise.resolve();
+const ANDROID_NOTIFICATION_MUTATION_CONCURRENCY = 1;
+const DEFAULT_NOTIFICATION_MUTATION_CONCURRENCY = 4;
 
 export function reconcile(
   cache: YearlyPrayerCache,
@@ -94,6 +96,34 @@ export function reconcile(
   const run = reconcileChain.then(() => reconcileInner(cache, options));
   reconcileChain = run.catch(() => undefined);
   return run;
+}
+
+async function allSettledBounded<T>(
+  items: T[],
+  concurrency: number,
+  run: (item: T) => Promise<void>,
+): Promise<PromiseSettledResult<void>[]> {
+  if (items.length === 0) return [];
+
+  const results: PromiseSettledResult<void>[] = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      try {
+        await run(items[index]!);
+        results[index] = { status: 'fulfilled', value: undefined };
+      } catch (reason) {
+        results[index] = { status: 'rejected', reason };
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
 }
 
 async function reconcileInner(
@@ -175,12 +205,18 @@ async function reconcileInner(
 
   const toCancel = pendingPrayer.filter((p) => !targetMap.has(p.identifier));
   const toSchedule = expoTargets.filter((s) => !pendingMap.has(s.id));
+  const mutationConcurrency =
+    platform === 'android'
+      ? ANDROID_NOTIFICATION_MUTATION_CONCURRENCY
+      : DEFAULT_NOTIFICATION_MUTATION_CONCURRENCY;
 
   // Mirror the schedule pass below: a native crash cancelling one stale
   // notification must not block the rest, otherwise a single corrupted
   // pending entry permanently breaks reconcile until the user reinstalls.
-  const cancelResults = await Promise.allSettled(
-    toCancel.map((c) => Notifications.cancelScheduledNotificationAsync(c.identifier)),
+  const cancelResults = await allSettledBounded(
+    toCancel,
+    mutationConcurrency,
+    (c) => Notifications.cancelScheduledNotificationAsync(c.identifier),
   );
   const cancelFailed = cancelResults.filter((r) => r.status === 'rejected').length;
   if (cancelFailed > 0) {
@@ -190,8 +226,10 @@ async function reconcileInner(
     });
   }
 
-  const results = await Promise.allSettled(
-    toSchedule.map((s) => scheduleOne(s, tz, soundPref, options.districtName)),
+  const results = await allSettledBounded(
+    toSchedule,
+    mutationConcurrency,
+    (s) => scheduleOne(s, tz, soundPref, options.districtName),
   );
   const failed = results.filter((r) => r.status === 'rejected').length;
   const scheduled = toSchedule.length - failed;
@@ -206,6 +244,8 @@ async function reconcileInner(
       code: 'partial-schedule',
       data: { failed, total: toSchedule.length, cancelFailed },
     });
+  } else if (useUiStore.getState().lastError?.code === 'partial-schedule') {
+    useUiStore.getState().setError(null);
   }
 
   logger.info('reconcile', {

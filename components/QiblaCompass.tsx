@@ -1,13 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
 
 import KAABA_IMAGE from '../assets/images/kaaba.png';
-import { nextRoseRotation, showAlignmentVisuals } from '@/utils/heading';
+import { nextRoseRotation, roseTweenDurationMs, showAlignmentVisuals } from '@/utils/heading';
 
 import { CompassRose } from './CompassRose';
 import { colors, spacing } from './Theme';
@@ -29,13 +30,6 @@ const KAABA_MARKER_SIZE = 44;
 const CENTER_DOT_SIZE = 14;
 const TOP_POINTER_HEIGHT = 14;
 const TOP_POINTER_WIDTH = 16;
-// Rose-rotation tween. 220ms (up from 80ms): heading publishes arrive ~100–200ms
-// apart after EMA smoothing + the 33ms/2° publish gate, so an 80ms tween finished
-// between publishes and the rose read as choppy stepping on release APKs. 220ms
-// bridges consecutive publishes into one continuous glide while staying well under
-// the EMA's ~1s convergence, so it adds no perceptible lag.
-const ROSE_TWEEN_MS = 220;
-
 export function QiblaCompass({ size, deviceHeading, qiblaBearing, aligned, unreliable }: Props) {
   // Allow the shared value to grow unboundedly so withTiming follows the shortest arc.
   // Animating between two values normalized to [0, 360) makes the rose spin almost a full
@@ -54,8 +48,12 @@ export function QiblaCompass({ size, deviceHeading, qiblaBearing, aligned, unrel
 
   useEffect(() => {
     const nextTarget = nextRoseRotation(roseTargetRef.current, deviceHeading);
+    const delta = nextTarget - roseTargetRef.current;
     roseTargetRef.current = nextTarget;
-    roseRotation.value = withTiming(nextTarget, { duration: ROSE_TWEEN_MS });
+    roseRotation.value = withTiming(nextTarget, {
+      duration: roseTweenDurationMs(delta),
+      easing: Easing.linear,
+    });
   }, [deviceHeading, roseRotation]);
 
   // SPEC-K3b: halo and ring track `aligned && !unreliable`. Without the unreliable

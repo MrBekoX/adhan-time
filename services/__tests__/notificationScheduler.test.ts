@@ -74,6 +74,16 @@ function makeCache(entries: PrayerTime[], tz = TZ): YearlyPrayerCache {
   };
 }
 
+async function withAndroid<T>(fn: () => T | Promise<T>): Promise<T> {
+  const original = Platform.OS;
+  Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+  try {
+    return await fn();
+  } finally {
+    Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+  }
+}
+
 describe('computeTargets — V14 tz-aware rolling window', () => {
   it('includes the DST-forward day across the spring transition', () => {
     // Europe/Berlin DST forward = 2026-03-29 02:00 → 03:00 local
@@ -295,6 +305,28 @@ describe('reconcile — F2 partial schedule isolation', () => {
     // Pre-existing error is left alone — we only set on failure.
     expect(useUiStore.getState().lastError?.code).toBe('stale');
   });
+
+  it('clears a stale partial-schedule banner after a fully successful reconcile', async () => {
+    const cache = buildFutureCache();
+    const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+    useUiStore.setState({ lastError: { code: 'partial-schedule' } });
+
+    const result = await reconcile(cache, { enabledPrayers: enabled });
+
+    expect(result.failed).toBe(0);
+    expect(useUiStore.getState().lastError).toBeNull();
+  });
+
+  it('does not clear unrelated UI errors after a fully successful reconcile', async () => {
+    const cache = buildFutureCache();
+    const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+    useUiStore.setState({ lastError: { code: 'sync-failed' } });
+
+    const result = await reconcile(cache, { enabledPrayers: enabled });
+
+    expect(result.failed).toBe(0);
+    expect(useUiStore.getState().lastError?.code).toBe('sync-failed');
+  });
 });
 
 describe('V2 — iOS pending limit hard cap (≤ 50 notifications)', () => {
@@ -341,6 +373,64 @@ describe('V2 — iOS pending limit hard cap (≤ 50 notifications)', () => {
 
     expect(result.scheduled).toBe(50);
     expect(result.total).toBe(50);
+  });
+
+  it('serializes Android schedule mutations within one reconcile so native notification work is not flooded', async () => {
+    await withAndroid(async () => {
+      const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+      let activeSchedules = 0;
+      let sawOverlap = false;
+      schedule.mockImplementation(async () => {
+        activeSchedules += 1;
+        if (activeSchedules > 1) {
+          sawOverlap = true;
+          activeSchedules -= 1;
+          throw new Error('native schedule overlap');
+        }
+        await Promise.resolve();
+        activeSchedules -= 1;
+        return 'id';
+      });
+
+      const result = await reconcile(freshCache(), { enabledPrayers: enabled });
+
+      expect(sawOverlap).toBe(false);
+      expect(result.failed).toBe(0);
+      expect(result.scheduled).toBe(50);
+      expect(useUiStore.getState().lastError).toBeNull();
+    });
+  });
+
+  it('serializes Android cancel mutations within one reconcile so native notification work is not flooded', async () => {
+    await withAndroid(async () => {
+      const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+      const stalePending = [
+        { identifier: 'prayer-9541-2026-04-30-imsak' },
+        { identifier: 'prayer-9541-2026-04-30-gunes' },
+        { identifier: 'prayer-9541-2026-04-30-ogle' },
+      ];
+      let activeCancels = 0;
+      let sawOverlap = false;
+      getAll.mockResolvedValueOnce(stalePending);
+      cancel.mockImplementation(async () => {
+        activeCancels += 1;
+        if (activeCancels > 1) {
+          sawOverlap = true;
+          activeCancels -= 1;
+          throw new Error('native cancel overlap');
+        }
+        await Promise.resolve();
+        activeCancels -= 1;
+      });
+
+      const result = await reconcile(freshCache(), { enabledPrayers: enabled });
+
+      expect(sawOverlap).toBe(false);
+      expect(cancel).toHaveBeenCalledTimes(3);
+      expect(result.failed).toBe(0);
+      expect(result.scheduled).toBe(50);
+      expect(useUiStore.getState().lastError).toBeNull();
+    });
   });
 
   it('reconcile honors an explicit windowDays override (no auto-shrink)', async () => {

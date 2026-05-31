@@ -93,6 +93,10 @@ export function applyEma(prev: number | null, raw: number, alpha: number): numbe
   return normalize360(next);
 }
 
+export function headingSmoothingAlphaForPlatform(platformOS: PlatformOS, baseAlpha: number): number {
+  return platformOS === 'android' ? 1 : baseAlpha;
+}
+
 export type HeadingPublishInput = {
   previousHeading: number | null;
   nextHeading: number;
@@ -161,6 +165,13 @@ export function shortestRotationDelta(current: number, target: number): number {
  */
 export function nextRoseRotation(prevTargetDeg: number, deviceHeadingDeg: number): number {
   return prevTargetDeg + shortestRotationDelta(prevTargetDeg, -deviceHeadingDeg);
+}
+
+export function roseTweenDurationMs(deltaDeg: number): number {
+  const magnitude = Math.abs(deltaDeg);
+  if (magnitude >= 45) return 80;
+  if (magnitude >= 10) return 70;
+  return 90;
 }
 
 function normalize360(v: number): number {
