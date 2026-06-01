@@ -71,7 +71,7 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "eslint --fix --max-warnings=0"
+      "node tools/scripts/lint-staged-eslint.mjs"
     ],
     "*.{json,md}": [
       "prettier --write"
