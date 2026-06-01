@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import * as React from 'react';
 import { Platform } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
 import TestRenderer from 'react-test-renderer';
 
 import * as CompassHeading from '@/modules/compass-heading';
@@ -262,6 +263,32 @@ describe('useDeviceHeading — heading source selection', () => {
 
     expect(watchHeadingAsyncMock).toHaveBeenCalledTimes(1);
     expect(addHeadingListenerMock).not.toHaveBeenCalled();
+
+    await TestRenderer.act(async () => tree?.unmount());
+  });
+
+  it('writes every smoothed sample into headingShared (ungated UI-thread animation source)', async () => {
+    let cb: ((r: { trueHeading: number; magHeading: number; accuracy: number }) => void) | null = null;
+    addHeadingListenerMock.mockImplementation((listener) => {
+      cb = listener;
+      return { remove: jest.fn() };
+    });
+    const headingShared = { value: -1 } as unknown as SharedValue<number>;
+
+    function Probe(): null {
+      useDeviceHeading({ enabled: true, location: { lat: 41.0082, lon: 28.9784 }, headingShared });
+      return null;
+    }
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await TestRenderer.act(async () => {
+      tree = TestRenderer.create(React.createElement(Probe));
+      await Promise.resolve();
+    });
+
+    await TestRenderer.act(async () => cb?.({ trueHeading: 123, magHeading: 123, accuracy: 3 }));
+    // trueHeading >= 0 → source 'true'; first EMA sample returns the raw value, so the
+    // shared value receives the smoothed heading directly (ungated, no publish-cadence wait).
+    expect(headingShared.value).toBeCloseTo(123, 5);
 
     await TestRenderer.act(async () => tree?.unmount());
   });

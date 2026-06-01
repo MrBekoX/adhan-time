@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
+  type SharedValue,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -15,14 +17,20 @@ import { colors, spacing } from './Theme';
 
 type Props = {
   size: number;
-  /** Smoothed device heading in degrees (0..360, clockwise from north). */
-  deviceHeading: number;
+  /** Smoothed device heading in degrees (0..360). Used only when `headingShared` is absent (tests / fallback). */
+  deviceHeading?: number;
   /** Bearing from user to Kaaba in degrees (0..360). */
   qiblaBearing: number;
   /** Whether the alignment indicator should glow. */
   aligned: boolean;
   /** Whether the needle should render in the unreliable state (red, dim). */
   unreliable: boolean;
+  /**
+   * UI-thread heading source (degrees, -1 before the first reading). When provided, the rose
+   * animates from this on the UI thread — decoupled from React's re-render cadence, which
+   * janked the needle into visible "stepping" on low-end devices. Falls back to `deviceHeading`.
+   */
+  headingShared?: SharedValue<number>;
 };
 
 const NEEDLE_LENGTH_RATIO = 0.62;
@@ -30,23 +38,50 @@ const KAABA_MARKER_SIZE = 44;
 const CENTER_DOT_SIZE = 14;
 const TOP_POINTER_HEIGHT = 14;
 const TOP_POINTER_WIDTH = 16;
-export function QiblaCompass({ size, deviceHeading, qiblaBearing, aligned, unreliable }: Props) {
-  // Allow the shared value to grow unboundedly so withTiming follows the shortest arc.
+function QiblaCompassImpl({
+  size,
+  deviceHeading = 0,
+  qiblaBearing,
+  aligned,
+  unreliable,
+  headingShared,
+}: Props) {
+  // Allow the shared value to grow unboundedly so the tween follows the shortest arc.
   // Animating between two values normalized to [0, 360) makes the rose spin almost a full
   // turn whenever the device heading crosses 0/360 (the "N seam"). By accumulating the
-  // signed shortest delta to -deviceHeading instead, the visual angle stays the same
-  // (modulo 360) while the tween always picks the short way around.
+  // signed shortest delta to -heading instead, the visual angle stays the same (modulo 360)
+  // while the tween always picks the short way around.
   const roseRotation = useSharedValue(0);
+  // UI-thread accumulator for the unwrapped rose target (grows unbounded, shortest-arc).
+  const roseTargetSV = useSharedValue(0);
   const haloOpacity = useSharedValue(0);
-  // Deterministic JS-side accumulator for the rose target angle. We must NOT read
-  // roseRotation.value on the JS thread to derive the next target: that read blocks
-  // on the UI thread and returns a mid-tween value, so the shortest-arc baseline
-  // races and the rose stutters on release APKs. Keeping the unwrapped target in a
-  // ref makes each step deterministic; withTiming re-targets smoothly from wherever
-  // the in-flight animation currently is.
+  // JS-side accumulator for the fallback (deviceHeading) path. We must NOT read
+  // roseRotation.value on the JS thread to derive the next target: that read blocks on the
+  // UI thread and returns a mid-tween value, so the shortest-arc baseline races and the rose
+  // stutters. Keeping the unwrapped target in a ref makes each step deterministic.
   const roseTargetRef = useRef(0);
 
+  // PRIMARY path: drive the rose on the UI thread straight from the shared heading at sensor
+  // rate. The previous JS-thread path (React re-render -> prop -> useEffect -> withTiming)
+  // retargeted on React's irregular commit cadence, which janks on low-end devices and made
+  // the needle "step" / micro-reverse. Reacting to the shared value keeps retargeting on the
+  // UI thread, independent of React jank.
+  useAnimatedReaction(
+    () => headingShared?.value ?? -1,
+    (heading) => {
+      if (heading < 0) return; // no reading yet, or the fallback (deviceHeading) path is active
+      const target = -heading;
+      let delta = ((((target - roseTargetSV.value) % 360) + 540) % 360) - 180;
+      if (delta <= -180) delta += 360;
+      roseTargetSV.value += delta;
+      // Short tween bridges the ~20ms samples into one continuous UI-thread glide.
+      roseRotation.value = withTiming(roseTargetSV.value, { duration: 90, easing: Easing.linear });
+    },
+  );
+
+  // FALLBACK path (no shared value — e.g. unit tests): drive from the deviceHeading prop.
   useEffect(() => {
+    if (headingShared) return; // the UI-thread reaction owns the rose
     const nextTarget = nextRoseRotation(roseTargetRef.current, deviceHeading);
     const delta = nextTarget - roseTargetRef.current;
     roseTargetRef.current = nextTarget;
@@ -54,7 +89,7 @@ export function QiblaCompass({ size, deviceHeading, qiblaBearing, aligned, unrel
       duration: roseTweenDurationMs(delta),
       easing: Easing.linear,
     });
-  }, [deviceHeading, roseRotation]);
+  }, [deviceHeading, roseRotation, headingShared]);
 
   // SPEC-K3b: halo and ring track `aligned && !unreliable`. Without the unreliable
   // gate, an unreliable reading whose hysteresis happened to latch could still light
@@ -182,6 +217,11 @@ export function QiblaCompass({ size, deviceHeading, qiblaBearing, aligned, unrel
     </View>
   );
 }
+
+// Memoized: with the rose driven on the UI thread via `headingShared`, this component only
+// needs to re-render when alignment/quality/bearing change — NOT on every heading sample.
+// That keeps the 30Hz heading stream off the React commit path (less main-thread jank).
+export const QiblaCompass = memo(QiblaCompassImpl);
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center', marginVertical: spacing.lg },

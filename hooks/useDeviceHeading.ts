@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
 
 import {
   HEADING_EMA_ALPHA,
@@ -45,15 +46,30 @@ type Options = {
    * compensation so the resulting heading is referenced to true north (SPEC-K2).
    */
   location?: { lat: number; lon: number } | null;
+  /**
+   * Optional shared value that receives EVERY smoothed sample (ungated), so the compass
+   * animation can run on the UI thread at sensor rate, decoupled from React's re-render
+   * cadence (which janks on low-end devices and made the needle "step"). React state below
+   * stays gated for the textual/alignment UI.
+   */
+  headingShared?: SharedValue<number>;
 };
 
-export function useDeviceHeading({ enabled, location = null }: Options): HeadingStatus {
+export function useDeviceHeading({
+  enabled,
+  location = null,
+  headingShared,
+}: Options): HeadingStatus {
   const [status, setStatus] = useState<HeadingStatus>({ kind: 'idle' });
 
   // Stash location in a ref so the watchHeadingAsync callback always sees the latest
   // position without forcing a resubscribe (which would drop sensor stream continuity).
   const locationRef = useRef(location);
   locationRef.current = location;
+
+  // Same ref pattern for the optional shared value (stable identity, no resubscribe).
+  const headingSharedRef = useRef(headingShared);
+  headingSharedRef.current = headingShared;
 
   useEffect(() => {
     if (!enabled) {
@@ -90,6 +106,10 @@ export function useDeviceHeading({ enabled, location = null }: Options): Heading
         ? HEADING_EMA_ALPHA
         : headingSmoothingAlphaForPlatform(platformOS, HEADING_EMA_ALPHA);
       smoothed = applyEma(smoothed, selected.heading, smoothingAlpha);
+      // UI-thread animation source: write every smoothed sample (ungated). The rose reads
+      // this on the UI thread, so its motion is independent of React's gated re-renders.
+      const hs = headingSharedRef.current;
+      if (hs) hs.value = smoothed;
       const accuracyDeg = normalizeAccuracyForPlatform(reading.accuracy, platformOS);
       const quality = classifyQuality(accuracyDeg);
       const metadataChanged =

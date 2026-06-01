@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View, type TextStyle } from 'react-native';
+import { type SharedValue, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandRow } from '@/components/BrandRow';
@@ -36,6 +37,10 @@ export default function QiblaScreen() {
   );
 
   const location = useUserLocation({ enabled: active });
+  // UI-thread heading for the compass rose: the hook writes every smoothed sample here
+  // (ungated), so QiblaCompass animates the rose on the UI thread at sensor rate, free of
+  // React's re-render jank (the cause of the on-device "stepping"). -1 = no reading yet.
+  const headingShared = useSharedValue(-1);
   // Heading sensor needs location permission (Android computes trueHeading from
   // GPS-derived declination). Wait until location is ready before subscribing.
   // We also pass coordinates through so that on Android paths returning only
@@ -43,6 +48,7 @@ export default function QiblaScreen() {
   const heading = useDeviceHeading({
     enabled: active && location.kind === 'ready',
     location: location.kind === 'ready' ? { lat: location.lat, lon: location.lon } : null,
+    headingShared,
   });
 
   const qibla = useMemo(() => {
@@ -86,7 +92,7 @@ export default function QiblaScreen() {
 
         <HorizonRule variant="gold" marginVertical={spacing.lg} />
 
-        <Body location={location} heading={heading} qibla={qibla} />
+        <Body location={location} heading={heading} qibla={qibla} headingShared={headingShared} />
       </ScrollView>
     </View>
   );
@@ -96,7 +102,17 @@ type LocationStatus = ReturnType<typeof useUserLocation>;
 type HeadingStatus = ReturnType<typeof useDeviceHeading>;
 type QiblaData = { bearing: number; distanceKm: number; accuracyM: number } | null;
 
-function Body({ location, heading, qibla }: { location: LocationStatus; heading: HeadingStatus; qibla: QiblaData }) {
+function Body({
+  location,
+  heading,
+  qibla,
+  headingShared,
+}: {
+  location: LocationStatus;
+  heading: HeadingStatus;
+  qibla: QiblaData;
+  headingShared: SharedValue<number>;
+}) {
   const { t } = useTranslation();
 
   // Hooks must run unconditionally — compute defensively so the alignment state machine
@@ -148,7 +164,7 @@ function Body({ location, heading, qibla }: { location: LocationStatus; heading:
         ) : (
           <QiblaCompass
             size={COMPASS_SIZE}
-            deviceHeading={heading.heading}
+            headingShared={headingShared}
             qiblaBearing={qibla.bearing}
             aligned={aligned}
             unreliable={unreliable}
