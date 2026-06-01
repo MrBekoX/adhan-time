@@ -94,21 +94,15 @@ export function applyEma(prev: number | null, raw: number, alpha: number): numbe
 }
 
 /**
- * EMA smoothing factor per platform.
+ * EMA smoothing factor for the expo-location FALLBACK heading path (used only on devices
+ * with no rotation-vector sensor; see useDeviceHeading). expo-location's Android azimuth
+ * (getOrientation, accel+mag) is unfiltered and tilt-sensitive, so it needs the stronger
+ * (lower) alpha to stay stable; iOS keeps the base alpha.
  *
- * The primary heading source is now the hardware-fused native module
- * (`modules/compass-heading`: rotation-vector on Android, CLHeading on iOS) — clean
- * and ~20ms, so it needs only light smoothing. On that path this Android clamp is
- * slightly HEAVIER than the base alpha and is intentionally provisional: per spec §8
- * the final EMA/tween constants are tuned on-device via OTA (no build), so revisit /
- * relax this clamp during that pass.
- *
- * The clamp is kept (not removed) because Android still FALLS BACK to the unfiltered,
- * tilt-sensitive `expo-location` getOrientation source on devices without a
- * rotation-vector sensor; that noisy path needs the stronger (lower) alpha to stay
- * stable. Erring toward more smoothing is the religious-accuracy-safe direction: a
- * slightly laggy needle beats a jittery one. The clamp only affects animation feel —
- * never the target angle, WMM/declination, or the unreliable banner.
+ * The PRIMARY fused path (`modules/compass-heading`) does NOT use this — it applies the
+ * light `HEADING_EMA_ALPHA` directly (spec §8), because its clean ~20ms hardware-fused
+ * stream needs no extra masking. Feel-only; never affects the target angle, WMM/declination,
+ * or the unreliable banner.
  */
 export function headingSmoothingAlphaForPlatform(platformOS: PlatformOS, baseAlpha: number): number {
   return platformOS === 'android' ? Math.min(baseAlpha, 0.2) : baseAlpha;

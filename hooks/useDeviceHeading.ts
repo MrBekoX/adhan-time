@@ -63,6 +63,7 @@ export function useDeviceHeading({ enabled, location = null }: Options): Heading
 
     let cancelled = false;
     let removeSubscription: (() => void) | null = null;
+    let usingFusedSource = false;
     let smoothed: number | null = null;
     let lastPublishedHeading: number | null = null;
     let lastPublishedAt = 0;
@@ -82,7 +83,12 @@ export function useDeviceHeading({ enabled, location = null }: Options): Heading
       if (selected === null) return;
 
       const platformOS = Platform.OS as PlatformOS;
-      const smoothingAlpha = headingSmoothingAlphaForPlatform(platformOS, HEADING_EMA_ALPHA);
+      // The fused native stream (rotation-vector / CLHeading) is clean ~20ms input → light
+      // EMA per spec §8. The expo-location fallback azimuth is noisy → keep the heavier
+      // platform clamp so the fallback needle stays stable.
+      const smoothingAlpha = usingFusedSource
+        ? HEADING_EMA_ALPHA
+        : headingSmoothingAlphaForPlatform(platformOS, HEADING_EMA_ALPHA);
       smoothed = applyEma(smoothed, selected.heading, smoothingAlpha);
       const accuracyDeg = normalizeAccuracyForPlatform(reading.accuracy, platformOS);
       const quality = classifyQuality(accuracyDeg);
@@ -112,6 +118,7 @@ export function useDeviceHeading({ enabled, location = null }: Options): Heading
     void (async () => {
       try {
         if (CompassHeading.isAvailable()) {
+          usingFusedSource = true;
           const sub = CompassHeading.addHeadingListener(handleReading);
           if (cancelled) {
             sub.remove();

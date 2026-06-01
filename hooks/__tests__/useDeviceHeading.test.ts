@@ -265,4 +265,55 @@ describe('useDeviceHeading — heading source selection', () => {
 
     await TestRenderer.act(async () => tree?.unmount());
   });
+
+  it('applies lighter EMA on the fused native path than on the expo-location fallback (Android, §8)', async () => {
+    const original = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+    try {
+      const headingAfterStep = async (useFused: boolean): Promise<number> => {
+        isAvailableMock.mockReturnValue(useFused);
+        let cb: ((r: { trueHeading: number; magHeading: number; accuracy: number }) => void) | null = null;
+        const sub = { remove: jest.fn() };
+        if (useFused) {
+          addHeadingListenerMock.mockImplementation((listener) => {
+            cb = listener;
+            return sub;
+          });
+        } else {
+          watchHeadingAsyncMock.mockImplementation(async (listener) => {
+            cb = listener as (r: { trueHeading: number; magHeading: number; accuracy: number }) => void;
+            return sub as unknown as Location.LocationSubscription;
+          });
+        }
+        const statuses: ReturnType<typeof useDeviceHeading>[] = [];
+        function Probe(): null {
+          statuses.push(useDeviceHeading({ enabled: true, location: { lat: 41.0082, lon: 28.9784 } }));
+          return null;
+        }
+        let tree: TestRenderer.ReactTestRenderer | null = null;
+        await TestRenderer.act(async () => {
+          tree = TestRenderer.create(React.createElement(Probe));
+          await Promise.resolve();
+        });
+        // trueHeading >= 0 → source 'true', so the published value is a pure EMA of 0->90
+        // (no WMM), isolating the smoothing factor.
+        await TestRenderer.act(async () => cb?.({ trueHeading: 0, magHeading: 0, accuracy: 3 }));
+        await TestRenderer.act(async () => cb?.({ trueHeading: 90, magHeading: 90, accuracy: 3 }));
+        const ready = statuses.filter((s) => s.kind === 'ready').at(-1);
+        if (ready?.kind !== 'ready') throw new Error('expected ready heading');
+        await TestRenderer.act(async () => tree?.unmount());
+        return ready.heading;
+      };
+
+      const fused = await headingAfterStep(true);
+      const fallback = await headingAfterStep(false);
+
+      // Light EMA (HEADING_EMA_ALPHA) tracks more of the 0->90 step; the noisy fallback uses
+      // the heavier Android clamp and stays closer to 0.
+      expect(fused).toBeGreaterThan(fallback);
+      expect(fallback).toBeGreaterThan(0);
+    } finally {
+      Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+    }
+  });
 });
