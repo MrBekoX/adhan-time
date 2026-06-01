@@ -33,15 +33,27 @@ export const AT_KAABA_RADIUS_KM = 0.1;
 export const HEADING_EMA_ALPHA = 0.3;
 
 /**
- * Publish smoothed heading into React at a display cadence instead of on every
- * native sensor callback. Installed Android builds can deliver heading readings
- * in tiny bursts; feeding each burst into React restarts the compass animation
- * before the previous frame settles.
+ * Cadence for publishing the smoothed heading into REACT STATE. The compass rose now
+ * animates on the UI thread from a shared value (useDeviceHeading `headingShared` →
+ * QiblaCompass), so React state only drives the textual/alignment UI (instruction, banner,
+ * accuracy, alignment haptic) — none of which need 30Hz.
+ *
+ * Republishing every 33ms kept the JS thread busy enough to push EVERY frame just over the
+ * 16.7ms budget — measured ~52% janky frames, 50th percentile 17ms on a Galaxy A30s even
+ * while stationary (the 50Hz sensor + EMA jitter tripped the interval gate continuously),
+ * which the user felt as micro-stutter. ~120ms (≈8Hz) frees the JS thread to deliver the
+ * sensor stream (and the shared-value writes that drive the rose) regularly. Quality/source
+ * changes still publish immediately (the `metadataChanged` bypass in the hook), so the
+ * unreliable banner never lags.
  */
-export const HEADING_PUBLISH_MIN_INTERVAL_MS = 33;
+export const HEADING_PUBLISH_MIN_INTERVAL_MS = 120;
 
-/** Heading changes at or above this size bypass the cadence gate to avoid turn lag. */
-export const HEADING_PUBLISH_MIN_DELTA_DEG = 2;
+/**
+ * A heading change at or above this size bypasses the cadence gate so a fast turn still
+ * updates the on-screen "turn X°" guidance promptly. Raised from 2° because the rose no
+ * longer depends on React — only the text does, which tolerates coarser steps.
+ */
+export const HEADING_PUBLISH_MIN_DELTA_DEG = 8;
 
 /**
  * Alignment thresholds (degrees) for "facing qibla" with hysteresis.
