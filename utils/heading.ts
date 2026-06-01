@@ -178,17 +178,15 @@ export function nextRoseRotation(prevTargetDeg: number, deviceHeadingDeg: number
 }
 
 export function roseTweenDurationMs(deltaDeg: number): number {
-  // expo-location delivers the Android heading in ~2° steps (native ~2°/50ms gate),
-  // so a short tween finishes between steps and the rose visibly "steps" instead of
-  // gliding (which, while the needle sits at a stale angle, also reads as a WRONG
-  // bearing). Use a long duration for small per-step deltas so the tween is still
-  // animating when the next step arrives — Reanimated then re-targets it into ONE
-  // continuous glide on the UI thread, independent of React re-render jank. Large
-  // deltas (fast turns / N-seam crossing) keep a shorter duration to stay responsive.
+  // The fused rotation-vector / CLHeading stream is continuous (~20ms) and already smooth,
+  // so we no longer need a long tween to bridge expo-location's ~200ms gaps. A short tween
+  // just interpolates between the now-close samples; large deltas (fast spin / 0-360 seam
+  // crossing) stay shortest to track without trailing. These are an initial cut — tuned on
+  // device via OTA (see docs/superpowers/specs/2026-06-01-native-compass-heading-design.md
+  // §8). If any shimmer remains, drop to approach C (raw fused + tiny tween).
   const magnitude = Math.abs(deltaDeg);
-  if (magnitude >= 45) return 160;
-  if (magnitude >= 12) return 220;
-  return 300;
+  if (magnitude >= 45) return 60;
+  return 90;
 }
 
 function normalize360(v: number): number {
