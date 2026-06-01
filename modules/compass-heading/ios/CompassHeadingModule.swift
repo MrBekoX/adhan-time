@@ -51,4 +51,10 @@ private class HeadingDelegate: NSObject, CLLocationManagerDelegate {
   func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
     onHeading(newHeading)
   }
+
+  // Let iOS present the figure-8 calibration HUD when accuracy is poor, so a user with an
+  // unreliable compass can recover instead of being stuck on the red qibla banner forever.
+  func locationManagerShouldDisplayHeadingCalibration(_ manager: CLLocationManager) -> Bool {
+    return true
+  }
 }
