@@ -6,6 +6,7 @@ import Animated, {
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -32,6 +33,12 @@ type Props = {
    */
   headingShared?: SharedValue<number>;
 };
+
+// Critically-damped spring for the rose (no overshoot — a compass must never oscillate
+// past true). Retargeted every ~20ms sample; its ~1.6Hz bandwidth low-passes the fast
+// sensor's high-frequency jitter (the "jump"/micro-reverse) into one fluid glide while
+// still tracking real rotation. Tune on device via OTA (spec §8).
+const ROSE_SPRING = { mass: 1, stiffness: 100, damping: 20 } as const;
 
 const NEEDLE_LENGTH_RATIO = 0.62;
 const KAABA_MARKER_SIZE = 44;
@@ -74,8 +81,9 @@ function QiblaCompassImpl({
       let delta = ((((target - roseTargetSV.value) % 360) + 540) % 360) - 180;
       if (delta <= -180) delta += 360;
       roseTargetSV.value += delta;
-      // Short tween bridges the ~20ms samples into one continuous UI-thread glide.
-      roseRotation.value = withTiming(roseTargetSV.value, { duration: 90, easing: Easing.linear });
+      // Spring (not a linear tween): retargeting from the live position+velocity smooths the
+      // fast sensor's jitter into a continuous glide and kills the micro-reverse "jump".
+      roseRotation.value = withSpring(roseTargetSV.value, ROSE_SPRING);
     },
   );
 
