@@ -56,6 +56,16 @@ export const HEADING_PUBLISH_MIN_INTERVAL_MS = 120;
 export const HEADING_PUBLISH_MIN_DELTA_DEG = 8;
 
 /**
+ * Deadband (degrees) for the UI-thread animation source. The hook writes a new sample into
+ * `headingShared` only when the smoothed heading moves at least this much. While the user
+ * holds still, the fused sensor's sub-degree noise no longer nudges the shared value, so the
+ * rose spring settles and the screen STOPS redrawing (idle) instead of animating perpetually
+ * — cutting idle GPU/CPU frames and battery. 0.4° is imperceptible (≈1px at the rose rim)
+ * and far inside the 5° qibla tolerance, so it never affects accuracy.
+ */
+export const HEADING_SHARED_DEADBAND_DEG = 0.4;
+
+/**
  * Alignment thresholds (degrees) for "facing qibla" with hysteresis.
  *
  * Without hysteresis at a single 3° threshold the indicator flickered on/off when |delta|

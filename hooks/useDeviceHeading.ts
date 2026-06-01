@@ -7,6 +7,7 @@ import {
   HEADING_EMA_ALPHA,
   HEADING_PUBLISH_MIN_DELTA_DEG,
   HEADING_PUBLISH_MIN_INTERVAL_MS,
+  HEADING_SHARED_DEADBAND_DEG,
 } from '@/constants/qibla';
 import * as CompassHeading from '@/modules/compass-heading';
 import { selectHeadingSource } from '@/utils/declination';
@@ -16,6 +17,7 @@ import {
   headingSmoothingAlphaForPlatform,
   normalizeAccuracyForPlatform,
   shouldPublishHeadingUpdate,
+  signedDelta,
   type HeadingQuality,
   type PlatformOS,
 } from '@/utils/heading';
@@ -81,6 +83,8 @@ export function useDeviceHeading({
     let removeSubscription: (() => void) | null = null;
     let usingFusedSource = false;
     let smoothed: number | null = null;
+    // Last value written to the UI-thread shared value (for the deadband below).
+    let lastSharedHeading: number | null = null;
     let lastPublishedHeading: number | null = null;
     let lastPublishedAt = 0;
     let lastPublishedQuality: HeadingQuality | null = null;
@@ -106,10 +110,19 @@ export function useDeviceHeading({
         ? HEADING_EMA_ALPHA
         : headingSmoothingAlphaForPlatform(platformOS, HEADING_EMA_ALPHA);
       smoothed = applyEma(smoothed, selected.heading, smoothingAlpha);
-      // UI-thread animation source: write every smoothed sample (ungated). The rose reads
-      // this on the UI thread, so its motion is independent of React's gated re-renders.
+      // UI-thread animation source: write samples (past a small deadband) so the rose reads
+      // this on the UI thread, independent of React's gated re-renders. The deadband skips
+      // sub-0.4° sensor jitter while stationary, so the rose spring settles and the screen
+      // idles instead of redrawing every frame (see HEADING_SHARED_DEADBAND_DEG).
       const hs = headingSharedRef.current;
-      if (hs) hs.value = smoothed;
+      if (
+        hs &&
+        (lastSharedHeading === null ||
+          Math.abs(signedDelta(smoothed, lastSharedHeading)) >= HEADING_SHARED_DEADBAND_DEG)
+      ) {
+        hs.value = smoothed;
+        lastSharedHeading = smoothed;
+      }
       const accuracyDeg = normalizeAccuracyForPlatform(reading.accuracy, platformOS);
       const quality = classifyQuality(accuracyDeg);
       const metadataChanged =

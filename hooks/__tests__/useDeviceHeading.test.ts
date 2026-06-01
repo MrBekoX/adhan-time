@@ -267,7 +267,7 @@ describe('useDeviceHeading — heading source selection', () => {
     await TestRenderer.act(async () => tree?.unmount());
   });
 
-  it('writes every smoothed sample into headingShared (ungated UI-thread animation source)', async () => {
+  it('writes heading into headingShared past a deadband, skipping sub-threshold jitter', async () => {
     let cb: ((r: { trueHeading: number; magHeading: number; accuracy: number }) => void) | null = null;
     addHeadingListenerMock.mockImplementation((listener) => {
       cb = listener;
@@ -285,10 +285,18 @@ describe('useDeviceHeading — heading source selection', () => {
       await Promise.resolve();
     });
 
+    // First sample always writes (trueHeading >= 0 → first EMA sample returns the raw value).
     await TestRenderer.act(async () => cb?.({ trueHeading: 123, magHeading: 123, accuracy: 3 }));
-    // trueHeading >= 0 → source 'true'; first EMA sample returns the raw value, so the
-    // shared value receives the smoothed heading directly (ungated, no publish-cadence wait).
     expect(headingShared.value).toBeCloseTo(123, 5);
+    const afterFirst = headingShared.value;
+
+    // A tiny change (EMA moves ~0.03°) is below the deadband → shared value is NOT rewritten.
+    await TestRenderer.act(async () => cb?.({ trueHeading: 123.1, magHeading: 123.1, accuracy: 3 }));
+    expect(headingShared.value).toBe(afterFirst);
+
+    // A real movement crosses the deadband → shared value updates again.
+    await TestRenderer.act(async () => cb?.({ trueHeading: 140, magHeading: 140, accuracy: 3 }));
+    expect(headingShared.value).toBeGreaterThan(afterFirst);
 
     await TestRenderer.act(async () => tree?.unmount());
   });
