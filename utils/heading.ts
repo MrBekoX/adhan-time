@@ -94,14 +94,21 @@ export function applyEma(prev: number | null, raw: number, alpha: number): numbe
 }
 
 /**
- * EMA smoothing factor per platform. Android's raw azimuth (expo-location
- * getOrientation) is UNFILTERED and tilt-sensitive — noisier than iOS's
- * OS-smoothed trueHeading — so it needs MORE smoothing, not less. A prior change
- * set Android to 1 (EMA bypass) believing EMA caused lag; the real on-device
- * symptom was JITTER (needle shakes while stationary — confirmed on a Galaxy
- * A30s / Android 11), and bypassing EMA removed the only noise filter. Use a
- * stronger (lower) alpha on Android; the publish-cadence gate downstream keeps the
- * needle responsive to real turns.
+ * EMA smoothing factor per platform.
+ *
+ * The primary heading source is now the hardware-fused native module
+ * (`modules/compass-heading`: rotation-vector on Android, CLHeading on iOS) — clean
+ * and ~20ms, so it needs only light smoothing. On that path this Android clamp is
+ * slightly HEAVIER than the base alpha and is intentionally provisional: per spec §8
+ * the final EMA/tween constants are tuned on-device via OTA (no build), so revisit /
+ * relax this clamp during that pass.
+ *
+ * The clamp is kept (not removed) because Android still FALLS BACK to the unfiltered,
+ * tilt-sensitive `expo-location` getOrientation source on devices without a
+ * rotation-vector sensor; that noisy path needs the stronger (lower) alpha to stay
+ * stable. Erring toward more smoothing is the religious-accuracy-safe direction: a
+ * slightly laggy needle beats a jittery one. The clamp only affects animation feel —
+ * never the target angle, WMM/declination, or the unreliable banner.
  */
 export function headingSmoothingAlphaForPlatform(platformOS: PlatformOS, baseAlpha: number): number {
   return platformOS === 'android' ? Math.min(baseAlpha, 0.2) : baseAlpha;
