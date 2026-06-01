@@ -30,6 +30,9 @@ const addHeadingListenerMock = CompassHeading.addHeadingListener as jest.Mock;
 beforeEach(() => {
   isAvailableMock.mockReturnValue(true);
   addHeadingListenerMock.mockReset();
+  // Safe default so a test that reaches the native path without its own implementation
+  // gets a removable subscription instead of a confusing "undefined.remove()" crash.
+  addHeadingListenerMock.mockReturnValue({ remove: jest.fn() });
   watchHeadingAsyncMock.mockReset();
 });
 

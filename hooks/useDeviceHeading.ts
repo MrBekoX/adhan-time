@@ -69,11 +69,9 @@ export function useDeviceHeading({ enabled, location = null }: Options): Heading
     let lastPublishedQuality: HeadingQuality | null = null;
     let lastPublishedSource: 'true' | 'magnetic' | null = null;
 
-    const handleReading = (reading: {
-      trueHeading: number;
-      magHeading: number;
-      accuracy: number | null | undefined;
-    }) => {
+    // CompassHeading.HeadingReading is shape-compatible with expo-location's
+    // LocationHeadingObject, so one handler serves both the native and fallback sources.
+    const handleReading = (reading: CompassHeading.HeadingReading) => {
       if (cancelled) return;
 
       const selected = selectHeadingSource({
