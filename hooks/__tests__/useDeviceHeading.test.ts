@@ -3,6 +3,7 @@ import * as React from 'react';
 import { Platform } from 'react-native';
 import TestRenderer from 'react-test-renderer';
 
+import * as CompassHeading from '@/modules/compass-heading';
 import {
   classifyQuality,
   isUnreliable,
@@ -17,6 +18,20 @@ jest.mock('expo-location', () => ({
 }));
 
 const watchHeadingAsyncMock = Location.watchHeadingAsync as jest.Mock;
+
+jest.mock('@/modules/compass-heading', () => ({
+  isAvailable: jest.fn(() => true),
+  addHeadingListener: jest.fn(),
+}));
+
+const isAvailableMock = CompassHeading.isAvailable as jest.Mock;
+const addHeadingListenerMock = CompassHeading.addHeadingListener as jest.Mock;
+
+beforeEach(() => {
+  isAvailableMock.mockReturnValue(true);
+  addHeadingListenerMock.mockReset();
+  watchHeadingAsyncMock.mockReset();
+});
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -120,16 +135,16 @@ describe('showAlignmentVisuals (K3b)', () => {
 });
 
 describe('useDeviceHeading subscription lifecycle', () => {
-  beforeEach(() => {
-    watchHeadingAsyncMock.mockReset();
-  });
-
   function Probe(): null {
     useDeviceHeading({ enabled: true });
     return null;
   }
 
   it('removes a heading subscription when watchHeadingAsync resolves after unmount', async () => {
+    // Exercises the async expo-location fallback path: a subscription that resolves
+    // AFTER unmount must still be removed. The native module is synchronous, so this
+    // race is unique to the expo-location branch — drive it by forcing the fallback.
+    isAvailableMock.mockReturnValue(false);
     const remove = jest.fn();
     const pendingWatch = deferred<Location.LocationSubscription>();
     watchHeadingAsyncMock.mockReturnValueOnce(pendingWatch.promise);
@@ -158,12 +173,10 @@ describe('useDeviceHeading subscription lifecycle', () => {
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
       let headingCallback: ((reading: Location.LocationHeadingObject) => void) | null = null;
-      watchHeadingAsyncMock.mockImplementationOnce(
-        async (cb: (reading: Location.LocationHeadingObject) => void) => {
-          headingCallback = cb;
-          return { remove: jest.fn() } as Location.LocationSubscription;
-        },
-      );
+      addHeadingListenerMock.mockImplementation((cb) => {
+        headingCallback = cb;
+        return { remove: jest.fn() };
+      });
       const statuses: ReturnType<typeof useDeviceHeading>[] = [];
 
       function StatusProbe(): null {
@@ -201,5 +214,52 @@ describe('useDeviceHeading subscription lifecycle', () => {
     } finally {
       Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
     }
+  });
+});
+
+describe('useDeviceHeading — heading source selection', () => {
+  it('subscribes to the fused compass-heading module when available', async () => {
+    let cb: ((r: { trueHeading: number; magHeading: number; accuracy: number }) => void) | null =
+      null;
+    addHeadingListenerMock.mockImplementation((listener) => {
+      cb = listener;
+      return { remove: jest.fn() };
+    });
+
+    function Probe(): null {
+      useDeviceHeading({ enabled: true, location: { lat: 41.0082, lon: 28.9784 } });
+      return null;
+    }
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await TestRenderer.act(async () => {
+      tree = TestRenderer.create(React.createElement(Probe));
+      await Promise.resolve();
+    });
+
+    expect(addHeadingListenerMock).toHaveBeenCalledTimes(1);
+    expect(watchHeadingAsyncMock).not.toHaveBeenCalled();
+    expect(cb).not.toBeNull();
+
+    await TestRenderer.act(async () => tree?.unmount());
+  });
+
+  it('falls back to expo-location when the native module is unavailable', async () => {
+    isAvailableMock.mockReturnValue(false);
+    watchHeadingAsyncMock.mockResolvedValue({ remove: jest.fn() } as Location.LocationSubscription);
+
+    function Probe(): null {
+      useDeviceHeading({ enabled: true, location: { lat: 41.0082, lon: 28.9784 } });
+      return null;
+    }
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await TestRenderer.act(async () => {
+      tree = TestRenderer.create(React.createElement(Probe));
+      await Promise.resolve();
+    });
+
+    expect(watchHeadingAsyncMock).toHaveBeenCalledTimes(1);
+    expect(addHeadingListenerMock).not.toHaveBeenCalled();
+
+    await TestRenderer.act(async () => tree?.unmount());
   });
 });

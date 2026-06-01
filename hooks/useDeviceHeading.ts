@@ -7,6 +7,7 @@ import {
   HEADING_PUBLISH_MIN_DELTA_DEG,
   HEADING_PUBLISH_MIN_INTERVAL_MS,
 } from '@/constants/qibla';
+import * as CompassHeading from '@/modules/compass-heading';
 import { selectHeadingSource } from '@/utils/declination';
 import {
   applyEma,
@@ -61,66 +62,73 @@ export function useDeviceHeading({ enabled, location = null }: Options): Heading
     }
 
     let cancelled = false;
-    let subscription: Location.LocationSubscription | null = null;
+    let removeSubscription: (() => void) | null = null;
     let smoothed: number | null = null;
     let lastPublishedHeading: number | null = null;
     let lastPublishedAt = 0;
     let lastPublishedQuality: HeadingQuality | null = null;
     let lastPublishedSource: 'true' | 'magnetic' | null = null;
 
+    const handleReading = (reading: {
+      trueHeading: number;
+      magHeading: number;
+      accuracy: number | null | undefined;
+    }) => {
+      if (cancelled) return;
+
+      const selected = selectHeadingSource({
+        trueHeading: reading.trueHeading ?? -1,
+        magHeading: reading.magHeading ?? -1,
+        location: locationRef.current,
+      });
+      if (selected === null) return;
+
+      const platformOS = Platform.OS as PlatformOS;
+      const smoothingAlpha = headingSmoothingAlphaForPlatform(platformOS, HEADING_EMA_ALPHA);
+      smoothed = applyEma(smoothed, selected.heading, smoothingAlpha);
+      const accuracyDeg = normalizeAccuracyForPlatform(reading.accuracy, platformOS);
+      const quality = classifyQuality(accuracyDeg);
+      const metadataChanged =
+        selected.source !== lastPublishedSource || quality !== lastPublishedQuality;
+      const now = Date.now();
+      if (
+        !metadataChanged &&
+        !shouldPublishHeadingUpdate({
+          previousHeading: lastPublishedHeading,
+          nextHeading: smoothed,
+          elapsedMs: now - lastPublishedAt,
+          minIntervalMs: HEADING_PUBLISH_MIN_INTERVAL_MS,
+          minDeltaDeg: HEADING_PUBLISH_MIN_DELTA_DEG,
+        })
+      ) {
+        return;
+      }
+      lastPublishedHeading = smoothed;
+      lastPublishedAt = now;
+      lastPublishedQuality = quality;
+      lastPublishedSource = selected.source;
+
+      setStatus({ kind: 'ready', heading: smoothed, source: selected.source, accuracyDeg, quality });
+    };
+
     void (async () => {
       try {
-        const nextSubscription = await Location.watchHeadingAsync((reading) => {
-          if (cancelled) return;
-
-          const selected = selectHeadingSource({
-            trueHeading: reading.trueHeading ?? -1,
-            magHeading: reading.magHeading ?? -1,
-            location: locationRef.current,
-          });
-          if (selected === null) return;
-
-          const platformOS = Platform.OS as PlatformOS;
-          const smoothingAlpha = headingSmoothingAlphaForPlatform(
-            platformOS,
-            HEADING_EMA_ALPHA,
-          );
-          smoothed = applyEma(smoothed, selected.heading, smoothingAlpha);
-          const accuracyDeg = normalizeAccuracyForPlatform(reading.accuracy, platformOS);
-          const quality = classifyQuality(accuracyDeg);
-          const metadataChanged =
-            selected.source !== lastPublishedSource || quality !== lastPublishedQuality;
-          const now = Date.now();
-          if (
-            !metadataChanged &&
-            !shouldPublishHeadingUpdate({
-              previousHeading: lastPublishedHeading,
-              nextHeading: smoothed,
-              elapsedMs: now - lastPublishedAt,
-              minIntervalMs: HEADING_PUBLISH_MIN_INTERVAL_MS,
-              minDeltaDeg: HEADING_PUBLISH_MIN_DELTA_DEG,
-            })
-          ) {
+        if (CompassHeading.isAvailable()) {
+          const sub = CompassHeading.addHeadingListener(handleReading);
+          if (cancelled) {
+            sub.remove();
             return;
           }
-          lastPublishedHeading = smoothed;
-          lastPublishedAt = now;
-          lastPublishedQuality = quality;
-          lastPublishedSource = selected.source;
-
-          setStatus({
-            kind: 'ready',
-            heading: smoothed,
-            source: selected.source,
-            accuracyDeg,
-            quality,
-          });
-        });
-        if (cancelled) {
-          nextSubscription.remove();
+          removeSubscription = () => sub.remove();
           return;
         }
-        subscription = nextSubscription;
+        // Fallback: device without a rotation-vector sensor (or Expo Go) → expo-location.
+        const sub = await Location.watchHeadingAsync(handleReading);
+        if (cancelled) {
+          sub.remove();
+          return;
+        }
+        removeSubscription = () => sub.remove();
       } catch (e) {
         logger.error('useDeviceHeading failed', { error: String(e) });
         if (!cancelled) setStatus({ kind: 'error', message: String(e) });
@@ -129,7 +137,7 @@ export function useDeviceHeading({ enabled, location = null }: Options): Heading
 
     return () => {
       cancelled = true;
-      subscription?.remove();
+      removeSubscription?.();
     };
   }, [enabled]);
 
