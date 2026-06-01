@@ -2,7 +2,7 @@ import CoreLocation
 import ExpoModulesCore
 
 public class CompassHeadingModule: Module {
-  private let manager = CLLocationManager()
+  private var manager: CLLocationManager?
   private var delegate: HeadingDelegate?
 
   public func definition() -> ModuleDefinition {
@@ -15,28 +15,33 @@ public class CompassHeadingModule: Module {
     }
 
     OnStartObserving {
-      let delegate = HeadingDelegate { [weak self] heading in
-        self?.sendEvent("onHeading", [
-          "trueHeading": heading.trueHeading,
-          "magHeading": heading.magneticHeading,
-          "accuracy": heading.headingAccuracy,
-        ])
-      }
-      self.delegate = delegate
-      // CLLocationManager must be touched on the main thread.
+      // CLLocationManager must be CREATED and used on a thread with an active run loop
+      // (the main thread) — not on the module-init thread. So both the creation and the
+      // start happen inside the main-queue dispatch.
       DispatchQueue.main.async {
-        self.manager.delegate = delegate
-        self.manager.headingFilter = 1
-        self.manager.startUpdatingHeading()
+        let delegate = HeadingDelegate { [weak self] heading in
+          self?.sendEvent("onHeading", [
+            "trueHeading": heading.trueHeading,
+            "magHeading": heading.magneticHeading,
+            "accuracy": heading.headingAccuracy,
+          ])
+        }
+        let manager = CLLocationManager()
+        manager.delegate = delegate
+        manager.headingFilter = 1
+        manager.startUpdatingHeading()
+        self.delegate = delegate
+        self.manager = manager
       }
     }
 
     OnStopObserving {
       DispatchQueue.main.async {
-        self.manager.stopUpdatingHeading()
-        self.manager.delegate = nil
+        self.manager?.stopUpdatingHeading()
+        self.manager?.delegate = nil
+        self.manager = nil
+        self.delegate = nil
       }
-      self.delegate = nil
     }
   }
 }
