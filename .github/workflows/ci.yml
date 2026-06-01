@@ -16,6 +16,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - run: npm run secrets:scan
       - run: npm run build:supabase-i18n
       - run: npm run type-check
       - run: npm run lint

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -10,7 +11,7 @@ type Props = {
   remainingMs: number;
 };
 
-export function CountdownPill({ prayerKey, remainingMs }: Props) {
+function CountdownPillImpl({ prayerKey, remainingMs }: Props) {
   const { t } = useTranslation();
   const totalMin = Math.max(0, Math.ceil(remainingMs / 60000));
   const hours = Math.floor(totalMin / 60);
@@ -117,3 +118,14 @@ const styles = StyleSheet.create({
     textTransform: 'lowercase',
   },
 });
+
+// The pill only displays whole minutes (HH:MM + "n minutes remaining"), but
+// useNextPrayer ticks every second to keep the prayer-transition crisp. Memoize
+// with a minute-resolution comparator so the 96px numerals don't re-render 60×
+// per minute — only when the displayed minute (or prayer) actually changes.
+export const CountdownPill = memo(
+  CountdownPillImpl,
+  (prev, next) =>
+    prev.prayerKey === next.prayerKey &&
+    Math.ceil(prev.remainingMs / 60000) === Math.ceil(next.remainingMs / 60000),
+);

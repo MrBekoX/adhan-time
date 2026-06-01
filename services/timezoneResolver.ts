@@ -1,10 +1,20 @@
 import { COUNTRY_TZ } from '@/constants/timezones';
 import { logger } from '@/utils/logger';
 
-const DISTRICT_TZ_OVERRIDES: Record<string, Record<string, string>> = {
-  // Reserved for API district IDs that cross a state/province majority zone
-  // (for example far-west US counties). Keep this checked before state maps.
-};
+// District-level timezone overrides: `{ [countryId]: { [districtId]: ianaTz } }`.
+// COUNTRY_TZ resolves to a country's (or state's) MAJORITY zone; this map carves
+// out the minority districts that sit in a different zone. It is checked BEFORE
+// the state map (see resolveTimezone), so an entry here always wins.
+//
+// Known candidates to fill once the API's district IDs are confirmed (each would
+// otherwise be ~1–2h off — religiously significant, see rules/08 & 11):
+//   - US panhandle/border counties: FL panhandle → America/Chicago,
+//     E. Tennessee → America/New_York, El Paso (TX) → America/Denver, etc.
+//   - China (countryId 61): Xinjiang/Ürümqi districts actually run Asia/Urumqi
+//     (UTC+6) vs the official Asia/Shanghai (UTC+8) used countrywide.
+// Empty until we verify the upstream supplies these as distinct district IDs;
+// guessing IDs would risk sending the WRONG correction.
+const DISTRICT_TZ_OVERRIDES: Record<string, Record<string, string>> = {};
 
 export function isCountrySupported(countryId: string): boolean {
   return countryId in COUNTRY_TZ;

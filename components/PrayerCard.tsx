@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, StyleSheet, Switch, Text, View } from 'react-native';
 
@@ -10,10 +11,13 @@ type Props = {
   time: string;
   highlight?: boolean;
   enabled: boolean;
-  onToggle: (next: boolean) => void;
+  // Receives the prayer key (not the Switch boolean) so the parent can pass a
+  // single stable useCallback to every card — keeping this referentially stable
+  // is what lets React.memo below actually skip re-renders on Home's 1s tick.
+  onToggle: (key: PrayerKey) => void;
 };
 
-export function PrayerCard({ prayerKey, time, highlight, enabled, onToggle }: Props) {
+function PrayerCardImpl({ prayerKey, time, highlight, enabled, onToggle }: Props) {
   const { t } = useTranslation();
   const accent = colors.prayer[prayerKey] ?? colors.primary;
   const labelTone = enabled ? colors.cream : colors.textFaint;
@@ -55,7 +59,7 @@ export function PrayerCard({ prayerKey, time, highlight, enabled, onToggle }: Pr
       <View style={styles.switchWrap}>
         <Switch
           value={enabled}
-          onValueChange={onToggle}
+          onValueChange={() => onToggle(prayerKey)}
           trackColor={{ false: colors.border, true: colors.primaryEdge }}
           thumbColor={enabled ? colors.primary : colors.textFaint}
           ios_backgroundColor={colors.border}
@@ -129,3 +133,8 @@ const styles = StyleSheet.create({
   switchIos: { transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] },
   switchAndroid: { transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }] },
 });
+
+// Memoized: Home re-renders every second (useNextPrayer tick) but each card's
+// props (time, highlight, enabled, stable onToggle) only change on real state
+// changes, so the 6 cards no longer re-render once per second.
+export const PrayerCard = memo(PrayerCardImpl);

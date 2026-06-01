@@ -35,26 +35,33 @@ export default function Settings() {
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const settings = useSettingsStore();
+  // Granular selectors (rules/06): subscribing to the whole store re-renders on
+  // every unrelated field change. Each value/action is selected individually.
+  const locale = useSettingsStore((s) => s.locale);
+  const sound = useSettingsStore((s) => s.sound);
+  const enabledPrayers = useSettingsStore((s) => s.enabledPrayers);
+  const setSound = useSettingsStore((s) => s.setSound);
+  const togglePrayer = useSettingsStore((s) => s.togglePrayer);
   const location = useLocationStore((s) => s.selected);
   const deviceRegistrationPending = useSettingsStore((s) => s.deviceRegistrationPending);
+  const lastError = useUiStore((s) => s.lastError);
   const [deleting, setDeleting] = useState(false);
   const [retryingRegistration, setRetryingRegistration] = useState(false);
 
-  const onSoundChange = async (sound: 'default' | 'adhanShort'): Promise<void> => {
-    settings.setSound(sound);
+  const onSoundChange = async (nextSound: 'default' | 'adhanShort'): Promise<void> => {
+    setSound(nextSound);
     if (!location) return;
     try {
       await cancelAllPrayerNotifications();
       await syncYearly(location.districtId, location.districtName, location.timezone, { force: true });
     } catch (e) {
-      logger.warn('settings-sound-change-failed', { sound, error: String(e) });
+      logger.warn('settings-sound-change-failed', { sound: nextSound, error: String(e) });
       useUiStore.getState().setError({ code: 'toggle-failed' });
     }
   };
 
   const onTogglePrayer = async (key: PrayerKey): Promise<void> => {
-    settings.togglePrayer(key);
+    togglePrayer(key);
     if (!location) return;
     try {
       await scheduleAfterToggle(location.districtId, location.districtName, location.timezone);
@@ -64,11 +71,11 @@ export default function Settings() {
     }
   };
 
-  const onLocaleChange = async (locale: Locale): Promise<void> => {
+  const onLocaleChange = async (nextLocale: Locale): Promise<void> => {
     try {
-      await applyLocale(locale);
+      await applyLocale(nextLocale);
     } catch (e) {
-      logger.warn('settings-locale-change-failed', { locale, error: String(e) });
+      logger.warn('settings-locale-change-failed', { locale: nextLocale, error: String(e) });
       useUiStore.getState().setError({ code: 'toggle-failed' });
     }
   };
@@ -86,9 +93,9 @@ export default function Settings() {
         districtName: location.districtName,
         countryName: location.countryName,
         timezone: location.timezone,
-        locale: settings.locale,
-        sound: settings.sound,
-        enabledPrayers: settings.enabledPrayers,
+        locale,
+        sound,
+        enabledPrayers,
       });
       const ui = useUiStore.getState();
       if (result.ok) {
@@ -180,7 +187,11 @@ export default function Settings() {
         showsVerticalScrollIndicator={false}
       >
         <BrandRow />
-        <SyncErrorBanner onRetry={() => void onRetryDeviceRegistration()} />
+        <SyncErrorBanner
+          error={lastError}
+          onRetry={() => void onRetryDeviceRegistration()}
+          onDismiss={() => useUiStore.getState().setError(null)}
+        />
 
         <View style={styles.pageHead}>
           <View style={styles.cityRule} />
@@ -204,7 +215,7 @@ export default function Settings() {
             {LOCALE_OPTIONS.map((opt) => (
               <Chip
                 key={opt.locale}
-                active={settings.locale === opt.locale}
+                active={locale === opt.locale}
                 label={opt.label}
                 shortLabel={opt.shortLabel}
                 onPress={() => void onLocaleChange(opt.locale)}
@@ -216,13 +227,13 @@ export default function Settings() {
         <Section title={t('screens.settings.sound')} ordinal="iii">
           <Row>
             <Chip
-              active={settings.sound === 'default'}
+              active={sound === 'default'}
               label={t('screens.settings.soundDefault')}
               shortLabel="·"
               onPress={() => void onSoundChange('default')}
             />
             <Chip
-              active={settings.sound === 'adhanShort'}
+              active={sound === 'adhanShort'}
               label={t('screens.settings.soundAdhanShort')}
               shortLabel="♪"
               onPress={() => void onSoundChange('adhanShort')}
@@ -238,10 +249,10 @@ export default function Settings() {
                 <Text style={styles.toggleLabel}>{t(`prayer.${key}.title`)}</Text>
               </View>
               <Switch
-                value={settings.enabledPrayers.includes(key)}
+                value={enabledPrayers.includes(key)}
                 onValueChange={() => void onTogglePrayer(key)}
                 trackColor={{ false: colors.border, true: colors.primaryDark }}
-                thumbColor={settings.enabledPrayers.includes(key) ? colors.primary : colors.cardElevated}
+                thumbColor={enabledPrayers.includes(key) ? colors.primary : colors.cardElevated}
                 ios_backgroundColor={colors.border}
               />
             </View>

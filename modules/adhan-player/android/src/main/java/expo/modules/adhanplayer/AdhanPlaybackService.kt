@@ -31,13 +31,16 @@ class AdhanPlaybackService : Service() {
     // notification. (Security F3)
     val title = (intent?.getStringExtra(EXTRA_TITLE) ?: "Ezan").take(200)
     val body = (intent?.getStringExtra(EXTRA_BODY) ?: "").take(200)
+    // Localized "Stop" label from JS; bounded + non-blank fallback so a missing
+    // extra (e.g. a pre-stopLabel persisted alarm) still renders a usable button.
+    val stopLabel = (intent?.getStringExtra(EXTRA_STOP_LABEL)?.takeIf { it.isNotBlank() } ?: "Durdur").take(40)
 
-    startForegroundNotification(title, body)
+    startForegroundNotification(title, body, stopLabel)
     startPlayback(soundKind)
     return START_NOT_STICKY
   }
 
-  private fun startForegroundNotification(title: String, body: String) {
+  private fun startForegroundNotification(title: String, body: String, stopLabel: String) {
     val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       val ch = NotificationChannel(CHANNEL_ID, "Ezan oynatılıyor", NotificationManager.IMPORTANCE_HIGH)
@@ -62,7 +65,7 @@ class AdhanPlaybackService : Service() {
       .setSmallIcon(icon)
       .setOngoing(true)
       .setContentIntent(openPi)
-      .addAction(Notification.Action.Builder(null, "Durdur", stopPi).build())
+      .addAction(Notification.Action.Builder(null, stopLabel, stopPi).build())
       .build()
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -139,5 +142,6 @@ class AdhanPlaybackService : Service() {
     const val EXTRA_SOUND_KIND = "soundKind"
     const val EXTRA_TITLE = "title"
     const val EXTRA_BODY = "body"
+    const val EXTRA_STOP_LABEL = "stopLabel"
   }
 }

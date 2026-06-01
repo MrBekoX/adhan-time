@@ -10,7 +10,8 @@
     "done": "Tamam",
     "delete": "Sil",
     "dismiss": "Kapat",
-    "openSettings": "Ayarları Aç"
+    "openSettings": "Ayarları Aç",
+    "stop": "Durdur"
   },
   "prayer": {
     "imsak": { "title": "İmsak", "body": "İmsak vakti girdi.", "bodyWithCity": "{{city}} için imsak vakti girdi." },

@@ -13,6 +13,7 @@ object AdhanAlarms {
       putExtra(AdhanPlaybackService.EXTRA_SOUND_KIND, p.soundKind)
       putExtra(AdhanPlaybackService.EXTRA_TITLE, p.title)
       putExtra(AdhanPlaybackService.EXTRA_BODY, p.body)
+      putExtra(AdhanPlaybackService.EXTRA_STOP_LABEL, p.stopLabel)
     }
     return PendingIntent.getBroadcast(
       context, p.requestCode, i,

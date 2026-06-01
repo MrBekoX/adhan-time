@@ -3,15 +3,18 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, fonts, radius, spacing } from './Theme';
 
-import { useUiStore } from '@/store/uiStore';
+import type { UiError } from '@/store/uiStore';
 
+// Presentational (rules/01): all data arrives via props. The owning screen reads
+// uiStore and supplies `error` + `onDismiss`, so this component imports no store.
 type Props = {
+  error: UiError | null;
   onRetry?: () => void;
+  onDismiss: () => void;
 };
 
-export function SyncErrorBanner({ onRetry }: Props) {
+export function SyncErrorBanner({ error, onRetry, onDismiss }: Props) {
   const { t } = useTranslation();
-  const error = useUiStore((s) => s.lastError);
   if (!error) return null;
 
   // The translation file scopes user-facing banner copy under `errors.banner.*`
@@ -28,7 +31,7 @@ export function SyncErrorBanner({ onRetry }: Props) {
           </Pressable>
         )}
         <Pressable
-          onPress={() => useUiStore.getState().setError(null)}
+          onPress={onDismiss}
           style={({ pressed }) => [styles.btn, styles.btnGhost, pressed && styles.pressed]}
         >
           <Text style={[styles.btnText, styles.btnTextGhost]}>{t('common.dismiss')}</Text>

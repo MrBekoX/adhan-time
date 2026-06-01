@@ -154,7 +154,10 @@ export const COUNTRY_TZ: Record<string, CountryEntry> = {
   '58': 'America/Grenada',
   '59': { default: 'Australia/Sydney' }, // AVUSTRALYA — V6.4 user-picked tz
   '60': 'Asia/Ulaanbaatar', // MOGOLISTAN
-  '61': 'Asia/Shanghai', // CIN
+  // CIN — countrywide official zone. NOTE: Xinjiang/Ürümqi unofficially uses
+  // Asia/Urumqi (UTC+6), 2h behind. If the API exposes those as distinct
+  // districts, add them to DISTRICT_TZ_OVERRIDES (services/timezoneResolver.ts).
+  '61': 'Asia/Shanghai',
   '62': 'Asia/Tbilisi', // GURCISTAN
   '63': 'Africa/Malabo', // EKVATOR GINESI
   '64': 'Asia/Riyadh', // S. ARABISTAN

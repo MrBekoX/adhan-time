@@ -10,7 +10,8 @@
     "done": "تم",
     "delete": "حذف",
     "dismiss": "إغلاق",
-    "openSettings": "فتح الإعدادات"
+    "openSettings": "فتح الإعدادات",
+    "stop": "إيقاف"
   },
   "prayer": {
     "imsak": { "title": "الفجر", "body": "دخل وقت الفجر.", "bodyWithCity": "دخل وقت الفجر في {{city}}." },

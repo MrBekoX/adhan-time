@@ -1,5 +1,6 @@
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandRow } from '@/components/BrandRow';
@@ -29,18 +30,25 @@ export default function Home() {
   const location = useLocationStore((s) => s.selected);
   const enabledPrayers = useSettingsStore((s) => s.enabledPrayers);
   const togglePrayer = useSettingsStore((s) => s.togglePrayer);
+  const notificationDenied = useSettingsStore((s) => s.notificationPermissionDenied);
+  const lastError = useUiStore((s) => s.lastError);
   useAppLifecycle();
 
-  const handleToggle = async (key: PrayerKey): Promise<void> => {
-    togglePrayer(key);
-    if (!location) return;
-    try {
-      await scheduleAfterToggle(location.districtId, location.districtName, location.timezone);
-    } catch (e) {
-      logger.warn('home-toggle-reschedule-failed', { key, error: String(e) });
-      useUiStore.getState().setError({ code: 'toggle-failed' });
-    }
-  };
+  // Stable across Home's 1s countdown tick so the memoized PrayerCards skip
+  // re-rendering. Depends only on values that change on real state changes.
+  const handleToggle = useCallback(
+    async (key: PrayerKey): Promise<void> => {
+      togglePrayer(key);
+      if (!location) return;
+      try {
+        await scheduleAfterToggle(location.districtId, location.districtName, location.timezone);
+      } catch (e) {
+        logger.warn('home-toggle-reschedule-failed', { key, error: String(e) });
+        useUiStore.getState().setError({ code: 'toggle-failed' });
+      }
+    },
+    [location, togglePrayer],
+  );
 
   return (
     <View style={styles.root}>
@@ -55,8 +63,15 @@ export default function Home() {
       >
         <BrandRow dateIso={today?.dateIso} />
 
-        <NotificationDeniedBanner />
-        <SyncErrorBanner onRetry={() => void runLifecycleOnce()} />
+        <NotificationDeniedBanner
+          visible={notificationDenied}
+          onOpenSettings={() => void Linking.openSettings()}
+        />
+        <SyncErrorBanner
+          error={lastError}
+          onRetry={() => void runLifecycleOnce()}
+          onDismiss={() => useUiStore.getState().setError(null)}
+        />
 
         <View style={styles.cityBlock}>
           <View style={styles.cityRule} />
@@ -86,7 +101,7 @@ export default function Home() {
               time={r.time}
               highlight={next?.key === r.key}
               enabled={enabledPrayers.includes(r.key)}
-              onToggle={() => void handleToggle(r.key)}
+              onToggle={handleToggle}
             />
           ))}
         </View>

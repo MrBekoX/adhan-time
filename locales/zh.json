@@ -10,7 +10,8 @@
     "done": "完成",
     "delete": "删除",
     "dismiss": "关闭",
-    "openSettings": "打开设置"
+    "openSettings": "打开设置",
+    "stop": "停止"
   },
   "prayer": {
     "imsak": { "title": "晨礼", "body": "晨礼时间已到。", "bodyWithCity": "{{city}} 晨礼时间已到。" },

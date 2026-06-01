@@ -42,6 +42,9 @@ yarn-error.*
 # Firebase service account JSON (FCM v1 push credential — uploaded to EAS, NEVER commit)
 *firebase-adminsdk*.json
 *-firebase-adminsdk-*.json
+# Generic Google/GCP service-account credentials (defense in depth)
+*service-account*.json
+*serviceaccount*.json
 # Android CLIENT config (project id, app id, package-restricted API key). Kept out
 # of git, but EAS Build STILL bundles it because .easignore omits this entry.
 # Regenerate locally: node tools/scripts/fetch-google-services.mjs <service-account.json>

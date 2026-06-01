@@ -1,23 +1,27 @@
 import { useTranslation } from 'react-i18next';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, fonts, radius, spacing } from './Theme';
 
-import { useSettingsStore } from '@/store/settingsStore';
+// Presentational (rules/01): the owning screen reads settingsStore and supplies
+// `visible` + `onOpenSettings`, so this component imports no store.
+// Tapping the action opens system settings — iOS cannot re-prompt after a
+// denial, so the user has to flip the toggle there. The banner stays visible
+// until requestPermission() returns true on a later attempt.
+type Props = {
+  visible: boolean;
+  onOpenSettings: () => void;
+};
 
-// Tapping the action opens system settings — iOS cannot re-prompt after
-// a denial, so the user has to flip the toggle there. The banner stays
-// visible until requestPermission() returns true on a later attempt.
-export function NotificationDeniedBanner() {
+export function NotificationDeniedBanner({ visible, onOpenSettings }: Props) {
   const { t } = useTranslation();
-  const denied = useSettingsStore((s) => s.notificationPermissionDenied);
-  if (!denied) return null;
+  if (!visible) return null;
 
   return (
     <View style={styles.banner} accessibilityRole="alert">
       <Text style={styles.message}>{t('errors.notification.permissionDenied')}</Text>
       <Pressable
-        onPress={() => void Linking.openSettings()}
+        onPress={onOpenSettings}
         style={({ pressed }) => [styles.btn, pressed && styles.pressed]}
       >
         <Text style={styles.btnText}>{t('common.openSettings')}</Text>

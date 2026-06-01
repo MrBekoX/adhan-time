@@ -38,6 +38,21 @@ describe('parsePrayerTime', () => {
     const d = parsePrayerTime('5:54', '2026-05-02', 'Europe/Istanbul');
     expect(d.toISOString()).toBe('2026-05-02T02:54:00.000Z');
   });
+
+  // Morocco (Africa/Casablanca) is the trickiest worldwide tz: permanent UTC+1,
+  // but it SUSPENDS DST to UTC+0 for the month of Ramadan. We never hardcode
+  // offsets — the IANA db (via date-fns-tz) must shift correctly across that
+  // suspension, or prayer notifications would be 1 hour off all Ramadan.
+  it('parses Casablanca at the standard UTC+1 offset outside Ramadan', () => {
+    const d = parsePrayerTime('12:00', '2026-01-15', 'Africa/Casablanca');
+    expect(d.toISOString()).toBe('2026-01-15T11:00:00.000Z');
+  });
+
+  it('parses Casablanca at UTC+0 during Ramadan (DST suspended)', () => {
+    // 2026-03-01 falls inside Ramadan 1447 (≈18 Feb – 19 Mar 2026).
+    const d = parsePrayerTime('12:00', '2026-03-01', 'Africa/Casablanca');
+    expect(d.toISOString()).toBe('2026-03-01T12:00:00.000Z');
+  });
 });
 
 describe('getDateComponentsInTz', () => {

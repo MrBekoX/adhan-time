@@ -183,6 +183,7 @@ async function reconcileInner(
           body: options.districtName
             ? i18n.t(`prayer.${t.prayerKey}.bodyWithCity`, { city: options.districtName })
             : i18n.t(`prayer.${t.prayerKey}.body`),
+          stopLabel: i18n.t('common.stop'),
         })),
       );
     } else {
@@ -308,10 +309,18 @@ function computeTargetsWithStats(
   const out: ScheduledPrayer[] = [];
   let parseAttempted = 0;
   let parseSkipped = 0;
+  // Index the ~365 yearly entries once (O(n)) instead of scanning per day
+  // (O(n) × windowDays) inside the loop. First-wins to preserve the previous
+  // entries.find() semantics if the API ever returns a duplicate date.
+  const byDate = new Map<string, PrayerTime>();
+  for (const e of cache.entries) {
+    const key = e.date.slice(0, 10);
+    if (!byDate.has(key)) byDate.set(key, e);
+  }
   const todayIso = isoDateInTz(now, tz);
   for (let d = 0; d < windowDays; d++) {
     const dateIso = addLocalDays(todayIso, d);
-    const entry = findEntryForDate(cache.entries, dateIso);
+    const entry = byDate.get(dateIso);
     if (!entry) continue;
     for (const key of enabled) {
       const value = entry.times?.[key];
@@ -334,10 +343,6 @@ function computeTargetsWithStats(
     }
   }
   return { targets: out, parseAttempted, parseSkipped };
-}
-
-function findEntryForDate(entries: PrayerTime[], dateIso: string): PrayerTime | undefined {
-  return entries.find((e) => e.date.startsWith(dateIso));
 }
 
 async function scheduleOne(

@@ -12,6 +12,15 @@ export type RateLimitClient = {
   read: (ipHash: string) => Promise<RateLimitRow | null>;
   insert: (row: RateLimitRow) => Promise<void>;
   increment: (ipHash: string, newCount: number) => Promise<void>;
+  // Atomic path: a single DB call that resets/increments the window and returns
+  // whether the request is allowed. When present, checkRateLimit prefers it over
+  // the read→decide→increment fallback to avoid a TOCTOU race under bursts.
+  consume?: (
+    ipHash: string,
+    windowMs: number,
+    maxRequests: number,
+    now: Date,
+  ) => Promise<boolean>;
 };
 
 export type RateLimitOptions = {
@@ -31,6 +40,12 @@ export async function checkRateLimit(
   const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
   const maxRequests = options.maxRequests ?? DEFAULT_MAX_REQUESTS;
 
+  // Prefer the atomic DB function when the client supports it (production).
+  if (client.consume) {
+    return client.consume(ipHashStr, windowMs, maxRequests, now);
+  }
+
+  // Fallback (e.g. test fakes): non-atomic read→decide→increment.
   const row = await client.read(ipHashStr);
   if (!row || now.getTime() - new Date(row.window_start).getTime() > windowMs) {
     await client.insert({
@@ -46,10 +61,17 @@ export async function checkRateLimit(
 }
 
 export async function ipHash(req: Request): Promise<string> {
+  // Prefer x-forwarded-for: Supabase's edge populates it with the client IP and
+  // its documented convention is to read the leftmost entry. x-real-ip /
+  // cf-connecting-ip are client-settable and NOT populated by Supabase, so
+  // trusting them first was the worse spoof vector. Caveat: leftmost-XFF is only
+  // trustworthy because the gateway populates it — a generic XFF is client
+  // appendable. This is best-effort abuse resistance, layered behind HMAC + RLS,
+  // not a hard identity.
   const ip =
-    req.headers.get('x-real-ip') ??
-    req.headers.get('cf-connecting-ip') ??
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    req.headers.get('cf-connecting-ip') ||
     'unknown';
   const buf = new TextEncoder().encode(ip);
   const hash = await crypto.subtle.digest('SHA-256', buf);
@@ -72,8 +94,20 @@ export function createSupabaseRateLimitClient(supabase: {
       eq: (col: string, val: string) => Promise<{ error: unknown }>;
     };
   };
+  rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
 }): RateLimitClient {
   return {
+    // Atomic primary path — the rl_consume() Postgres function.
+    async consume(ipHashStr, windowMs, maxRequests) {
+      const { data, error } = await supabase.rpc('rl_consume', {
+        p_ip_hash: ipHashStr,
+        p_window_ms: windowMs,
+        p_max: maxRequests,
+      });
+      if (error) throw error;
+      return data === true;
+    },
+    // read/insert/increment retained for completeness + any non-RPC fallback.
     async read(ipHashStr) {
       const { data } = await supabase
         .from('rl_buckets')

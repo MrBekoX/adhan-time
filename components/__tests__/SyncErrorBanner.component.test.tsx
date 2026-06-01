@@ -1,13 +1,14 @@
-// Component-level branch tests (sibling to SyncErrorBanner.test.ts which
-// only checks locale parity). The dismiss path is the most regression-prone:
-// breaking it leaves banners stuck on Home indefinitely.
+// Component-level branch tests. SyncErrorBanner is now fully presentational
+// (rules/01): the owning screen reads uiStore and passes `error` + `onDismiss`
+// as props, so these tests drive it purely through props. The dismiss path is
+// the most regression-prone: breaking it leaves banners stuck on Home.
 import * as React from 'react';
 import { Text } from 'react-native';
 import TestRenderer, { type ReactTestInstance } from 'react-test-renderer';
 
 import { SyncErrorBanner } from '../SyncErrorBanner';
 
-import { useUiStore } from '@/store/uiStore';
+import type { UiError } from '@/store/uiStore';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -28,15 +29,13 @@ function findPressableByLabel(root: ReactTestInstance, label: string): ReactTest
   return null;
 }
 
-describe('SyncErrorBanner — component branch behavior', () => {
-  beforeEach(() => {
-    useUiStore.setState({ lastError: null });
-  });
+const SYNC_FAILED: UiError = { code: 'sync-failed' };
 
-  it('renders nothing when lastError is null', () => {
+describe('SyncErrorBanner — component branch behavior', () => {
+  it('renders nothing when error is null', () => {
     let tree: TestRenderer.ReactTestRenderer | null = null;
     TestRenderer.act(() => {
-      tree = TestRenderer.create(<SyncErrorBanner />);
+      tree = TestRenderer.create(<SyncErrorBanner error={null} onDismiss={() => {}} />);
     });
     if (!tree) throw new Error('renderer not created');
     const t = tree as TestRenderer.ReactTestRenderer;
@@ -46,11 +45,10 @@ describe('SyncErrorBanner — component branch behavior', () => {
     TestRenderer.act(() => t.unmount());
   });
 
-  it('renders the banner with translated message when lastError is set', () => {
-    useUiStore.setState({ lastError: { code: 'sync-failed' } });
+  it('renders the banner with translated message when error is set', () => {
     let tree: TestRenderer.ReactTestRenderer | null = null;
     TestRenderer.act(() => {
-      tree = TestRenderer.create(<SyncErrorBanner />);
+      tree = TestRenderer.create(<SyncErrorBanner error={SYNC_FAILED} onDismiss={() => {}} />);
     });
     if (!tree) throw new Error('renderer not created');
     const t = tree as TestRenderer.ReactTestRenderer;
@@ -64,10 +62,9 @@ describe('SyncErrorBanner — component branch behavior', () => {
   });
 
   it('hides the retry button when no onRetry prop is provided', () => {
-    useUiStore.setState({ lastError: { code: 'sync-failed' } });
     let tree: TestRenderer.ReactTestRenderer | null = null;
     TestRenderer.act(() => {
-      tree = TestRenderer.create(<SyncErrorBanner />);
+      tree = TestRenderer.create(<SyncErrorBanner error={SYNC_FAILED} onDismiss={() => {}} />);
     });
     if (!tree) throw new Error('renderer not created');
     const t = tree as TestRenderer.ReactTestRenderer;
@@ -80,11 +77,12 @@ describe('SyncErrorBanner — component branch behavior', () => {
   });
 
   it('renders the retry button and fires onRetry when provided', () => {
-    useUiStore.setState({ lastError: { code: 'sync-failed' } });
     const onRetry = jest.fn();
     let tree: TestRenderer.ReactTestRenderer | null = null;
     TestRenderer.act(() => {
-      tree = TestRenderer.create(<SyncErrorBanner onRetry={onRetry} />);
+      tree = TestRenderer.create(
+        <SyncErrorBanner error={SYNC_FAILED} onRetry={onRetry} onDismiss={() => {}} />,
+      );
     });
     if (!tree) throw new Error('renderer not created');
     const t = tree as TestRenderer.ReactTestRenderer;
@@ -99,11 +97,11 @@ describe('SyncErrorBanner — component branch behavior', () => {
     TestRenderer.act(() => t.unmount());
   });
 
-  it('clears useUiStore.lastError when the dismiss button is tapped', () => {
-    useUiStore.setState({ lastError: { code: 'sync-failed' } });
+  it('invokes onDismiss when the dismiss button is tapped', () => {
+    const onDismiss = jest.fn();
     let tree: TestRenderer.ReactTestRenderer | null = null;
     TestRenderer.act(() => {
-      tree = TestRenderer.create(<SyncErrorBanner />);
+      tree = TestRenderer.create(<SyncErrorBanner error={SYNC_FAILED} onDismiss={onDismiss} />);
     });
     if (!tree) throw new Error('renderer not created');
     const t = tree as TestRenderer.ReactTestRenderer;
@@ -113,7 +111,7 @@ describe('SyncErrorBanner — component branch behavior', () => {
     TestRenderer.act(() => {
       dismiss!.props.onPress();
     });
-    expect(useUiStore.getState().lastError).toBeNull();
+    expect(onDismiss).toHaveBeenCalledTimes(1);
 
     TestRenderer.act(() => t.unmount());
   });

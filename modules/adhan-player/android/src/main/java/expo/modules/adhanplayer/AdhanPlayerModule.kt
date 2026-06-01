@@ -25,6 +25,7 @@ class AdhanPlayerModule : Module() {
           soundKind = it["soundKind"] as String,
           title = it["title"] as String,
           body = it["body"] as String,
+          stopLabel = it["stopLabel"] as? String ?: "",
         )
       }
       AdhanAlarms.arm(ctx, parsed)

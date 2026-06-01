@@ -10,6 +10,9 @@ export type ArmedPrayer = {
   soundKind: SoundKind;
   title: string;
   body: string;
+  // Localized label for the notification's "Stop" action. Passed from JS (and
+  // persisted natively) so the button isn't hardcoded Turkish for en/ar/zh users.
+  stopLabel: string;
 };
 
 type Native = {

@@ -10,7 +10,8 @@
     "done": "Done",
     "delete": "Delete",
     "dismiss": "Dismiss",
-    "openSettings": "Open Settings"
+    "openSettings": "Open Settings",
+    "stop": "Stop"
   },
   "prayer": {
     "imsak": { "title": "Fajr", "body": "Fajr time has started.", "bodyWithCity": "Fajr time has started in {{city}}." },

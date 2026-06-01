@@ -12,6 +12,7 @@ class AdhanAlarmReceiver : BroadcastReceiver() {
       putExtra(AdhanPlaybackService.EXTRA_SOUND_KIND, intent.getStringExtra(AdhanPlaybackService.EXTRA_SOUND_KIND))
       putExtra(AdhanPlaybackService.EXTRA_TITLE, intent.getStringExtra(AdhanPlaybackService.EXTRA_TITLE))
       putExtra(AdhanPlaybackService.EXTRA_BODY, intent.getStringExtra(AdhanPlaybackService.EXTRA_BODY))
+      putExtra(AdhanPlaybackService.EXTRA_STOP_LABEL, intent.getStringExtra(AdhanPlaybackService.EXTRA_STOP_LABEL))
     }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       context.startForegroundService(svc)

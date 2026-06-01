@@ -1,6 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+import { createAsyncDedupe } from '../_shared/async-dedupe.ts';
 import { verifyCronSecret } from '../_shared/cron-auth.ts';
 import {
   buildDeviceErrorLog,
@@ -91,13 +92,18 @@ Deno.serve(async (req: Request) => {
 
     const pairs: Pair[] = [];
     const deviceErrorLogs: PushLogRow[] = [];
+    // One upstream yearly fetch per (district, year) per invocation, no matter
+    // how many stale devices share a district (prevents an API stampede).
+    const cacheDedupe = createAsyncDedupe<PrayerEntry[]>();
 
     for (const dev of devices as Device[]) {
       try {
         const tz = dev.timezone;
         const todayInTz = formatInTz(now, tz, 'yyyy-MM-dd');
         const yearInTz = localYearInTz(now, tz);
-        const cache = await ensurePrayerCache(dev.district_id, yearInTz);
+        const cache = await cacheDedupe(`${dev.district_id}:${yearInTz}`, () =>
+          ensurePrayerCache(dev.district_id, yearInTz),
+        );
         const entry = cache.find((e) => e.date.startsWith(todayInTz));
         if (!entry) continue;
 
