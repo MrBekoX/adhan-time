@@ -2,10 +2,10 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import { I18nextProvider } from 'react-i18next';
-import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { colors } from '@/components/Theme';
 import { evaluateHydrationGate, forceHydrationFlags } from '@/hooks/hydrationGate';
 import { i18n } from '@/locales/i18n';
@@ -61,7 +61,7 @@ export default function RootLayout() {
   }, [timedOut, locHydrated, settingsHydrated, prayerHydrated]);
 
   if (!ready) {
-    return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
+    return <LoadingScreen />;
   }
 
   return (

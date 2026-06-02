@@ -3,6 +3,7 @@
     "name": "Adhan Time",
     "slug": "adhan-time",
     "version": "0.1.0",
+    "icon": "./assets/images/icon.png",
     "orientation": "portrait",
     "scheme": "adhantime",
     "userInterfaceStyle": "dark",
@@ -13,16 +14,17 @@
       "bundleIdentifier": "com.adhantime.app",
       "backgroundColor": "#0A0D18",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "fetch",
-          "remote-notification"
-        ],
+        "UIBackgroundModes": ["fetch", "remote-notification"],
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.adhantime.app",
       "backgroundColor": "#0A0D18",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#0E2C1E"
+      },
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
@@ -38,13 +40,19 @@
     "plugins": [
       "expo-router",
       [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#040806"
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#10B981",
-          "sounds": [
-            "./assets/sounds/adhan_fajr.wav",
-            "./assets/sounds/adhan_regular.wav"
-          ]
+          "sounds": ["./assets/sounds/adhan_fajr.wav", "./assets/sounds/adhan_regular.wav"]
         }
       ],
       "expo-localization",
@@ -67,7 +75,7 @@
       }
     },
     "owner": "mrbeko",
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": "1.1.0",
     "updates": {
       "url": "https://u.expo.dev/0c7ed0e3-6aad-490f-b042-0616031622b9"
     }
