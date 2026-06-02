@@ -150,6 +150,7 @@ describe('shouldPublishHeadingUpdate', () => {
         elapsedMs: 8,
         minIntervalMs: 33,
         minDeltaDeg: 2,
+        minIdleDeltaDeg: 0.5,
       }),
     ).toBe(false);
   });
@@ -162,11 +163,14 @@ describe('shouldPublishHeadingUpdate', () => {
         elapsedMs: 8,
         minIntervalMs: 33,
         minDeltaDeg: 2,
+        minIdleDeltaDeg: 0.5,
       }),
     ).toBe(true);
   });
 
-  it('publishes at the interval even when movement is small', () => {
+  it('does NOT publish stationary noise even past the interval (no idle re-render churn)', () => {
+    // 0.4° drift < idle threshold: the phone is effectively still, so re-rendering the
+    // whole screen to show an identical heading is wasted work even though 33ms elapsed.
     expect(
       shouldPublishHeadingUpdate({
         previousHeading: 120,
@@ -174,6 +178,22 @@ describe('shouldPublishHeadingUpdate', () => {
         elapsedMs: 33,
         minIntervalMs: 33,
         minDeltaDeg: 2,
+        minIdleDeltaDeg: 0.5,
+      }),
+    ).toBe(false);
+  });
+
+  it('publishes real slow rotation at the interval (above the idle gate, below the immediate delta)', () => {
+    // 0.8° change is real movement (> idle 0.5°) but < minDeltaDeg: the interval gate lets
+    // the readout track a slow turn.
+    expect(
+      shouldPublishHeadingUpdate({
+        previousHeading: 120,
+        nextHeading: 120.8,
+        elapsedMs: 33,
+        minIntervalMs: 33,
+        minDeltaDeg: 2,
+        minIdleDeltaDeg: 0.5,
       }),
     ).toBe(true);
   });

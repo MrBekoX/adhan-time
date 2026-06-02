@@ -114,12 +114,21 @@ export type HeadingPublishInput = {
   elapsedMs: number;
   minIntervalMs: number;
   minDeltaDeg: number;
+  /**
+   * Below this change vs the last published heading, treat the reading as stationary
+   * and skip the publish ENTIRELY — even past the interval. Prevents the idle 8Hz
+   * re-render churn (see HEADING_PUBLISH_MIN_IDLE_DELTA_DEG).
+   */
+  minIdleDeltaDeg: number;
 };
 
 /**
  * Decides whether a smoothed heading should cross from the sensor callback into
- * React state. EMA still consumes every raw sample; this only drops tiny burst
- * publishes that make release APK rendering fight with Reanimated animations.
+ * React state. EMA still consumes every raw sample; this gates the React publishes:
+ *   - stationary (change < minIdleDeltaDeg) → never publish (kills idle re-render churn),
+ *   - moving → publish at most every minIntervalMs, or immediately past minDeltaDeg.
+ * The rose animates from the UI-thread shared value regardless, so suppressing idle
+ * publishes only stops redundant whole-screen re-renders, never the compass itself.
  */
 export function shouldPublishHeadingUpdate({
   previousHeading,
@@ -127,10 +136,17 @@ export function shouldPublishHeadingUpdate({
   elapsedMs,
   minIntervalMs,
   minDeltaDeg,
+  minIdleDeltaDeg,
 }: HeadingPublishInput): boolean {
   if (previousHeading === null) return true;
+  const delta = Math.abs(signedDelta(nextHeading, previousHeading));
+  // Stationary noise: skip even when the interval elapsed. lastPublished is not
+  // advanced on a skip, so slow real rotation's sub-threshold steps accumulate and
+  // eventually cross this gate — the readout still tracks, it just stops re-rendering
+  // the screen ~8x/s to show an identical heading while the phone sits still.
+  if (delta < minIdleDeltaDeg) return false;
   if (elapsedMs >= minIntervalMs) return true;
-  return Math.abs(signedDelta(nextHeading, previousHeading)) >= minDeltaDeg;
+  return delta >= minDeltaDeg;
 }
 
 /**

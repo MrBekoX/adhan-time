@@ -56,6 +56,21 @@ export const HEADING_PUBLISH_MIN_INTERVAL_MS = 120;
 export const HEADING_PUBLISH_MIN_DELTA_DEG = 8;
 
 /**
+ * Minimum heading change (vs the LAST PUBLISHED value) required to publish into React
+ * state at all. Below this, the smoothed heading is just stationary sensor/EMA noise, so
+ * re-rendering the whole qibla screen — even once the interval below elapses — is wasted
+ * work that produces an identical readout.
+ *
+ * Measured on a Galaxy A30s: the old unconditional interval publish re-rendered the screen
+ * ~8x/s while the phone sat still, churning ~11MB every ~25s (constant background GC, 59%
+ * janky frames). Gating on real movement removes that idle churn yet stays responsive —
+ * because lastPublished is NOT advanced when we skip, successive sub-threshold steps
+ * accumulate, so slow real rotation still crosses the gate and publishes. Mirrors the 0.4°
+ * UI-thread shared-value deadband; the rose (shared value) is unaffected either way.
+ */
+export const HEADING_PUBLISH_MIN_IDLE_DELTA_DEG = 0.5;
+
+/**
  * Deadband (degrees) for the UI-thread animation source. The hook writes a new sample into
  * `headingShared` only when the smoothed heading moves at least this much. While the user
  * holds still, the fused sensor's sub-degree noise no longer nudges the shared value, so the

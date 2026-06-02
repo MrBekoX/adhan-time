@@ -6,6 +6,7 @@ import type { SharedValue } from 'react-native-reanimated';
 import {
   HEADING_EMA_ALPHA,
   HEADING_PUBLISH_MIN_DELTA_DEG,
+  HEADING_PUBLISH_MIN_IDLE_DELTA_DEG,
   HEADING_PUBLISH_MIN_INTERVAL_MS,
   HEADING_SHARED_DEADBAND_DEG,
 } from '@/constants/qibla';
@@ -136,6 +137,7 @@ export function useDeviceHeading({
           elapsedMs: now - lastPublishedAt,
           minIntervalMs: HEADING_PUBLISH_MIN_INTERVAL_MS,
           minDeltaDeg: HEADING_PUBLISH_MIN_DELTA_DEG,
+          minIdleDeltaDeg: HEADING_PUBLISH_MIN_IDLE_DELTA_DEG,
         })
       ) {
         return;
