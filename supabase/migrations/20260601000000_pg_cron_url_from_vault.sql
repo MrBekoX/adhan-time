@@ -11,12 +11,26 @@
 -- the existing jobs in place. unschedule-by-jobname is guarded (no rows = no-op)
 -- so this is idempotent and safe to re-run.
 --
--- Operator prerequisites BEFORE running this migration (Supabase Dashboard →
--- Project → Vault → New secret):
---   * supabase_url = https://<your-ref>.supabase.co   (NO trailing slash)
---   * cron_secret  = <the same value set via `supabase secrets set CRON_SECRET=...`>
--- If 'supabase_url' is missing the URL resolves to NULL and the cron POST fails
--- loudly on the next tick — that is the intended fail-fast, not a silent wrong host.
+-- Operator prerequisites: 'cron_secret' must already be in Vault (the existing
+-- cron uses it). 'supabase_url' is SELF-SEEDED below if missing, so this
+-- migration is safe to run even on a project that never set it (the previous
+-- cron hardcoded the URL, so it likely was never created).
+
+-- (0) Self-seed the 'supabase_url' Vault secret if absent, so the cron URL below
+-- always resolves. Idempotent: an existing secret (e.g. set during setup) is
+-- left untouched. This runs FIRST — if it somehow fails, the cron reschedule
+-- below never executes and the live cron keeps its current (working) definition.
+do $$
+begin
+  if not exists (select 1 from vault.secrets where name = 'supabase_url') then
+    perform vault.create_secret(
+      'https://ckrvxajivwkifticnqom.supabase.co',
+      'supabase_url',
+      'Base URL for pg_cron net.http_post targets (auto-seeded)'
+    );
+  end if;
+end
+$$;
 
 -- push-prayer (every minute) ------------------------------------------------
 select cron.unschedule(jobid)
