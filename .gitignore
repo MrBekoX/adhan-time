@@ -73,6 +73,9 @@ docs/*
 !docs/privacy-policy.md
 !docs/__tests__/
 !docs/__tests__/privacyPolicy.test.ts
+# Generated multi-agent audit reports + project reports (local analysis artifacts)
+audit-docs/
+adhan-time-report.md
 
 # ── TypeScript ─────────────────────────────────
 *.tsbuildinfo
