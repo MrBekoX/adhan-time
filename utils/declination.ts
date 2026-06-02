@@ -16,6 +16,24 @@ import geomagnetism from 'geomagnetism';
 
 import { logger } from './logger';
 
+// Single-entry memo for the result below. The qibla hook calls
+// computeMagneticDeclination on EVERY heading sample (~50 Hz once GPS locks,
+// since the Android compass sends only a magnetic azimuth). Each miss rebuilds
+// the WMM model (new Model + getTimedModel allocates four ~90-element coeff
+// arrays) and runs the spherical-harmonic expansion (Legendre + harmonic
+// arrays) — ~12 allocations/call. At 50 Hz that churn triggered periodic Hermes
+// GC pauses on low-end devices (Galaxy A30s) that stalled the JS callback, so
+// `headingShared` stopped updating and the rose spring settled then jumped when
+// the thread caught up. Declination only depends on position + date and is flat
+// to <0.1°/yr, so a held phone recomputes it needlessly. Quantize to ~1 km /
+// 1 day and reuse: a hit returns a cached number with zero allocation.
+let memoKey: string | null = null;
+let memoValue: number | null = null;
+
+function declinationCacheKey(lat: number, lon: number, date: Date): string {
+  return `${lat.toFixed(2)}:${lon.toFixed(2)}:${date.getUTCFullYear()}-${date.getUTCMonth()}-${date.getUTCDate()}`;
+}
+
 /**
  * Returns the magnetic declination at (lat, lon) on the given date, in degrees.
  * East-positive, west-negative — matches the NOAA WMM convention.
@@ -23,6 +41,8 @@ import { logger } from './logger';
  * Returns null when the model fails (e.g. coordinates out of range, library error)
  * — callers must surface this as "unreliable" rather than silently treating
  * the magnetic reading as if it were geographic.
+ *
+ * Memoized on a quantized (lat, lon, day) key — see the comment above for why.
  */
 export function computeMagneticDeclination(
   lat: number,
@@ -31,10 +51,14 @@ export function computeMagneticDeclination(
 ): number | null {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
   if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  const key = declinationCacheKey(lat, lon, date);
+  if (key === memoKey) return memoValue;
   try {
     const point = geomagnetism.model(date).point([lat, lon]);
     if (!Number.isFinite(point.decl)) return null;
-    return point.decl;
+    memoKey = key;
+    memoValue = point.decl;
+    return memoValue;
   } catch (e) {
     logger.warn('declination-compute-failed', { lat, lon, error: String(e) });
     return null;

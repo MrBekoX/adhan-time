@@ -60,6 +60,49 @@ describe('computeMagneticDeclination (NOAA WMM contract)', () => {
   });
 });
 
+describe('computeMagneticDeclination caching (qibla ~50Hz hot path)', () => {
+  // The qibla hook calls this on EVERY sensor reading. Rebuilding the WMM model +
+  // spherical-harmonic expansion 50×/s churns the Hermes heap → GC pauses stall the
+  // heading stream → the rose freezes then jumps. Declination is stable at a fixed
+  // location/day, so identical readings must reuse the model instead of rebuilding it.
+  it('reuses the WMM model for repeated identical readings instead of rebuilding it', () => {
+    jest.resetModules();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const geomag = require('geomagnetism');
+    const spy = jest.spyOn(geomag, 'model');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const { computeMagneticDeclination: compute } = require('@/utils/declination');
+    const date = new Date('2026-06-02T08:00:00Z');
+
+    const a = compute(41.0, 29.0, date);
+    const b = compute(41.0, 29.0, date);
+    // Sub-kilometre GPS jitter rounds to the same key → still a cache hit.
+    const c = compute(41.004, 28.997, date);
+
+    expect(a).not.toBeNull();
+    expect(b).toBe(a);
+    expect(c).toBe(a);
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+  it('recomputes when the location moves to a different region', () => {
+    jest.resetModules();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const geomag = require('geomagnetism');
+    const spy = jest.spyOn(geomag, 'model');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const { computeMagneticDeclination: compute } = require('@/utils/declination');
+    const date = new Date('2026-06-02T08:00:00Z');
+
+    compute(41.0, 29.0, date); // Istanbul (miss)
+    compute(-33.87, 151.21, date); // Sydney (miss)
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
+  });
+});
+
 describe('selectHeadingSource', () => {
   const date = new Date('2026-05-01T00:00:00Z');
 
