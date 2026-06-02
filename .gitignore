@@ -89,6 +89,8 @@ supabase/.branches/
 
 # ── Misc ───────────────────────────────────────
 *.tar.gz
+# Local-only project image (screenshot/promo, not part of the app bundle)
+adhan-time-img.png
 
 # ── Local scratch (gh pr diff dumps, scratch notes) ──
 *.diff
