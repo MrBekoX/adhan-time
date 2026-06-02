@@ -14,12 +14,32 @@
     "stop": "停止"
   },
   "prayer": {
-    "imsak": { "title": "晨礼", "body": "晨礼时间已到。", "bodyWithCity": "{{city}} 晨礼时间已到。" },
+    "imsak": {
+      "title": "晨礼",
+      "body": "晨礼时间已到。",
+      "bodyWithCity": "{{city}} 晨礼时间已到。"
+    },
     "gunes": { "title": "日出", "body": "太阳已升起。", "bodyWithCity": "{{city}} 太阳已升起。" },
-    "ogle": { "title": "晌礼", "body": "晌礼时间已到。", "bodyWithCity": "{{city}} 晌礼时间已到。" },
-    "ikindi": { "title": "晡礼", "body": "晡礼时间已到。", "bodyWithCity": "{{city}} 晡礼时间已到。" },
-    "aksam": { "title": "昏礼", "body": "昏礼时间已到。", "bodyWithCity": "{{city}} 昏礼时间已到。" },
-    "yatsi": { "title": "宵礼", "body": "宵礼时间已到。", "bodyWithCity": "{{city}} 宵礼时间已到。" }
+    "ogle": {
+      "title": "晌礼",
+      "body": "晌礼时间已到。",
+      "bodyWithCity": "{{city}} 晌礼时间已到。"
+    },
+    "ikindi": {
+      "title": "晡礼",
+      "body": "晡礼时间已到。",
+      "bodyWithCity": "{{city}} 晡礼时间已到。"
+    },
+    "aksam": {
+      "title": "昏礼",
+      "body": "昏礼时间已到。",
+      "bodyWithCity": "{{city}} 昏礼时间已到。"
+    },
+    "yatsi": {
+      "title": "宵礼",
+      "body": "宵礼时间已到。",
+      "bodyWithCity": "{{city}} 宵礼时间已到。"
+    }
   },
   "errors": {
     "api": {
@@ -113,7 +133,20 @@
       "nowApproaching": "即将开始",
       "untilPrefix": "距 ",
       "footerBlessing": "愿您的祈祷被接受",
-      "monthsShort": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"]
+      "monthsShort": [
+        "1月",
+        "2月",
+        "3月",
+        "4月",
+        "5月",
+        "6月",
+        "7月",
+        "8月",
+        "9月",
+        "10月",
+        "11月",
+        "12月"
+      ]
     },
     "settings": {
       "title": "设置",
@@ -126,6 +159,7 @@
       "version": "版本",
       "soundDefault": "默认",
       "soundAdhanShort": "短礼拜呼唤",
+      "soundAdhanLong": "完整礼拜呼唤",
       "restartRequired": "请重新启动应用以完成文字方向的更改。",
       "privacy": "隐私",
       "deleteAccount": "删除我的数据",

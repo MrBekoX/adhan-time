@@ -14,12 +14,36 @@
     "stop": "Durdur"
   },
   "prayer": {
-    "imsak": { "title": "İmsak", "body": "İmsak vakti girdi.", "bodyWithCity": "{{city}} için imsak vakti girdi." },
-    "gunes": { "title": "Güneş", "body": "Güneş doğdu.", "bodyWithCity": "{{city}} için güneş doğdu." },
-    "ogle": { "title": "Öğle", "body": "Öğle vakti girdi.", "bodyWithCity": "{{city}} için öğle vakti girdi." },
-    "ikindi": { "title": "İkindi", "body": "İkindi vakti girdi.", "bodyWithCity": "{{city}} için ikindi vakti girdi." },
-    "aksam": { "title": "Akşam", "body": "Akşam vakti girdi.", "bodyWithCity": "{{city}} için akşam vakti girdi." },
-    "yatsi": { "title": "Yatsı", "body": "Yatsı vakti girdi.", "bodyWithCity": "{{city}} için yatsı vakti girdi." }
+    "imsak": {
+      "title": "İmsak",
+      "body": "İmsak vakti girdi.",
+      "bodyWithCity": "{{city}} için imsak vakti girdi."
+    },
+    "gunes": {
+      "title": "Güneş",
+      "body": "Güneş doğdu.",
+      "bodyWithCity": "{{city}} için güneş doğdu."
+    },
+    "ogle": {
+      "title": "Öğle",
+      "body": "Öğle vakti girdi.",
+      "bodyWithCity": "{{city}} için öğle vakti girdi."
+    },
+    "ikindi": {
+      "title": "İkindi",
+      "body": "İkindi vakti girdi.",
+      "bodyWithCity": "{{city}} için ikindi vakti girdi."
+    },
+    "aksam": {
+      "title": "Akşam",
+      "body": "Akşam vakti girdi.",
+      "bodyWithCity": "{{city}} için akşam vakti girdi."
+    },
+    "yatsi": {
+      "title": "Yatsı",
+      "body": "Yatsı vakti girdi.",
+      "bodyWithCity": "{{city}} için yatsı vakti girdi."
+    }
   },
   "errors": {
     "api": {
@@ -113,7 +137,20 @@
       "nowApproaching": "yaklaşıyor",
       "untilPrefix": "",
       "footerBlessing": "duaların kabul olsun",
-      "monthsShort": ["OCA", "ŞUB", "MAR", "NİS", "MAY", "HAZ", "TEM", "AĞU", "EYL", "EKİ", "KAS", "ARA"]
+      "monthsShort": [
+        "OCA",
+        "ŞUB",
+        "MAR",
+        "NİS",
+        "MAY",
+        "HAZ",
+        "TEM",
+        "AĞU",
+        "EYL",
+        "EKİ",
+        "KAS",
+        "ARA"
+      ]
     },
     "settings": {
       "title": "Ayarlar",
@@ -126,6 +163,7 @@
       "version": "Sürüm",
       "soundDefault": "Varsayılan",
       "soundAdhanShort": "Kısa Ezan",
+      "soundAdhanLong": "Uzun Ezan",
       "restartRequired": "Yazı yönü değişikliğinin tamamlanması için uygulamayı yeniden başlat.",
       "privacy": "Gizlilik",
       "deleteAccount": "Verilerimi Sil",

@@ -84,6 +84,30 @@ describe('migrateSettingsState (V16+F6 — settingsStore v2 → v3)', () => {
   });
 });
 
+describe('migrateSettingsState (Uzun Ezan — settingsStore v3 → v4)', () => {
+  it("maps an existing 'adhanShort' to 'adhanLong' (preserves the full-adhan experience)", () => {
+    const result = migrateSettingsState({ locale: 'tr', sound: 'adhanShort' }, 3);
+    expect(result.sound).toBe('adhanLong');
+  });
+
+  it("leaves 'default' untouched", () => {
+    const result = migrateSettingsState({ locale: 'tr', sound: 'default' }, 3);
+    expect(result.sound).toBe('default');
+  });
+
+  it("leaves 'adhanLong' untouched (idempotent)", () => {
+    const result = migrateSettingsState({ locale: 'tr', sound: 'adhanLong' }, 3);
+    expect(result.sound).toBe('adhanLong');
+  });
+
+  it('carries the adhanShort→adhanLong mapping through a full v1→v4 migration', () => {
+    const result = migrateSettingsState({ locale: 'tr', sound: 'adhanShort' }, 1);
+    expect(result.sound).toBe('adhanLong');
+    expect(result.notificationPermissionDenied).toBe(false);
+    expect(result.deviceRegistrationPending).toBe(false);
+  });
+});
+
 describe('useSettingsStore — V5 notificationPermissionDenied flag', () => {
   it('exposes notificationPermissionDenied with a default of false', () => {
     useSettingsStore.setState({ notificationPermissionDenied: false });

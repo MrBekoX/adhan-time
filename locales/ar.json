@@ -14,12 +14,36 @@
     "stop": "إيقاف"
   },
   "prayer": {
-    "imsak": { "title": "الفجر", "body": "دخل وقت الفجر.", "bodyWithCity": "دخل وقت الفجر في {{city}}." },
-    "gunes": { "title": "الشروق", "body": "أشرقت الشمس.", "bodyWithCity": "أشرقت الشمس في {{city}}." },
-    "ogle": { "title": "الظهر", "body": "دخل وقت الظهر.", "bodyWithCity": "دخل وقت الظهر في {{city}}." },
-    "ikindi": { "title": "العصر", "body": "دخل وقت العصر.", "bodyWithCity": "دخل وقت العصر في {{city}}." },
-    "aksam": { "title": "المغرب", "body": "دخل وقت المغرب.", "bodyWithCity": "دخل وقت المغرب في {{city}}." },
-    "yatsi": { "title": "العشاء", "body": "دخل وقت العشاء.", "bodyWithCity": "دخل وقت العشاء في {{city}}." }
+    "imsak": {
+      "title": "الفجر",
+      "body": "دخل وقت الفجر.",
+      "bodyWithCity": "دخل وقت الفجر في {{city}}."
+    },
+    "gunes": {
+      "title": "الشروق",
+      "body": "أشرقت الشمس.",
+      "bodyWithCity": "أشرقت الشمس في {{city}}."
+    },
+    "ogle": {
+      "title": "الظهر",
+      "body": "دخل وقت الظهر.",
+      "bodyWithCity": "دخل وقت الظهر في {{city}}."
+    },
+    "ikindi": {
+      "title": "العصر",
+      "body": "دخل وقت العصر.",
+      "bodyWithCity": "دخل وقت العصر في {{city}}."
+    },
+    "aksam": {
+      "title": "المغرب",
+      "body": "دخل وقت المغرب.",
+      "bodyWithCity": "دخل وقت المغرب في {{city}}."
+    },
+    "yatsi": {
+      "title": "العشاء",
+      "body": "دخل وقت العشاء.",
+      "bodyWithCity": "دخل وقت العشاء في {{city}}."
+    }
   },
   "errors": {
     "api": {
@@ -113,7 +137,20 @@
       "nowApproaching": "يقترب الآن",
       "untilPrefix": "حتى ",
       "footerBlessing": "تقبل الله دعاءك",
-      "monthsShort": ["ينا", "فبر", "مار", "أبر", "ماي", "يون", "يول", "أغس", "سبت", "أكت", "نوف", "ديس"]
+      "monthsShort": [
+        "ينا",
+        "فبر",
+        "مار",
+        "أبر",
+        "ماي",
+        "يون",
+        "يول",
+        "أغس",
+        "سبت",
+        "أكت",
+        "نوف",
+        "ديس"
+      ]
     },
     "settings": {
       "title": "الإعدادات",
@@ -126,6 +163,7 @@
       "version": "الإصدار",
       "soundDefault": "افتراضي",
       "soundAdhanShort": "أذان قصير",
+      "soundAdhanLong": "أذان كامل",
       "restartRequired": "أعد تشغيل التطبيق لإتمام تغيير اتجاه الكتابة.",
       "privacy": "الخصوصية",
       "deleteAccount": "احذف بياناتي",

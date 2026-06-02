@@ -14,12 +14,36 @@
     "stop": "Stop"
   },
   "prayer": {
-    "imsak": { "title": "Fajr", "body": "Fajr time has started.", "bodyWithCity": "Fajr time has started in {{city}}." },
-    "gunes": { "title": "Sunrise", "body": "Sun has risen.", "bodyWithCity": "Sun has risen in {{city}}." },
-    "ogle": { "title": "Dhuhr", "body": "Dhuhr time has started.", "bodyWithCity": "Dhuhr time has started in {{city}}." },
-    "ikindi": { "title": "Asr", "body": "Asr time has started.", "bodyWithCity": "Asr time has started in {{city}}." },
-    "aksam": { "title": "Maghrib", "body": "Maghrib time has started.", "bodyWithCity": "Maghrib time has started in {{city}}." },
-    "yatsi": { "title": "Isha", "body": "Isha time has started.", "bodyWithCity": "Isha time has started in {{city}}." }
+    "imsak": {
+      "title": "Fajr",
+      "body": "Fajr time has started.",
+      "bodyWithCity": "Fajr time has started in {{city}}."
+    },
+    "gunes": {
+      "title": "Sunrise",
+      "body": "Sun has risen.",
+      "bodyWithCity": "Sun has risen in {{city}}."
+    },
+    "ogle": {
+      "title": "Dhuhr",
+      "body": "Dhuhr time has started.",
+      "bodyWithCity": "Dhuhr time has started in {{city}}."
+    },
+    "ikindi": {
+      "title": "Asr",
+      "body": "Asr time has started.",
+      "bodyWithCity": "Asr time has started in {{city}}."
+    },
+    "aksam": {
+      "title": "Maghrib",
+      "body": "Maghrib time has started.",
+      "bodyWithCity": "Maghrib time has started in {{city}}."
+    },
+    "yatsi": {
+      "title": "Isha",
+      "body": "Isha time has started.",
+      "bodyWithCity": "Isha time has started in {{city}}."
+    }
   },
   "errors": {
     "api": {
@@ -113,7 +137,20 @@
       "nowApproaching": "now approaching",
       "untilPrefix": "until ",
       "footerBlessing": "may your prayers be accepted",
-      "monthsShort": ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+      "monthsShort": [
+        "JAN",
+        "FEB",
+        "MAR",
+        "APR",
+        "MAY",
+        "JUN",
+        "JUL",
+        "AUG",
+        "SEP",
+        "OCT",
+        "NOV",
+        "DEC"
+      ]
     },
     "settings": {
       "title": "Settings",
@@ -126,6 +163,7 @@
       "version": "Version",
       "soundDefault": "Default",
       "soundAdhanShort": "Short Adhan",
+      "soundAdhanLong": "Full Adhan",
       "restartRequired": "Restart the app to finish applying the text-direction change.",
       "privacy": "Privacy",
       "deleteAccount": "Delete My Data",

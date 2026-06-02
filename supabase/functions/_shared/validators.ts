@@ -3,14 +3,14 @@
 
 const ALLOWED_LOCALES = new Set(['tr', 'en', 'ar', 'zh']);
 const ALLOWED_PRAYERS = new Set(['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi']);
-const ALLOWED_SOUNDS = new Set(['default', 'adhanShort']);
+const ALLOWED_SOUNDS = new Set(['default', 'adhanShort', 'adhanLong']);
 const TOKEN_RE = /^ExponentPushToken\[[A-Za-z0-9_-]{20,40}\]$/;
 const DISTRICT_RE = /^\d{1,7}$/;
 const MAX_STRING_LEN = 128;
 const MAX_TZ_LEN = 64;
 
 export type Locale = 'tr' | 'en' | 'ar' | 'zh';
-export type Sound = 'default' | 'adhanShort';
+export type Sound = 'default' | 'adhanShort' | 'adhanLong';
 
 export type ValidPayload = {
   expoPushToken: string;

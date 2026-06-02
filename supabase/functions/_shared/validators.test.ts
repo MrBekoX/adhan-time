@@ -104,6 +104,11 @@ describe('validateRegisterPayload', () => {
     expect(r.ok).toBe(true);
   });
 
+  it('accepts adhanLong sound (full adhan — migrated/new devices send this)', () => {
+    const r = validateRegisterPayload({ ...validPayload, sound: 'adhanLong' });
+    expect(r.ok).toBe(true);
+  });
+
   it('rejects payload with unknown prayer key', () => {
     expect(validateRegisterPayload({ ...validPayload, enabledPrayers: ['imsak', 'foo'] }))
       .toEqual({ ok: false, code: 'invalid_prayers' });

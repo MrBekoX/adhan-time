@@ -158,9 +158,9 @@ async function reconcileInner(
     });
   }
 
-  // Android + adhan-on routes the 5 adhan prayers to the native full-adhan
-  // player (AlarmManager + foreground service); gunes, iOS, and the
-  // default-sound path stay on expo-notifications (committed <=30s clips).
+  // Android + 'adhanLong' routes the 5 adhan prayers to the native full-adhan
+  // player (AlarmManager + foreground service); gunes, iOS, 'adhanShort' (≤30s
+  // clip), and the default-sound path all stay on expo-notifications.
   const platform = Platform.OS === 'android' ? 'android' : 'ios';
   const nativeTargets = target.filter(
     (t) => adhanPlaybackBackend(t.prayerKey, platform, soundPref) === 'native',
@@ -170,7 +170,7 @@ async function reconcileInner(
   );
 
   try {
-    if (platform === 'android' && soundPref !== DEFAULT_SOUND) {
+    if (platform === 'android' && soundPref === 'adhanLong') {
       // Full replace; the Kotlin side clears prior alarms before re-arming, so
       // this stays idempotent like the expo pending-diff below.
       await armPrayers(
@@ -187,8 +187,9 @@ async function reconcileInner(
         })),
       );
     } else {
-      // Pref turned off or not Android → clear any native alarms so a previously
-      // armed adhan never fires after the user opted out / switched platforms.
+      // Not 'adhanLong' (default / 'adhanShort' clip-only) or not Android → clear
+      // any native alarms so a previously armed full adhan never fires after the
+      // user switched to the clip / default / another platform.
       await cancelNativeAdhan();
     }
   } catch (e) {

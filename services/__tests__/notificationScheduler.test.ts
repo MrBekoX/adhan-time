@@ -559,12 +559,10 @@ describe('V8 — per-prayer adhan sound + Android channel routing', () => {
     }
   });
 
-  // On Android under the adhan preference the 5 adhan prayers (incl. imsak)
-  // now route to the native full-adhan player, NOT expo-notifications, so
-  // there is no expo fajr-channel schedule to assert. gunes (no sunrise adhan)
-  // is the one adhan-pref prayer that stays on expo on Android — it uses the
-  // regular channel since only imsak maps to the fajr channel.
-  it('keeps gunes on the regular expo channel on Android under the adhan preference', async () => {
+  // Under 'adhanShort' (the ≤30s clip) every prayer stays on the expo clip path
+  // on Android — native is 'adhanLong'-only. This checks gunes routes to the
+  // regular channel (only imsak maps to the fajr channel).
+  it('keeps gunes on the regular expo channel on Android under the adhanShort preference', async () => {
     const original = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
@@ -682,11 +680,11 @@ describe('V9 — Android adhan routes to the native full-adhan player', () => {
     return makeCache([entry('2026-05-03', { imsak: '05:00' })]);
   }
 
-  it('arms imsak natively (not via expo) on Android with adhan on, mapped to the fajr sound', async () => {
+  it('arms imsak natively (not via expo) on Android with adhanLong, mapped to the fajr sound', async () => {
     await withAndroid(async () => {
       await reconcile(imsakOnlyCache(), {
         enabledPrayers: ['imsak'],
-        sound: 'adhanShort',
+        sound: 'adhanLong',
         windowDays: 2,
       });
       expect(arm).toHaveBeenCalledTimes(1);
@@ -703,7 +701,7 @@ describe('V9 — Android adhan routes to the native full-adhan player', () => {
   it('maps non-imsak adhan prayers to the regular sound kind', async () => {
     await withAndroid(async () => {
       const cache = makeCache([entry('2026-05-03', { ogle: '12:00' })]);
-      await reconcile(cache, { enabledPrayers: ['ogle'], sound: 'adhanShort', windowDays: 2 });
+      await reconcile(cache, { enabledPrayers: ['ogle'], sound: 'adhanLong', windowDays: 2 });
       expect(arm).toHaveBeenCalledTimes(1);
       const armed = arm.mock.calls[0][0];
       expect(armed[0].prayerKey).toBe('ogle');
@@ -717,7 +715,7 @@ describe('V9 — Android adhan routes to the native full-adhan player', () => {
       const cache = makeCache([entry('2026-05-03', { gunes: '06:30', imsak: '05:00' })]);
       await reconcile(cache, {
         enabledPrayers: ['imsak', 'gunes'],
-        sound: 'adhanShort',
+        sound: 'adhanLong',
         windowDays: 2,
       });
       // gunes scheduled via expo; imsak armed natively.
@@ -742,11 +740,25 @@ describe('V9 — Android adhan routes to the native full-adhan player', () => {
     });
   });
 
-  it('does not arm natively on iOS and clears any native alarms', async () => {
+  it('does NOT arm natively for adhanShort on Android — the clip stays on expo for every prayer', async () => {
+    await withAndroid(async () => {
+      await reconcile(imsakOnlyCache(), {
+        enabledPrayers: ['imsak'],
+        sound: 'adhanShort',
+        windowDays: 2,
+      });
+      // adhanShort = ≤30s clip: native player untouched, imsak scheduled via expo.
+      expect(arm).not.toHaveBeenCalled();
+      expect(cancelNative).toHaveBeenCalledTimes(1);
+      expect(schedule).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('does not arm natively on iOS even for adhanLong (no background full-adhan) — falls back to the clip', async () => {
     // Platform.OS defaults to ios under jest-expo.
     await reconcile(imsakOnlyCache(), {
       enabledPrayers: ['imsak'],
-      sound: 'adhanShort',
+      sound: 'adhanLong',
       windowDays: 2,
     });
     expect(arm).not.toHaveBeenCalled();
@@ -762,7 +774,7 @@ describe('V9 — Android adhan routes to the native full-adhan player', () => {
       arm.mockRejectedValueOnce(new Error('native bridge down'));
       const cache = makeCache([entry('2026-05-03', { gunes: '06:30', imsak: '05:00' })]);
       await expect(
-        reconcile(cache, { enabledPrayers: ['imsak', 'gunes'], sound: 'adhanShort', windowDays: 2 }),
+        reconcile(cache, { enabledPrayers: ['imsak', 'gunes'], sound: 'adhanLong', windowDays: 2 }),
       ).resolves.toBeDefined();
       const scheduledKeys = schedule.mock.calls.map((c) => c[0].content.data.prayerKey);
       expect(scheduledKeys).toEqual(['gunes']);

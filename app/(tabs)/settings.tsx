@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandRow } from '@/components/BrandRow';
@@ -14,6 +14,7 @@ import { SyncErrorBanner } from '@/components/SyncErrorBanner';
 import { colors, fonts, radius, spacing } from '@/components/Theme';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
 import type { Locale } from '@/locales/i18n';
+import { promptAndroidAdhanPermissions } from '@/services/androidAdhanPermissions';
 import { registerDeviceDetailed, unregisterDevice } from '@/services/deviceRegistry';
 import { applyLocale } from '@/services/localeService';
 import { cancelAllPrayerNotifications } from '@/services/notificationScheduler';
@@ -47,9 +48,20 @@ export default function Settings() {
   const lastError = useUiStore((s) => s.lastError);
   const [deleting, setDeleting] = useState(false);
   const [retryingRegistration, setRetryingRegistration] = useState(false);
+  // The full-adhan native player is Android-only; iOS can't play it in the
+  // background, so "Uzun Ezan" is hidden there to avoid false parity (rules/11).
+  const isAndroid = Platform.OS === 'android';
 
-  const onSoundChange = async (nextSound: 'default' | 'adhanShort'): Promise<void> => {
+  const onSoundChange = async (
+    nextSound: 'default' | 'adhanShort' | 'adhanLong',
+  ): Promise<void> => {
     setSound(nextSound);
+    // Only 'adhanLong' (full adhan) uses the native player, which needs the exact
+    // alarm + battery-opt exemption — request them here the same way onboarding
+    // does, else the full adhan stays unarmed/doze-killed and silently never
+    // plays. 'adhanShort' (≤30s clip) and 'default' go through expo-notifications.
+    // No-op on iOS / when already granted (see services/androidAdhanPermissions).
+    if (nextSound === 'adhanLong') promptAndroidAdhanPermissions();
     if (!location) return;
     try {
       await cancelAllPrayerNotifications();
@@ -233,11 +245,21 @@ export default function Settings() {
               onPress={() => void onSoundChange('default')}
             />
             <Chip
-              active={sound === 'adhanShort'}
+              // On iOS there is no "Uzun Ezan" chip, so a migrated 'adhanLong'
+              // value (which iOS plays as the same clip) shows under "Kısa Ezan".
+              active={isAndroid ? sound === 'adhanShort' : sound !== 'default'}
               label={t('screens.settings.soundAdhanShort')}
               shortLabel="♪"
               onPress={() => void onSoundChange('adhanShort')}
             />
+            {isAndroid && (
+              <Chip
+                active={sound === 'adhanLong'}
+                label={t('screens.settings.soundAdhanLong')}
+                shortLabel="♪♪"
+                onPress={() => void onSoundChange('adhanLong')}
+              />
+            )}
           </Row>
         </Section>
 

@@ -30,11 +30,19 @@ export const SOUND_FILES = {
 
 export const DEFAULT_SOUND = 'default';
 
-// User-facing preference: system default vs. the adhan recordings. Kept as a
-// standalone union (not derived from the file map) because the persisted
-// settings store and the register-device validators share these exact
-// literals — 'adhanShort' now means "per-prayer adhan enabled".
-export type SoundKey = 'default' | 'adhanShort';
+// User-facing preference. Kept as a standalone union (not derived from the file
+// map) because the persisted settings store and the register-device validators
+// share these exact literals.
+//   - 'default'    → system notification sound.
+//   - 'adhanShort' → the ≤30s adhan clip as the notification sound (expo path on
+//                    BOTH platforms — no native player).
+//   - 'adhanLong'  → the FULL adhan: Android routes the 5 adhan prayers to the
+//                    native player (adhan_*_full.m4a, stoppable); iOS can't play
+//                    full audio in the background so it falls back to the ≤30s
+//                    clip (same as 'adhanShort') — no false parity (rules/11).
+// Both adhan prefs use the same ≤30s clip on the expo path; the ONLY difference
+// is that 'adhanLong' additionally arms the native full-adhan player on Android.
+export type SoundKey = 'default' | 'adhanShort' | 'adhanLong';
 
 // imsak is the dawn (sabah/fajr) prayer; every other slot — including gunes —
 // uses the regular adhan.
@@ -56,16 +64,16 @@ export function channelIdForPrayer(prayerKey: string, pref: SoundKey): string {
 // no adhan, so it never routes to the full-adhan native player.
 const NATIVE_ADHAN_PRAYERS = new Set<string>(['imsak', 'ogle', 'ikindi', 'aksam', 'yatsi']);
 
-// Android + adhan preference → the full-adhan native player for the 5 adhan
-// prayers; gunes (no sunrise adhan), iOS, and the default-sound preference all
-// stay on expo-notifications (committed <=30s clips).
+// Only 'adhanLong' (full adhan) on Android routes the 5 adhan prayers to the
+// native player. 'adhanShort' (≤30s clip), gunes (no sunrise adhan), iOS, and
+// the default-sound preference all stay on expo-notifications.
 export function adhanPlaybackBackend(
   prayerKey: string,
   platform: 'ios' | 'android',
   pref: SoundKey,
 ): 'native' | 'expo' {
   if (platform !== 'android') return 'expo';
-  if (pref === 'default') return 'expo';
+  if (pref !== 'adhanLong') return 'expo';
   return NATIVE_ADHAN_PRAYERS.has(prayerKey) ? 'native' : 'expo';
 }
 

@@ -9,7 +9,7 @@ import type { Locale } from '@/locales/i18n';
 
 type State = {
   locale: Locale;
-  sound: 'default' | 'adhanShort';
+  sound: 'default' | 'adhanShort' | 'adhanLong';
   enabledPrayers: PrayerKey[];
   onboardingCompleted: boolean;
   notificationPermissionDenied: boolean;
@@ -71,7 +71,7 @@ export const useSettingsStore = create<State & Actions>()(
     }),
     {
       name: 'settings',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({
         locale: s.locale,
