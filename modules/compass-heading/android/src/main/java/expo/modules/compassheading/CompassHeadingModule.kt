@@ -15,7 +15,13 @@ class CompassHeadingModule : Module() {
 
   private val listener = object : SensorEventListener {
     override fun onSensorChanged(event: SensorEvent) {
-      SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+      // A few OEM rotation-vector sensors emit malformed event.values; skip that sample
+      // instead of letting getRotationMatrixFromVector throw on the sensor thread.
+      try {
+        SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+      } catch (e: IllegalArgumentException) {
+        return
+      }
       SensorManager.getOrientation(rotationMatrix, orientation)
       val azimuthDeg = (Math.toDegrees(orientation[0].toDouble()) + 360.0) % 360.0
       // Read accuracy PER-EVENT from SensorEvent.accuracy (SENSOR_STATUS_*). We must not seed
