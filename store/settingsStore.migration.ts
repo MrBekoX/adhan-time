@@ -23,12 +23,15 @@ export function migrateSettingsState(
     safe = { ...safe, deviceRegistrationPending: safe.deviceRegistrationPending ?? false };
   }
   if (version < 4 && safe.sound === 'adhanShort') {
-    // The sound options split into 'adhanShort' (≤30s clip) and 'adhanLong'
-    // (full adhan). Before the split, 'adhanShort' already played the FULL adhan
-    // on Android via the native player, so existing users who picked it keep that
-    // experience by mapping to 'adhanLong'. (iOS played the clip either way, so
-    // no change there.) 'default'/'adhanLong' pass through untouched.
+    // (Historical v3→v4) The adhan options split; 'adhanShort' mapped to 'adhanLong'.
+    // Both are collapsed to 'notification' by the v4→v5 step below.
     safe = { ...safe, sound: 'adhanLong' };
+  }
+  if (version < 5 && (safe.sound === 'adhanShort' || safe.sound === 'adhanLong')) {
+    // Adhan recitation was removed (third-party-recording copyright) in favor of a
+    // single bundled notification sound. Anyone who had any adhan option now gets
+    // that notification sound; 'default' (system sound) is unchanged.
+    safe = { ...safe, sound: 'notification' };
   }
 
   return safe;

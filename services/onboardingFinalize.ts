@@ -1,4 +1,3 @@
-import { promptAndroidAdhanPermissions } from './androidAdhanPermissions';
 import { registerDevice } from './deviceRegistry';
 import { ensureAndroidChannel } from './notificationScheduler';
 import { resetScheduleForLocation } from './prayerService';
@@ -42,11 +41,6 @@ export async function finalizeOnboarding(input: FinalizeInput): Promise<Finalize
       sound: input.sound,
       enabledPrayers: input.enabledPrayers,
     });
-    // The adhan reconcile (arming native alarms) runs via the scheduler; here we
-    // only ensure the OS-level permissions that arming depends on are granted.
-    // Only 'adhanLong' uses the native full-adhan player; 'adhanShort' (clip) and
-    // 'default' schedule via expo-notifications and need no exact-alarm prompt.
-    if (input.sound === 'adhanLong') promptAndroidAdhanPermissions();
     return { ok: true, permissionGranted };
   } catch (error) {
     logger.error('onboarding-finalize-failed', { error: String(error) });

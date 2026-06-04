@@ -84,25 +84,31 @@ describe('migrateSettingsState (V16+F6 — settingsStore v2 → v3)', () => {
   });
 });
 
-describe('migrateSettingsState (Uzun Ezan — settingsStore v3 → v4)', () => {
-  it("maps an existing 'adhanShort' to 'adhanLong' (preserves the full-adhan experience)", () => {
+describe('migrateSettingsState (notification sound — settingsStore → v5)', () => {
+  it("collapses a legacy 'adhanShort' to 'notification' (adhan recitation removed)", () => {
+    // v3→v4 maps adhanShort→adhanLong, then v4→v5 maps adhanLong→notification.
     const result = migrateSettingsState({ locale: 'tr', sound: 'adhanShort' }, 3);
-    expect(result.sound).toBe('adhanLong');
+    expect(result.sound).toBe('notification');
+  });
+
+  it("collapses a legacy 'adhanLong' to 'notification'", () => {
+    const result = migrateSettingsState({ locale: 'tr', sound: 'adhanLong' }, 4);
+    expect(result.sound).toBe('notification');
   });
 
   it("leaves 'default' untouched", () => {
-    const result = migrateSettingsState({ locale: 'tr', sound: 'default' }, 3);
+    const result = migrateSettingsState({ locale: 'tr', sound: 'default' }, 4);
     expect(result.sound).toBe('default');
   });
 
-  it("leaves 'adhanLong' untouched (idempotent)", () => {
-    const result = migrateSettingsState({ locale: 'tr', sound: 'adhanLong' }, 3);
-    expect(result.sound).toBe('adhanLong');
+  it("leaves 'notification' untouched (idempotent)", () => {
+    const result = migrateSettingsState({ locale: 'tr', sound: 'notification' }, 4);
+    expect(result.sound).toBe('notification');
   });
 
-  it('carries the adhanShort→adhanLong mapping through a full v1→v4 migration', () => {
+  it('carries any legacy adhan option through a full v1→v5 migration', () => {
     const result = migrateSettingsState({ locale: 'tr', sound: 'adhanShort' }, 1);
-    expect(result.sound).toBe('adhanLong');
+    expect(result.sound).toBe('notification');
     expect(result.notificationPermissionDenied).toBe(false);
     expect(result.deviceRegistrationPending).toBe(false);
   });

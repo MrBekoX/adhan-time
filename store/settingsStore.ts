@@ -9,7 +9,7 @@ import type { Locale } from '@/locales/i18n';
 
 type State = {
   locale: Locale;
-  sound: 'default' | 'adhanShort' | 'adhanLong';
+  sound: 'default' | 'notification';
   enabledPrayers: PrayerKey[];
   onboardingCompleted: boolean;
   notificationPermissionDenied: boolean;
@@ -33,7 +33,9 @@ type Actions = {
 
 const initial: State = {
   locale: 'tr',
-  sound: 'default',
+  // New users get the app's bundled notification sound out of the box; they can
+  // switch to the plain system sound in Settings.
+  sound: 'notification',
   enabledPrayers: [...DEFAULT_ENABLED_PRAYERS],
   onboardingCompleted: false,
   notificationPermissionDenied: false,
@@ -71,7 +73,7 @@ export const useSettingsStore = create<State & Actions>()(
     }),
     {
       name: 'settings',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({
         locale: s.locale,

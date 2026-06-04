@@ -91,6 +91,9 @@ supabase/.branches/
 *.tar.gz
 # Local-only project image (screenshot/promo, not part of the app bundle)
 adhan-time-img.png
+# Local-only Suno source for the notification sound (the trimmed assets/sounds/
+# notification.wav is committed; this full-length master is not)
+adhan-time-notification-sound.mp3
 
 # ── Local scratch (gh pr diff dumps, scratch notes) ──
 *.diff

@@ -104,8 +104,13 @@ describe('validateRegisterPayload', () => {
     expect(r.ok).toBe(true);
   });
 
-  it('accepts adhanLong sound (full adhan — migrated/new devices send this)', () => {
+  it('accepts adhanLong sound (legacy — kept for back-compat)', () => {
     const r = validateRegisterPayload({ ...validPayload, sound: 'adhanLong' });
+    expect(r.ok).toBe(true);
+  });
+
+  it('accepts notification sound (current option — new/migrated devices send this)', () => {
+    const r = validateRegisterPayload({ ...validPayload, sound: 'notification' });
     expect(r.ok).toBe(true);
   });
 

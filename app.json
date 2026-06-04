@@ -2,7 +2,7 @@
   "expo": {
     "name": "Adhan Time",
     "slug": "adhan-time",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "icon": "./assets/images/icon.png",
     "orientation": "portrait",
     "scheme": "adhantime",
@@ -52,7 +52,7 @@
         "expo-notifications",
         {
           "color": "#10B981",
-          "sounds": ["./assets/sounds/adhan_fajr.wav", "./assets/sounds/adhan_regular.wav"]
+          "sounds": ["./assets/sounds/notification.wav"]
         }
       ],
       "expo-localization",
@@ -75,7 +75,7 @@
       }
     },
     "owner": "mrbeko",
-    "runtimeVersion": "1.1.0",
+    "runtimeVersion": "1.2.0",
     "updates": {
       "url": "https://u.expo.dev/0c7ed0e3-6aad-490f-b042-0616031622b9"
     }

@@ -13,21 +13,13 @@ import {
 import type { PrayerTime, YearlyPrayerCache } from '../types';
 
 import {
-  ANDROID_CHANNEL_FAJR_ID,
   ANDROID_CHANNEL_ID,
-  ANDROID_CHANNEL_REGULAR_ID,
+  ANDROID_CHANNEL_NOTIFICATION_ID,
   PENDING_NOTIFICATION_HARD_CAP,
   buildNotificationId,
 } from '@/constants/notifications';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
-import { armPrayers, cancelAll as cancelNativeAdhan } from '@/modules/adhan-player';
 import { useUiStore } from '@/store/uiStore';
-
-jest.mock('@/modules/adhan-player', () => ({
-  armPrayers: jest.fn(async () => undefined),
-  cancelAll: jest.fn(async () => undefined),
-  canScheduleExactAlarms: jest.fn(() => true),
-}));
 
 function entry(date: string, override: Partial<PrayerTime['times']> = {}): PrayerTime {
   return {
@@ -495,7 +487,7 @@ describe('V2 — iOS pending limit hard cap (≤ 50 notifications)', () => {
   });
 });
 
-describe('V8 — per-prayer adhan sound + Android channel routing', () => {
+describe('notification sound + Android channel routing', () => {
   const schedule = Notifications.scheduleNotificationAsync as jest.Mock;
   const cancel = Notifications.cancelScheduledNotificationAsync as jest.Mock;
   const getAll = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
@@ -521,31 +513,20 @@ describe('V8 — per-prayer adhan sound + Android channel routing', () => {
     return makeCache([entry('2026-05-03', { imsak: '05:00' })]);
   }
 
-  it('uses the fajr adhan sound for imsak when the adhan preference is on', async () => {
+  it('uses the custom notification sound for every prayer when the preference is notification', async () => {
     const cache = singleTargetCache();
     await reconcile(cache, {
       enabledPrayers: ['imsak'],
-      sound: 'adhanShort',
+      sound: 'notification',
       windowDays: 2,
     });
 
     const calls = schedule.mock.calls;
     expect(calls.length).toBeGreaterThan(0);
-    expect(calls[0][0].content.sound).toBe('adhan_fajr.wav');
+    expect(calls[0][0].content.sound).toBe('notification.wav');
   });
 
-  it('uses the regular adhan sound for non-imsak prayers when the adhan preference is on', async () => {
-    const cache = singleTargetCache();
-    await reconcile(cache, {
-      enabledPrayers: ['ogle'],
-      sound: 'adhanShort',
-      windowDays: 2,
-    });
-
-    expect(schedule.mock.calls[0][0].content.sound).toBe('adhan_regular.wav');
-  });
-
-  it('uses the default sound for every prayer when the adhan preference is off', async () => {
+  it('uses the default sound for every prayer when the preference is default', async () => {
     const cache = singleTargetCache();
     await reconcile(cache, {
       enabledPrayers: ['imsak', 'ogle'],
@@ -559,41 +540,23 @@ describe('V8 — per-prayer adhan sound + Android channel routing', () => {
     }
   });
 
-  // Under 'adhanShort' (the ≤30s clip) every prayer stays on the expo clip path
-  // on Android — native is 'adhanLong'-only. This checks gunes routes to the
-  // regular channel (only imsak maps to the fajr channel).
-  it('keeps gunes on the regular expo channel on Android under the adhanShort preference', async () => {
+  it('routes Android schedules to the custom-sound channel under the notification preference', async () => {
     const original = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
       const cache = makeCache([entry('2026-05-03', { gunes: '06:30' })]);
       await reconcile(cache, {
         enabledPrayers: ['gunes'],
-        sound: 'adhanShort',
+        sound: 'notification',
         windowDays: 2,
       });
-      expect(schedule.mock.calls[0][0].trigger.channelId).toBe(ANDROID_CHANNEL_REGULAR_ID);
+      expect(schedule.mock.calls[0][0].trigger.channelId).toBe(ANDROID_CHANNEL_NOTIFICATION_ID);
     } finally {
       Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
     }
   });
 
-  it('routes non-imsak schedules to the regular channel on iOS under the adhan preference', async () => {
-    // iOS keeps every prayer on the expo clip path, so the channel routing is
-    // still exercised end-to-end there.
-    const cache = singleTargetCache();
-    await reconcile(cache, {
-      enabledPrayers: ['ogle'],
-      sound: 'adhanShort',
-      windowDays: 2,
-    });
-    // iOS schedules carry no Android channelId (the trigger omits it), so the
-    // unit-level channelIdForPrayer coverage lives in constants tests; here we
-    // assert the iOS clip still schedules with the regular adhan sound.
-    expect(schedule.mock.calls[0][0].content.sound).toBe('adhan_regular.wav');
-  });
-
-  it('routes Android schedule to the default adhan channel when the adhan preference is off', async () => {
+  it('routes Android schedules to the default channel when the preference is default', async () => {
     const original = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
@@ -609,206 +572,68 @@ describe('V8 — per-prayer adhan sound + Android channel routing', () => {
     }
   });
 
-  it('ensureAndroidChannel creates the default, fajr, and regular adhan channels', async () => {
+  it('ensureAndroidChannel creates the default channel and the custom-sound channel', async () => {
     const original = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
       await ensureAndroidChannel();
       const channelIds = setChannel.mock.calls.map((c) => c[0]);
       expect(channelIds).toContain(ANDROID_CHANNEL_ID);
-      expect(channelIds).toContain(ANDROID_CHANNEL_FAJR_ID);
-      expect(channelIds).toContain(ANDROID_CHANNEL_REGULAR_ID);
-      const fajrCall = setChannel.mock.calls.find((c) => c[0] === ANDROID_CHANNEL_FAJR_ID);
-      const regularCall = setChannel.mock.calls.find((c) => c[0] === ANDROID_CHANNEL_REGULAR_ID);
-      expect(fajrCall?.[1].sound).toBe('adhan_fajr.wav');
-      expect(regularCall?.[1].sound).toBe('adhan_regular.wav');
+      expect(channelIds).toContain(ANDROID_CHANNEL_NOTIFICATION_ID);
+      const customCall = setChannel.mock.calls.find(
+        (c) => c[0] === ANDROID_CHANNEL_NOTIFICATION_ID,
+      );
+      expect(customCall?.[1].sound).toBe('notification.wav');
     } finally {
       Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
     }
   });
 
-  it('declares both iOS adhan sound assets in the Expo notifications plugin', () => {
+  it('declares the custom notification sound asset in the Expo notifications plugin', () => {
     const notificationsPlugin = appJson.expo.plugins.find(
       (p: unknown) => Array.isArray(p) && p[0] === 'expo-notifications',
     );
     const config = Array.isArray(notificationsPlugin)
       ? (notificationsPlugin[1] as { sounds?: string[] })
       : null;
-    expect(config?.sounds).toContain('./assets/sounds/adhan_fajr.wav');
-    expect(config?.sounds).toContain('./assets/sounds/adhan_regular.wav');
+    expect(config?.sounds).toContain('./assets/sounds/notification.wav');
   });
 });
 
-describe('V9 — Android adhan routes to the native full-adhan player', () => {
-  const schedule = Notifications.scheduleNotificationAsync as jest.Mock;
-  const cancel = Notifications.cancelScheduledNotificationAsync as jest.Mock;
+describe('cancelAllPrayerNotifications', () => {
   const getAll = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
-  const arm = armPrayers as jest.Mock;
-  const cancelNative = cancelNativeAdhan as jest.Mock;
-
-  const FAKE_NOW = new Date('2026-05-02T00:00:00Z');
+  const cancel = Notifications.cancelScheduledNotificationAsync as jest.Mock;
 
   beforeEach(() => {
-    jest.useFakeTimers().setSystemTime(FAKE_NOW);
-    schedule.mockReset().mockResolvedValue('id');
+    getAll.mockReset();
     cancel.mockReset().mockResolvedValue(undefined);
-    getAll.mockReset().mockResolvedValue([]);
-    arm.mockClear();
-    cancelNative.mockClear();
-    useUiStore.setState({ lastError: null });
   });
 
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  // Holds the Platform.OS override for the FULL async duration of fn. reconcile now
-  // runs its body in a microtask (serialization chain), so a synchronous finally
-  // would reset Platform.OS back before reconcileInner reads it; awaiting fn keeps
-  // 'android' in place until the reconcile actually completes.
-  async function withAndroid<T>(fn: () => T | Promise<T>): Promise<T> {
-    const original = Platform.OS;
-    Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
-    try {
-      return await fn();
-    } finally {
-      Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
-    }
-  }
-
-  function imsakOnlyCache(): YearlyPrayerCache {
-    return makeCache([entry('2026-05-03', { imsak: '05:00' })]);
-  }
-
-  it('arms imsak natively (not via expo) on Android with adhanLong, mapped to the fajr sound', async () => {
-    await withAndroid(async () => {
-      await reconcile(imsakOnlyCache(), {
-        enabledPrayers: ['imsak'],
-        sound: 'adhanLong',
-        windowDays: 2,
-      });
-      expect(arm).toHaveBeenCalledTimes(1);
-      const armed = arm.mock.calls[0][0];
-      expect(armed).toHaveLength(1);
-      expect(armed[0].prayerKey).toBe('imsak');
-      expect(armed[0].soundKind).toBe('fajr');
-      expect(typeof armed[0].fireAtEpochMs).toBe('number');
-      // imsak must NOT also be scheduled through expo-notifications.
-      expect(schedule).not.toHaveBeenCalled();
-    });
-  });
-
-  it('maps non-imsak adhan prayers to the regular sound kind', async () => {
-    await withAndroid(async () => {
-      const cache = makeCache([entry('2026-05-03', { ogle: '12:00' })]);
-      await reconcile(cache, { enabledPrayers: ['ogle'], sound: 'adhanLong', windowDays: 2 });
-      expect(arm).toHaveBeenCalledTimes(1);
-      const armed = arm.mock.calls[0][0];
-      expect(armed[0].prayerKey).toBe('ogle');
-      expect(armed[0].soundKind).toBe('regular');
-      expect(schedule).not.toHaveBeenCalled();
-    });
-  });
-
-  it('keeps gunes on expo (no sunrise adhan) while arming the adhan prayers natively', async () => {
-    await withAndroid(async () => {
-      const cache = makeCache([entry('2026-05-03', { gunes: '06:30', imsak: '05:00' })]);
-      await reconcile(cache, {
-        enabledPrayers: ['imsak', 'gunes'],
-        sound: 'adhanLong',
-        windowDays: 2,
-      });
-      // gunes scheduled via expo; imsak armed natively.
-      const scheduledKeys = schedule.mock.calls.map((c) => c[0].content.data.prayerKey);
-      expect(scheduledKeys).toEqual(['gunes']);
-      const armedKeys = arm.mock.calls[0][0].map((a: { prayerKey: string }) => a.prayerKey);
-      expect(armedKeys).toEqual(['imsak']);
-    });
-  });
-
-  it('clears native alarms (no arm) when the adhan preference is off on Android', async () => {
-    await withAndroid(async () => {
-      await reconcile(imsakOnlyCache(), {
-        enabledPrayers: ['imsak'],
-        sound: 'default',
-        windowDays: 2,
-      });
-      expect(arm).not.toHaveBeenCalled();
-      expect(cancelNative).toHaveBeenCalledTimes(1);
-      // default-sound path still schedules through expo-notifications.
-      expect(schedule).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it('does NOT arm natively for adhanShort on Android — the clip stays on expo for every prayer', async () => {
-    await withAndroid(async () => {
-      await reconcile(imsakOnlyCache(), {
-        enabledPrayers: ['imsak'],
-        sound: 'adhanShort',
-        windowDays: 2,
-      });
-      // adhanShort = ≤30s clip: native player untouched, imsak scheduled via expo.
-      expect(arm).not.toHaveBeenCalled();
-      expect(cancelNative).toHaveBeenCalledTimes(1);
-      expect(schedule).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it('does not arm natively on iOS even for adhanLong (no background full-adhan) — falls back to the clip', async () => {
-    // Platform.OS defaults to ios under jest-expo.
-    await reconcile(imsakOnlyCache(), {
-      enabledPrayers: ['imsak'],
-      sound: 'adhanLong',
-      windowDays: 2,
-    });
-    expect(arm).not.toHaveBeenCalled();
-    expect(cancelNative).toHaveBeenCalledTimes(1);
-    // iOS keeps the expo per-prayer clip path.
-    expect(schedule).toHaveBeenCalledTimes(1);
-  });
-
-  // Review H2: a rejected native bridge call must not abort the whole
-  // reconcile — the expo pass (gunes + stale-cancel) must still run.
-  it('isolates a native arm failure: still schedules expo (gunes), surfaces a banner, never throws', async () => {
-    await withAndroid(async () => {
-      arm.mockRejectedValueOnce(new Error('native bridge down'));
-      const cache = makeCache([entry('2026-05-03', { gunes: '06:30', imsak: '05:00' })]);
-      await expect(
-        reconcile(cache, { enabledPrayers: ['imsak', 'gunes'], sound: 'adhanLong', windowDays: 2 }),
-      ).resolves.toBeDefined();
-      const scheduledKeys = schedule.mock.calls.map((c) => c[0].content.data.prayerKey);
-      expect(scheduledKeys).toEqual(['gunes']);
-      expect(useUiStore.getState().lastError?.code).toBe('native-arm-failed');
-    });
-  });
-
-  // Review C1: the delete-account / city-reset path calls this without a
-  // trailing reconcile, so it must clear native alarms itself.
-  it('cancelAllPrayerNotifications also clears native adhan alarms', async () => {
-    getAll.mockResolvedValue([]);
+  it('cancels every enumerable prayer notification and leaves unrelated ones alone', async () => {
+    getAll.mockResolvedValue([
+      { identifier: buildNotificationId('9541', '2026-05-03', 'imsak', 'tz') },
+      { identifier: 'unrelated-id' },
+    ]);
     await cancelAllPrayerNotifications();
-    expect(cancelNative).toHaveBeenCalledTimes(1);
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('resetAllScheduledNotifications — enumeration-independent hard reset', () => {
   const cancelAllExpo = Notifications.cancelAllScheduledNotificationsAsync as jest.Mock;
   const getAll = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
-  const cancelNative = cancelNativeAdhan as jest.Mock;
 
   beforeEach(() => {
     cancelAllExpo.mockReset().mockResolvedValue(undefined);
     getAll.mockReset().mockResolvedValue([]);
-    cancelNative.mockClear();
   });
 
   // The whole point of the hard reset: clear every pending notification WITHOUT
   // enumerating, so a previous city can't survive a getAll()/id-recognition gap.
-  it('cancels all scheduled notifications without enumerating + clears native alarms', async () => {
+  it('cancels all scheduled notifications without enumerating', async () => {
     await resetAllScheduledNotifications();
 
     expect(cancelAllExpo).toHaveBeenCalledTimes(1);
-    expect(cancelNative).toHaveBeenCalledTimes(1);
     expect(getAll).not.toHaveBeenCalled();
   });
 });
