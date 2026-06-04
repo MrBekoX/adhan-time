@@ -16,7 +16,6 @@ const REQUIRED_ERROR_KEYS = [
   'hydration-timeout',
   'parse-skipped',
   'device-registration-failed',
-  'native-arm-failed',
 ];
 
 type ErrorsBag = Record<string, unknown>;

@@ -64,8 +64,7 @@
       "device-registration-incompatible": "当前应用版本与服务器不兼容,请从应用商店更新。",
       "push-token-unavailable": "暂时无法获取推送通知 ID,请检查网络后稍后重试。",
       "toggle-failed": "偏好已保存,但通知重新安排失败。",
-      "parse-skipped": "部分礼拜时间无法读取,因此可能缺少一些通知。",
-      "native-arm-failed": "无法设置完整宣礼闹钟。其他通知不受影响。"
+      "parse-skipped": "部分礼拜时间无法读取,因此可能缺少一些通知。"
     },
     "onboardingFinalize": {
       "title": "初始化未完成",

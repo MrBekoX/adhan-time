@@ -44,6 +44,12 @@ type TargetComputation = {
 
 export async function ensureAndroidChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
+  // Remove the pre-pivot recitation channels so upgraded devices don't keep dead
+  // entries (bound to the now-deleted adhan recordings) in Android notification
+  // settings. No-op on fresh installs. Done before scheduling; reconcile reschedules
+  // every prayer onto the channels below, so nothing is left pointing at these.
+  await Notifications.deleteNotificationChannelAsync('adhan-fajr');
+  await Notifications.deleteNotificationChannelAsync('adhan-regular');
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
     name: ANDROID_CHANNEL_NAME,
     importance: Notifications.AndroidImportance.HIGH,

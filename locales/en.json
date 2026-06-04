@@ -68,8 +68,7 @@
       "device-registration-incompatible": "This app version isn't compatible with the server — please update from the store.",
       "push-token-unavailable": "Couldn't get a push notification ID right now. Check your connection and try again shortly.",
       "toggle-failed": "Your preference was saved, but rescheduling failed.",
-      "parse-skipped": "Some prayer times could not be read, so a few notifications may be missing.",
-      "native-arm-failed": "Couldn't set the full-adhan alarm. Other notifications are unaffected."
+      "parse-skipped": "Some prayer times could not be read, so a few notifications may be missing."
     },
     "onboardingFinalize": {
       "title": "Setup didn't finish",

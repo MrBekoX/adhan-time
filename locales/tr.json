@@ -68,8 +68,7 @@
       "device-registration-incompatible": "Bu uygulama sürümü sunucuyla uyumlu değil — lütfen mağazadan güncelle.",
       "push-token-unavailable": "Bildirim kimliği şu anda alınamıyor. Bağlantını kontrol edip biraz sonra tekrar dene.",
       "toggle-failed": "Bildirim ayarın kaydedildi ama yeniden zamanlanamadı.",
-      "parse-skipped": "Bazı vakitler okunamadı; bu yüzden birkaç bildirim eksik kalabilir.",
-      "native-arm-failed": "Tam ezan çalması için alarm kurulamadı. Diğer bildirimler etkilenmedi."
+      "parse-skipped": "Bazı vakitler okunamadı; bu yüzden birkaç bildirim eksik kalabilir."
     },
     "onboardingFinalize": {
       "title": "Kurulum tamamlanamadı",

@@ -40,6 +40,7 @@ eas init                  # `app.json` içine projectId yazılır
 ### 4. Supabase Vault Secret'ları (pg_cron için)
 
 Supabase Dashboard > Database > Vault > **New Secret**:
+
 - `supabase_url` → `https://ckrvxajivwkifticnqom.supabase.co`
 - `service_role_key` → Dashboard > Project Settings > API > **service_role secret** kopyala
 
@@ -52,11 +53,12 @@ Vault dolduktan sonra Dashboard > SQL Editor'da `supabase/migrations/20260502000
 ```bash
 supabase secrets set EXPO_ACCESS_TOKEN=<token>
 ```
+
 Token: https://expo.dev → Account Settings → Access Tokens → "Enhanced Security for Push Notifications" aç.
 
 ### 7. Asset'ler (kullanıcı sağlar)
 
-`assets/images/icon.png` (1024×1024), `adaptive-icon.png`, `favicon.png` ve opsiyonel `assets/sounds/adhan_short.wav` (≤30 sn) ekleyince `app.json`'daki ilgili anahtarları geri aç.
+`assets/images/icon.png` (1024×1024), `adaptive-icon.png`, `favicon.png` ve `assets/sounds/notification.wav` (≤30 sn bildirim sesi) `app.json`'daki ilgili anahtarlara bağlı.
 
 ### 8. Android Push (FCM v1) — zorunlu
 
@@ -93,12 +95,12 @@ npm run start
 
 ## Komutlar
 
-| Komut | Açıklama |
-|---|---|
-| `npm run start` | Dev server |
-| `npm run lint` | ESLint |
-| `npm run type-check` | `tsc --noEmit` |
-| `npm run test` | Jest |
+| Komut                        | Açıklama                                |
+| ---------------------------- | --------------------------------------- |
+| `npm run start`              | Dev server                              |
+| `npm run lint`               | ESLint                                  |
+| `npm run type-check`         | `tsc --noEmit`                          |
+| `npm run test`               | Jest                                    |
 | `npm run validate:build-env` | Build öncesi env + FCM dosyası kontrolü |
 
 Slash komutlar: `.claude/commands/` altında. Örn `/commit`, `/supabase-deploy`, `/eas-build`, `/prayer-test`.
@@ -125,15 +127,16 @@ Detay: `CLAUDE.md` ve `.claude/rules/01-architecture.md`.
 
 ## Backend Durumu
 
-| Bileşen | Durum |
-|---|---|
-| Supabase project (`ckrvxajivwkifticnqom`) | ACTIVE_HEALTHY (ap-southeast-2) |
-| Migration `init_devices_cache_log` | ✅ uygulandı |
-| Edge function `register-device` | ✅ deployed (v1) |
-| Edge function `push-prayer` | ✅ deployed (v1) |
-| pg_cron job `push-prayer-every-minute` | ⏳ manuel kurulum (yukarıda 4-5 adım) |
+| Bileşen                                   | Durum                                 |
+| ----------------------------------------- | ------------------------------------- |
+| Supabase project (`ckrvxajivwkifticnqom`) | ACTIVE_HEALTHY (ap-southeast-2)       |
+| Migration `init_devices_cache_log`        | ✅ uygulandı                          |
+| Edge function `register-device`           | ✅ deployed (v1)                      |
+| Edge function `push-prayer`               | ✅ deployed (v1)                      |
+| pg_cron job `push-prayer-every-minute`    | ⏳ manuel kurulum (yukarıda 4-5 adım) |
 
 ---
 
 ## Lisans
+
 Private.

@@ -24,6 +24,9 @@ import {
   isWithinPrayerWindow,
   localYearInTz,
 } from '../_shared/push-window.ts';
+// Sound/channel routing lives in a pure, unit-tested module (sound-routing.ts) so
+// it stays in sync with the device-side constants/notifications.ts mapping.
+import { pushChannelFor, pushSoundFor } from './sound-routing.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -36,26 +39,6 @@ const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? null;
 const STALE_DAYS = 5;
 const PRAYER_KEYS = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'] as const;
 type PrayerKey = (typeof PRAYER_KEYS)[number];
-
-// Sound routing — mirrors constants/notifications.ts on the app side (the RN/Deno
-// boundary can't share a module, same as PRAYER_KEYS above). One bundled custom
-// notification sound for all prayers; iOS plays the file via `sound`, Android via
-// the matching channel created by ensureAndroidChannel() on the device. Any
-// non-'default' pref (incl. legacy 'adhanShort'/'adhanLong' from devices that
-// haven't updated) maps to the notification sound; on an old build whose channel
-// differs the OS simply falls back to its default sound (acceptable for this
-// 5-day-inactive fallback path).
-const SOUND_NOTIFICATION = 'notification.wav';
-const CHANNEL_DEFAULT = 'adhan';
-const CHANNEL_NOTIFICATION = 'adhan-notification';
-
-function pushSoundFor(pref: string): string {
-  return pref === 'default' ? 'default' : SOUND_NOTIFICATION;
-}
-
-function pushChannelFor(pref: string): string {
-  return pref === 'default' ? CHANNEL_DEFAULT : CHANNEL_NOTIFICATION;
-}
 
 type Device = {
   id: string;

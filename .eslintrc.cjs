@@ -46,19 +46,17 @@ module.exports = {
   },
   overrides: [
     {
-      // Scheduler must derive sound files from the SOUNDS table — never
-      // hard-code 'adhanShort' or 'adhan_short.wav' inline.
+      // Scheduler must derive the sound from constants/notifications
+      // (soundForPrayer / NOTIFICATION_SOUND_FILE) — never hard-code the
+      // 'notification.wav' filename inline.
       files: ['services/notificationScheduler.ts'],
       rules: {
         'no-restricted-syntax': [
           'error',
           {
-            selector: "Literal[value='adhanShort']",
-            message: 'Use SOUNDS lookup (constants/notifications) instead of literal sound key.',
-          },
-          {
-            selector: "Literal[value='adhan_short.wav']",
-            message: 'Use SOUNDS lookup (constants/notifications) instead of literal sound filename.',
+            selector: "Literal[value='notification.wav']",
+            message:
+              'Use NOTIFICATION_SOUND_FILE / soundForPrayer (constants/notifications) instead of the literal sound filename.',
           },
         ],
       },

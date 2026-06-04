@@ -96,6 +96,13 @@ describe('migrateSettingsState (notification sound — settingsStore → v5)', (
     expect(result.sound).toBe('notification');
   });
 
+  it("collapses a v4-persisted 'adhanShort' (the 'Kısa Ezan' cohort) to 'notification'", () => {
+    // The shipped v4 build let users pick 'adhanShort'; the v3->v4 remap is guarded
+    // by version<4 so it does NOT fire for a v4 blob — the v4->v5 step must catch it.
+    const result = migrateSettingsState({ locale: 'tr', sound: 'adhanShort' }, 4);
+    expect(result.sound).toBe('notification');
+  });
+
   it("leaves 'default' untouched", () => {
     const result = migrateSettingsState({ locale: 'tr', sound: 'default' }, 4);
     expect(result.sound).toBe('default');

@@ -492,6 +492,7 @@ describe('notification sound + Android channel routing', () => {
   const cancel = Notifications.cancelScheduledNotificationAsync as jest.Mock;
   const getAll = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
   const setChannel = Notifications.setNotificationChannelAsync as jest.Mock;
+  const deleteChannel = Notifications.deleteNotificationChannelAsync as jest.Mock;
 
   const FAKE_NOW = new Date('2026-05-02T00:00:00Z');
 
@@ -501,6 +502,7 @@ describe('notification sound + Android channel routing', () => {
     cancel.mockReset().mockResolvedValue(undefined);
     getAll.mockReset().mockResolvedValue([]);
     setChannel.mockReset().mockResolvedValue(undefined);
+    deleteChannel.mockReset().mockResolvedValue(undefined);
     useUiStore.setState({ lastError: null });
   });
 
@@ -572,18 +574,22 @@ describe('notification sound + Android channel routing', () => {
     }
   });
 
-  it('ensureAndroidChannel creates the default channel and the custom-sound channel', async () => {
+  it('ensureAndroidChannel creates exactly the default + custom-sound channels (and deletes the legacy recitation channels)', async () => {
     const original = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
       await ensureAndroidChannel();
       const channelIds = setChannel.mock.calls.map((c) => c[0]);
-      expect(channelIds).toContain(ANDROID_CHANNEL_ID);
-      expect(channelIds).toContain(ANDROID_CHANNEL_NOTIFICATION_ID);
+      // Exactly the two current channels — no stale adhan-fajr/adhan-regular.
+      expect(channelIds).toEqual([ANDROID_CHANNEL_ID, ANDROID_CHANNEL_NOTIFICATION_ID]);
       const customCall = setChannel.mock.calls.find(
         (c) => c[0] === ANDROID_CHANNEL_NOTIFICATION_ID,
       );
       expect(customCall?.[1].sound).toBe('notification.wav');
+      // Legacy recitation channels from the pre-pivot build are cleaned up.
+      const deleted = deleteChannel.mock.calls.map((c) => c[0]);
+      expect(deleted).toContain('adhan-fajr');
+      expect(deleted).toContain('adhan-regular');
     } finally {
       Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
     }
@@ -597,6 +603,17 @@ describe('notification sound + Android channel routing', () => {
       ? (notificationsPlugin[1] as { sounds?: string[] })
       : null;
     expect(config?.sounds).toContain('./assets/sounds/notification.wav');
+  });
+
+  // Regression guard: the deleted adhan-player module's manifest used to supply
+  // these app-wide, so expo-notifications got EXACT alarms. Without them, Android
+  // 12+ (canScheduleExactAlarms()===false) silently downgrades every prayer alarm
+  // to INEXACT (10+ min late) — religiously wrong (rules/11). expo-notifications
+  // is mocked in jest so only this config assertion can catch the regression.
+  it('declares exact-alarm permissions so Android 12+ fires prayer alarms EXACTLY', () => {
+    const perms = appJson.expo.android.permissions;
+    expect(perms).toContain('USE_EXACT_ALARM');
+    expect(perms).toContain('SCHEDULE_EXACT_ALARM');
   });
 });
 
