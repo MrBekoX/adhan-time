@@ -74,6 +74,28 @@ export function useDeviceHeading({
   const headingSharedRef = useRef(headingShared);
   headingSharedRef.current = headingShared;
 
+  // Smoothing accumulators live in a ref (NOT the effect closure) so a focus
+  // blur/refocus — which flips `enabled` and tears down + resubscribes the sensor
+  // (effect dep [enabled]) — does NOT reset the EMA baseline. Resetting it
+  // republished the first post-resubscribe reading RAW, snapping the rose from a
+  // cold baseline (the on-device "freeze then jump"). Persisting it lets the
+  // stream resume from where it left off. (Qibla bug A1.)
+  const stateRef = useRef<{
+    smoothed: number | null;
+    lastSharedHeading: number | null;
+    lastPublishedHeading: number | null;
+    lastPublishedAt: number;
+    lastPublishedQuality: HeadingQuality | null;
+    lastPublishedSource: 'true' | 'magnetic' | null;
+  }>({
+    smoothed: null,
+    lastSharedHeading: null,
+    lastPublishedHeading: null,
+    lastPublishedAt: 0,
+    lastPublishedQuality: null,
+    lastPublishedSource: null,
+  });
+
   useEffect(() => {
     if (!enabled) {
       setStatus({ kind: 'idle' });
@@ -83,13 +105,9 @@ export function useDeviceHeading({
     let cancelled = false;
     let removeSubscription: (() => void) | null = null;
     let usingFusedSource = false;
-    let smoothed: number | null = null;
-    // Last value written to the UI-thread shared value (for the deadband below).
-    let lastSharedHeading: number | null = null;
-    let lastPublishedHeading: number | null = null;
-    let lastPublishedAt = 0;
-    let lastPublishedQuality: HeadingQuality | null = null;
-    let lastPublishedSource: 'true' | 'magnetic' | null = null;
+    // Smoothing accumulators persist across resubscribes via stateRef (Qibla bug A1):
+    // a focus blur/refocus must not reset the EMA baseline and snap the rose.
+    const st = stateRef.current;
 
     // CompassHeading.HeadingReading is shape-compatible with expo-location's
     // LocationHeadingObject, so one handler serves both the native and fallback sources.
@@ -110,31 +128,32 @@ export function useDeviceHeading({
       const smoothingAlpha = usingFusedSource
         ? HEADING_EMA_ALPHA
         : headingSmoothingAlphaForPlatform(platformOS, HEADING_EMA_ALPHA);
-      smoothed = applyEma(smoothed, selected.heading, smoothingAlpha);
+      const next = applyEma(st.smoothed, selected.heading, smoothingAlpha);
+      st.smoothed = next;
       // UI-thread animation source: write samples (past a small deadband) so the rose reads
       // this on the UI thread, independent of React's gated re-renders. The deadband skips
-      // sub-0.4° sensor jitter while stationary, so the rose spring settles and the screen
+      // sub-0.4° sensor jitter while stationary, so the rose tween settles and the screen
       // idles instead of redrawing every frame (see HEADING_SHARED_DEADBAND_DEG).
       const hs = headingSharedRef.current;
       if (
         hs &&
-        (lastSharedHeading === null ||
-          Math.abs(signedDelta(smoothed, lastSharedHeading)) >= HEADING_SHARED_DEADBAND_DEG)
+        (st.lastSharedHeading === null ||
+          Math.abs(signedDelta(next, st.lastSharedHeading)) >= HEADING_SHARED_DEADBAND_DEG)
       ) {
-        hs.value = smoothed;
-        lastSharedHeading = smoothed;
+        hs.value = next;
+        st.lastSharedHeading = next;
       }
       const accuracyDeg = normalizeAccuracyForPlatform(reading.accuracy, platformOS);
       const quality = classifyQuality(accuracyDeg);
       const metadataChanged =
-        selected.source !== lastPublishedSource || quality !== lastPublishedQuality;
+        selected.source !== st.lastPublishedSource || quality !== st.lastPublishedQuality;
       const now = Date.now();
       if (
         !metadataChanged &&
         !shouldPublishHeadingUpdate({
-          previousHeading: lastPublishedHeading,
-          nextHeading: smoothed,
-          elapsedMs: now - lastPublishedAt,
+          previousHeading: st.lastPublishedHeading,
+          nextHeading: next,
+          elapsedMs: now - st.lastPublishedAt,
           minIntervalMs: HEADING_PUBLISH_MIN_INTERVAL_MS,
           minDeltaDeg: HEADING_PUBLISH_MIN_DELTA_DEG,
           minIdleDeltaDeg: HEADING_PUBLISH_MIN_IDLE_DELTA_DEG,
@@ -142,12 +161,12 @@ export function useDeviceHeading({
       ) {
         return;
       }
-      lastPublishedHeading = smoothed;
-      lastPublishedAt = now;
-      lastPublishedQuality = quality;
-      lastPublishedSource = selected.source;
+      st.lastPublishedHeading = next;
+      st.lastPublishedAt = now;
+      st.lastPublishedQuality = quality;
+      st.lastPublishedSource = selected.source;
 
-      setStatus({ kind: 'ready', heading: smoothed, source: selected.source, accuracyDeg, quality });
+      setStatus({ kind: 'ready', heading: next, source: selected.source, accuracyDeg, quality });
     };
 
     void (async () => {

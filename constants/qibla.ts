@@ -65,20 +65,31 @@ export const HEADING_PUBLISH_MIN_DELTA_DEG = 8;
  * ~8x/s while the phone sat still, churning ~11MB every ~25s (constant background GC, 59%
  * janky frames). Gating on real movement removes that idle churn yet stays responsive —
  * because lastPublished is NOT advanced when we skip, successive sub-threshold steps
- * accumulate, so slow real rotation still crosses the gate and publishes. Mirrors the 0.4°
- * UI-thread shared-value deadband; the rose (shared value) is unaffected either way.
+ * accumulate, so slow real rotation still crosses the gate and publishes.
+ *
+ * Lowered 0.5° → 0.25° (slow-rotation freeze fix): the "turn X°" instruction/halo must track
+ * a slow fine-alignment turn instead of freezing for ~1s. Idle EMA jitter (~0.03°/sample) is
+ * still far below 0.25°, so stationary whole-screen re-renders remain suppressed. The rose
+ * itself no longer depends on this gate at all — it follows the shared value per-frame
+ * (see ROSE_FOLLOW_LAMBDA / roseFollowStep).
  */
-export const HEADING_PUBLISH_MIN_IDLE_DELTA_DEG = 0.5;
+export const HEADING_PUBLISH_MIN_IDLE_DELTA_DEG = 0.25;
 
 /**
- * Deadband (degrees) for the UI-thread animation source. The hook writes a new sample into
- * `headingShared` only when the smoothed heading moves at least this much. While the user
- * holds still, the fused sensor's sub-degree noise no longer nudges the shared value, so the
- * rose spring settles and the screen STOPS redrawing (idle) instead of animating perpetually
- * — cutting idle GPU/CPU frames and battery. 0.4° is imperceptible (≈1px at the rose rim)
- * and far inside the 5° qibla tolerance, so it never affects accuracy.
+ * Idle-noise floor (degrees) for the UI-thread animation source. The hook writes a new sample
+ * into `headingShared` only when the smoothed heading moves at least this much, so a perfectly
+ * still phone's sub-noise jitter does not nudge the rose target (the frame-follow then has
+ * nothing to chase and idles — no perpetual redraw).
+ *
+ * Lowered 0.4° → 0.05° (slow-rotation freeze fix): at 0.4° this deadband was a SECOND angular
+ * staircase (on top of the native gate) that quantized a slow fine-alignment turn into a write
+ * only every ~3 samples → the rose froze ~1s then jumped. At 0.05° it is effectively off for
+ * any real motion (even ~0.3°/s reaches the shared value every sample) while still rejecting
+ * the fused sensor's idle jitter (~0.03°/sample stays below it). Display smoothness no longer
+ * comes from gating the feed — it comes from the per-frame `roseFollowStep` glide. Far inside
+ * the 5° qibla tolerance, so it never affects accuracy.
  */
-export const HEADING_SHARED_DEADBAND_DEG = 0.4;
+export const HEADING_SHARED_DEADBAND_DEG = 0.05;
 
 /**
  * Alignment thresholds (degrees) for "facing qibla" with hysteresis.
@@ -92,3 +103,22 @@ export const HEADING_SHARED_DEADBAND_DEG = 0.4;
  */
 export const ALIGN_ENTER_DEG = 5;
 export const ALIGN_EXIT_DEG = 8;
+
+/**
+ * Compass-rose UI-thread follow (replaces the per-sample `withSpring` retarget).
+ *
+ * Each vsync the displayed angle eases a fraction toward the accumulated target via
+ * `roseFollowStep` (an exponential/critically-damped follow). This decouples display
+ * smoothness from sensor-sample cadence: the rose advances EVERY frame, so a sparse feed
+ * (slow rotation) becomes a graceful glide instead of the old freeze-then-jump. Because the
+ * step has no momentum term it can NEVER overshoot, structurally killing the A2 coast
+ * regression; and because exponential decay is multiplicative it is exactly frame-rate
+ * independent (identical feel on 60/90/120 Hz panels — required for a device-agnostic store
+ * release). Spec: docs/superpowers/specs/2026-06-05-qibla-slow-rotation-freeze-fix-design.md §7.4.
+ */
+// Rate constant (1/s): time-constant τ = 1/λ ≈ 0.11 s. Higher = snappier, lower = smoother.
+export const ROSE_FOLLOW_LAMBDA = 9;
+// Clamp the per-frame dt so a background/foreground gap (one huge frame) can't snap the rose.
+export const ROSE_FOLLOW_MAX_DT_SEC = 0.05;
+// Convergence band (degrees): within this the follow snaps and stops writing (no idle redraw).
+export const ROSE_FOLLOW_EPSILON = 0.05;

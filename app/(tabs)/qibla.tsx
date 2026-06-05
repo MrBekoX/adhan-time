@@ -41,12 +41,17 @@ export default function QiblaScreen() {
   // (ungated), so QiblaCompass animates the rose on the UI thread at sensor rate, free of
   // React's re-render jank (the cause of the on-device "stepping"). -1 = no reading yet.
   const headingShared = useSharedValue(-1);
-  // Heading sensor needs location permission (Android computes trueHeading from
-  // GPS-derived declination). Wait until location is ready before subscribing.
-  // We also pass coordinates through so that on Android paths returning only
-  // magnetic heading we can apply WMM declination compensation (SPEC-K2).
+  // Subscribe the heading sensor on focus ALONE (not gated on location). The
+  // rotation-vector sensor needs no GPS fix to deliver magHeading, and gating the
+  // subscription on `location.kind` made an intermediate non-ready status (or focus
+  // flutter during acquisition) tear down + resubscribe the sensor and reset the EMA,
+  // snapping the rose (Qibla bug A1). `location` still flows through (null until ready);
+  // the hook reads it per sample, so on Android paths returning only magnetic heading
+  // the WMM declination compensation (SPEC-K2) simply turns on when GPS arrives — no
+  // resubscribe. Until then selectHeadingSource yields source:'magnetic', which the body
+  // below surfaces as the red unreliable banner (no false-correct signal, rules/11).
   const heading = useDeviceHeading({
-    enabled: active && location.kind === 'ready',
+    enabled: active,
     location: location.kind === 'ready' ? { lat: location.lat, lon: location.lon } : null,
     headingShared,
   });

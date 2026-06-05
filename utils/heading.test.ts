@@ -1,8 +1,11 @@
+import { ROSE_FOLLOW_LAMBDA, ROSE_FOLLOW_MAX_DT_SEC } from '@/constants/qibla';
+
 import {
   applyEma,
   headingSmoothingAlphaForPlatform,
   nextRoseRotation,
-  roseTweenDurationMs,
+  roseFollowStep,
+  roseSpringConfig,
   shouldPublishHeadingUpdate,
   shortestRotationDelta,
   signedDelta,
@@ -235,16 +238,120 @@ describe('nextRoseRotation', () => {
   });
 });
 
-describe('roseTweenDurationMs', () => {
-  it('keeps large phone turns responsive (shortest, no trailing)', () => {
-    expect(roseTweenDurationMs(90)).toBeLessThanOrEqual(90);
-    expect(roseTweenDurationMs(90)).toBeLessThanOrEqual(roseTweenDurationMs(2));
+describe('roseSpringConfig', () => {
+  // A2 regression fix: re-targeting a RUNNING reanimated spring inherits its live velocity
+  // (confirmed via Reanimated docs). At ~30Hz that velocity hands off frame-to-frame, so when
+  // the heading stream stalls the rose can coast/overshoot past the frozen target — the
+  // on-device "döndürmeyi bıraktım hâlâ döndü". The config must therefore be physically
+  // incapable of overshoot: non-oscillating (zeta >= 1) AND overshoot hard-clamped.
+  const zeta = (c: { mass: number; stiffness: number; damping: number }): number =>
+    c.damping / (2 * Math.sqrt(c.stiffness * c.mass));
+
+  it('is overdamped or critically damped (zeta >= 1) so it never oscillates/overshoots', () => {
+    expect(zeta(roseSpringConfig())).toBeGreaterThanOrEqual(1);
   });
 
-  it('uses a short tween for small steps — the fused stream is continuous (no 200ms gaps to bridge)', () => {
-    // The native rotation-vector / CLHeading stream arrives ~every 20ms, so small per-sample
-    // deltas no longer need a long bridging tween; a short one just interpolates between
-    // already-close samples without adding lag.
-    expect(roseTweenDurationMs(2)).toBeLessThanOrEqual(120);
+  it('hard-clamps overshoot so inherited spring velocity cannot coast past the target on a stall', () => {
+    expect(roseSpringConfig().overshootClamping).toBe(true);
+  });
+});
+
+describe('roseFollowStep', () => {
+  // The UI-thread rose driver. Each vsync the displayed angle eases a fraction toward the
+  // accumulated target. Replaces the per-sample withSpring retarget so the rose advances
+  // EVERY frame (freeze -> graceful glide) regardless of when sparse sensor samples land.
+  const FRAME = 1 / 60; // 16.6ms
+
+  // The app calls roseFollowStep with EXPLICIT lambda + maxDt — a worklet can't reliably capture
+  // cross-module imported constants into its closure (on-device this threw a ReferenceError), so
+  // the constants are passed in from the caller. Mirror that here, defaulting lambda to the prod value.
+  const step = (
+    displayed: number,
+    target: number,
+    dtSec: number,
+    lambda: number = ROSE_FOLLOW_LAMBDA,
+  ): number => roseFollowStep(displayed, target, dtSec, lambda, ROSE_FOLLOW_MAX_DT_SEC);
+
+  it('moves toward the target but NEVER overshoots, for any dt (no-coast guard / A2 regression)', () => {
+    // overshootClamping-by-construction: the eased fraction is in [0,1), so the result is
+    // always on the segment [displayed, target]. Property-check across a wide dt range.
+    const cases: [number, number][] = [
+      [0, 60],
+      [60, 0],
+      [-200, 35],
+      [100, 100],
+    ];
+    for (const [d, t] of cases) {
+      for (const dt of [0.0001, FRAME, 0.05, 0.5, 2, 100]) {
+        const next = step(d, t, dt);
+        const lo = Math.min(d, t);
+        const hi = Math.max(d, t);
+        expect(next).toBeGreaterThanOrEqual(lo - 1e-9);
+        expect(next).toBeLessThanOrEqual(hi + 1e-9);
+        // monotonic toward target (never the wrong way)
+        if (t > d) expect(next).toBeGreaterThanOrEqual(d - 1e-9);
+        if (t < d) expect(next).toBeLessThanOrEqual(d + 1e-9);
+      }
+    }
+  });
+
+  it('is exactly frame-rate independent: one full frame == two half frames', () => {
+    // Exponential decay is multiplicative, so 60/90/120Hz panels converge identically —
+    // the property that lets us ship one tuning to all devices/stores.
+    const oneStep = step(0, 90, FRAME);
+    const halfA = step(0, 90, FRAME / 2);
+    const halfB = step(halfA, 90, FRAME / 2);
+    expect(halfB).toBeCloseTo(oneStep, 6);
+  });
+
+  it('clamps dt so a long background/foreground gap cannot snap the rose past target', () => {
+    // A huge dt is clamped to ROSE_FOLLOW_MAX_DT_SEC: it advances at most that fraction,
+    // never a giant jump, and never past target.
+    const huge = step(0, 90, 5);
+    const clamped = step(0, 90, ROSE_FOLLOW_MAX_DT_SEC);
+    expect(huge).toBeCloseTo(clamped, 9);
+    expect(huge).toBeLessThan(90); // a fraction, not a snap to target
+  });
+
+  it('advances a meaningful fraction on a normal frame (the rose is NOT frozen)', () => {
+    // A 60° gap must visibly move within a single 16.6ms frame — this is the inverse of
+    // the bug (rose sitting still for ~1s). With lambda~9, one frame moves ~13-14%.
+    const next = step(0, 60, FRAME);
+    expect(next).toBeGreaterThan(60 * 0.05);
+  });
+
+  it('converges to within ~0.05° of a 60° target within ~1s of frames', () => {
+    let v = 0;
+    let frames = 0;
+    while (Math.abs(60 - v) > 0.05 && frames < 120) {
+      v = step(v, 60, FRAME);
+      frames++;
+    }
+    expect(Math.abs(60 - v)).toBeLessThanOrEqual(0.05);
+    expect(frames).toBeLessThanOrEqual(70); // ~7τ at λ=9 ≈ 0.8s
+  });
+
+  it('tracks a continuous SLOW rotation without starving (the freeze, as a property)', () => {
+    // Simulate fine qibla alignment: the target ramps ~0.3°/frame-ish slowly. The displayed
+    // value must keep advancing every frame and stay within a small bounded lag — never the
+    // ~1s stall the displacement gate produced.
+    let displayed = 0;
+    let target = 0;
+    const advances: number[] = [];
+    for (let i = 0; i < 120; i++) {
+      target += 0.25; // continuous slow rotation
+      const next = step(displayed, target, FRAME);
+      advances.push(next - displayed);
+      displayed = next;
+    }
+    // After the initial catch-up, EVERY frame advances (> 0) — no frozen frames.
+    const steady = advances.slice(30);
+    expect(steady.every((a) => a > 0)).toBe(true);
+    // And the rose stays within a small lag of the moving target (bounded, smooth follow).
+    expect(target - displayed).toBeLessThan(2);
+  });
+
+  it('uses ROSE_FOLLOW_LAMBDA as the default rate', () => {
+    expect(step(0, 90, FRAME)).toBeCloseTo(step(0, 90, FRAME, ROSE_FOLLOW_LAMBDA), 9);
   });
 });

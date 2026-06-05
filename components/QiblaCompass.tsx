@@ -1,24 +1,31 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Animated, {
-  Easing,
+  runOnJS,
   type SharedValue,
   useAnimatedReaction,
   useAnimatedStyle,
+  useFrameCallback,
   useSharedValue,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
 import KAABA_IMAGE from '../assets/images/kaaba.png';
-import { nextRoseRotation, roseTweenDurationMs, showAlignmentVisuals } from '@/utils/heading';
+import { ROSE_FOLLOW_EPSILON, ROSE_FOLLOW_LAMBDA, ROSE_FOLLOW_MAX_DT_SEC } from '@/constants/qibla';
+import { nextRoseRotation, roseFollowStep, roseSpringConfig, showAlignmentVisuals } from '@/utils/heading';
 
 import { CompassRose } from './CompassRose';
 import { colors, spacing } from './Theme';
 
 type Props = {
   size: number;
-  /** Smoothed device heading in degrees (0..360). Used only when `headingShared` is absent (tests / fallback). */
+  /**
+   * Smoothed device heading in degrees (0..360). TEST/FALLBACK-ONLY: in the app, qibla.tsx always
+   * supplies `headingShared` (for BOTH the native-fused and expo-location sources), so every real
+   * device drives the rose through the UI-thread worklet below — not this prop. Wiring `deviceHeading`
+   * without `headingShared` lands on the un-worklet'd useEffect path (jank-prone); don't.
+   */
   deviceHeading?: number;
   /** Bearing from user to Kaaba in degrees (0..360). */
   qiblaBearing: number;
@@ -34,11 +41,18 @@ type Props = {
   headingShared?: SharedValue<number>;
 };
 
-// Critically-damped spring for the rose (no overshoot — a compass must never oscillate
-// past true). Retargeted every ~20ms sample; its ~1.6Hz bandwidth low-passes the fast
-// sensor's high-frequency jitter (the "jump"/micro-reverse) into one fluid glide while
-// still tracking real rotation. Tune on device via OTA (spec §8).
-const ROSE_SPRING = { mass: 1, stiffness: 100, damping: 20 } as const;
+// Rose retarget animation (Qibla bug A2 + its regression fix). The original per-sample spring
+// (critically-damped 20, no clamp) carried velocity across retargets and coasted/overshot when the
+// JS stream stalled (a GC pause) — "döndürmeyi bıraktım hâlâ döndü". A2 replaced it with a
+// momentum-free `withTiming(linear)`. But timing has no inertia, so on the low-end A30s — whose
+// native 50Hz sendEvent churns ART GC and makes the `headingShared` cadence irregular — the rose
+// visibly "stepped"/froze between late samples (the reported regression). The fix is an OVERDAMPED,
+// overshoot-CLAMPED spring (roseSpringConfig, zeta=1.3): its inertia smooths the irregular cadence
+// (bridging the gaps timing left bare) while zeta>1 + overshootClamping make it physically incapable
+// of the coast A2 removed — inherited velocity can only decelerate TO the target, never past it. The
+// native A3 throttle (same PR) additionally regularises the cadence at the source. Spec:
+// docs/superpowers/specs/2026-06-04-qibla-stepping-regression-fix-design.md.
+const ROSE_SPRING = roseSpringConfig();
 
 const NEEDLE_LENGTH_RATIO = 0.62;
 const KAABA_MARKER_SIZE = 44;
@@ -58,6 +72,8 @@ function QiblaCompassImpl({
   // turn whenever the device heading crosses 0/360 (the "N seam"). By accumulating the
   // signed shortest delta to -heading instead, the visual angle stays the same (modulo 360)
   // while the tween always picks the short way around.
+  // Displayed rose angle (unbounded, shortest-arc accumulated). Driven every vsync by the
+  // follow loop below on the PRIMARY path, or by the fallback spring effect on the test path.
   const roseRotation = useSharedValue(0);
   // UI-thread accumulator for the unwrapped rose target (grows unbounded, shortest-arc).
   const roseTargetSV = useSharedValue(0);
@@ -67,12 +83,43 @@ function QiblaCompassImpl({
   // UI thread and returns a mid-tween value, so the shortest-arc baseline races and the rose
   // stutters. Keeping the unwrapped target in a ref makes each step deterministic.
   const roseTargetRef = useRef(0);
+  // Armed-state of the per-frame follow loop, coordinated on the UI thread between the ingest
+  // reaction (arms on a new sample) and the frame callback (disarms on convergence) so a
+  // settled — or tab-blurred (feed stops → converges) — rose stops burning vsync frames.
+  const frameArmed = useSharedValue(false);
 
-  // PRIMARY path: drive the rose on the UI thread straight from the shared heading at sensor
-  // rate. The previous JS-thread path (React re-render -> prop -> useEffect -> withTiming)
-  // retargeted on React's irregular commit cadence, which janks on low-end devices and made
-  // the needle "step" / micro-reverse. Reacting to the shared value keeps retargeting on the
-  // UI thread, independent of React jank.
+  // PRIMARY rose driver: a per-vsync exponential follow (roseFollowStep). Unlike the old
+  // per-sample `withSpring` retarget — which only moved when a sample arrived and SETTLED in
+  // the gaps — this advances the displayed angle EVERY frame toward the accumulated target,
+  // so a sparse slow-rotation feed becomes a smooth glide instead of the freeze-then-jump.
+  // It has no momentum term, so it can never coast past the target on a stall (the A2 coast
+  // regression is impossible by construction), and it is exactly frame-rate independent
+  // (identical on 60/90/120 Hz). Inactive on the fallback path (autostart false + never armed).
+  const roseFrameRef = useRef<{ setActive: (active: boolean) => void } | null>(null);
+  const armFrame = useCallback(() => roseFrameRef.current?.setActive(true), []);
+  const disarmFrame = useCallback(() => roseFrameRef.current?.setActive(false), []);
+  const roseFrame = useFrameCallback((frame) => {
+    const target = roseTargetSV.value;
+    const cur = roseRotation.value;
+    if (Math.abs(target - cur) < ROSE_FOLLOW_EPSILON) {
+      if (cur !== target) roseRotation.value = target; // snap the last sub-ε remainder
+      if (frameArmed.value) {
+        frameArmed.value = false;
+        runOnJS(disarmFrame)(); // converged (or feed stopped) → stop the vsync loop
+      }
+      return;
+    }
+    const dtSec = (frame.timeSincePreviousFrame ?? 16.667) / 1000;
+    // Pass the constants in: a worklet can't reliably capture cross-module imported constants
+    // into a CALLEE worklet's closure (on-device ReferenceError), but THIS worklet (same file as
+    // the import refs below... they're imported into QiblaCompass) captures them fine.
+    roseRotation.value = roseFollowStep(cur, target, dtSec, ROSE_FOLLOW_LAMBDA, ROSE_FOLLOW_MAX_DT_SEC);
+  }, false);
+  roseFrameRef.current = roseFrame;
+
+  // PRIMARY ingest: accumulate the shortest-arc unwrapped target on the UI thread, then arm
+  // the follow loop. The `frameArmed` guard makes re-arm a no-op while already running, so
+  // continuous rotation crosses the JS bridge at most once per motion start (not per sample).
   useAnimatedReaction(
     () => headingShared?.value ?? -1,
     (heading) => {
@@ -81,22 +128,20 @@ function QiblaCompassImpl({
       let delta = ((((target - roseTargetSV.value) % 360) + 540) % 360) - 180;
       if (delta <= -180) delta += 360;
       roseTargetSV.value += delta;
-      // Spring (not a linear tween): retargeting from the live position+velocity smooths the
-      // fast sensor's jitter into a continuous glide and kills the micro-reverse "jump".
-      roseRotation.value = withSpring(roseTargetSV.value, ROSE_SPRING);
+      if (!frameArmed.value) {
+        frameArmed.value = true;
+        runOnJS(armFrame)();
+      }
     },
   );
 
-  // FALLBACK path (no shared value — e.g. unit tests): drive from the deviceHeading prop.
+  // FALLBACK path (no shared value — e.g. unit tests): drive from the deviceHeading prop with
+  // the retained overdamped, overshoot-clamped spring (the follow loop stays disarmed here).
   useEffect(() => {
-    if (headingShared) return; // the UI-thread reaction owns the rose
+    if (headingShared) return; // the UI-thread follow owns the rose
     const nextTarget = nextRoseRotation(roseTargetRef.current, deviceHeading);
-    const delta = nextTarget - roseTargetRef.current;
     roseTargetRef.current = nextTarget;
-    roseRotation.value = withTiming(nextTarget, {
-      duration: roseTweenDurationMs(delta),
-      easing: Easing.linear,
-    });
+    roseRotation.value = withSpring(nextTarget, ROSE_SPRING);
   }, [deviceHeading, roseRotation, headingShared]);
 
   // SPEC-K3b: halo and ring track `aligned && !unreliable`. Without the unreliable

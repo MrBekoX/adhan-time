@@ -301,6 +301,52 @@ describe('useDeviceHeading — heading source selection', () => {
     await TestRenderer.act(async () => tree?.unmount());
   });
 
+  it('feeds headingShared on (nearly) every sample during SLOW rotation — no 1Hz starvation (freeze regression)', async () => {
+    // The freeze (as a hook property): a continuous slow/fine rotation (qibla alignment) must
+    // keep advancing the rose target. The old 0.4° shared deadband quantized a slow ramp into
+    // a write only every ~3 samples (~1Hz at 30Hz feed) → the rose sat ~1s then jumped. The
+    // lowered deadband lets the smoothed ramp reach headingShared on essentially every sample.
+    let cb: ((r: { trueHeading: number; magHeading: number; accuracy: number }) => void) | null = null;
+    addHeadingListenerMock.mockImplementation((listener) => {
+      cb = listener;
+      return { remove: jest.fn() };
+    });
+    const headingShared = { value: -1 } as unknown as SharedValue<number>;
+
+    function Probe(): null {
+      useDeviceHeading({ enabled: true, location: { lat: 41.0082, lon: 28.9784 }, headingShared });
+      return null;
+    }
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await TestRenderer.act(async () => {
+      tree = TestRenderer.create(React.createElement(Probe));
+      await Promise.resolve();
+    });
+    expect(cb).not.toBeNull();
+
+    // trueHeading >= 0 → source 'true' (pure EMA, no WMM), isolating the deadband behavior.
+    // 0.15°/sample ≈ a slow ~4.5°/s turn at 30Hz — exactly the fine-alignment speed that froze.
+    const values: number[] = [];
+    await TestRenderer.act(async () => {
+      for (let i = 0; i <= 24; i++) {
+        const h = i * 0.15;
+        cb?.({ trueHeading: h, magHeading: h, accuracy: 3 });
+        values.push(headingShared.value);
+      }
+    });
+
+    let writes = 0;
+    for (let i = 1; i < values.length; i++) {
+      const cur = values[i];
+      const prev = values[i - 1];
+      if (cur !== undefined && prev !== undefined && cur > prev + 1e-9) writes++;
+    }
+    // ~22 with the lowered deadband; only ~7 with the old 0.4° (the starvation/freeze).
+    expect(writes).toBeGreaterThanOrEqual(18);
+
+    await TestRenderer.act(async () => tree?.unmount());
+  });
+
   it('applies lighter EMA on the fused native path than on the expo-location fallback (Android, §8)', async () => {
     const original = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
@@ -347,6 +393,64 @@ describe('useDeviceHeading — heading source selection', () => {
       // the heavier Android clamp and stays closer to 0.
       expect(fused).toBeGreaterThan(fallback);
       expect(fallback).toBeGreaterThan(0);
+    } finally {
+      Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+    }
+  });
+});
+
+describe('useDeviceHeading — resubscribe stability (A1)', () => {
+  // Qibla bug A1: when the tab blurs/refocuses (or location.kind flutters), the
+  // [enabled] effect tears down + resubscribes the sensor. If the EMA/baseline state
+  // lived in the effect closure it reset to null on every resubscribe, so the next
+  // reading was published RAW → the rose SNAPPED from a cold baseline (the on-device
+  // "freeze then jump"). The smoothing state must persist across resubscribes.
+  it('preserves the smoothed EMA baseline across an enabled toggle (no snap on resubscribe)', async () => {
+    const original = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+    try {
+      let cb: ((r: { trueHeading: number; magHeading: number; accuracy: number }) => void) | null = null;
+      addHeadingListenerMock.mockImplementation((listener) => {
+        cb = listener;
+        return { remove: jest.fn() };
+      });
+      const statuses: ReturnType<typeof useDeviceHeading>[] = [];
+
+      function Probe({ enabled }: { enabled: boolean }): null {
+        statuses.push(useDeviceHeading({ enabled, location: { lat: 41.0082, lon: 28.9784 } }));
+        return null;
+      }
+
+      let tree: TestRenderer.ReactTestRenderer | null = null;
+      await TestRenderer.act(async () => {
+        tree = TestRenderer.create(React.createElement(Probe, { enabled: true }));
+        await Promise.resolve();
+      });
+
+      // Seed the EMA at 0 (trueHeading >= 0 → source 'true', pure EMA, no WMM).
+      await TestRenderer.act(async () => cb?.({ trueHeading: 0, magHeading: 0, accuracy: 3 }));
+
+      // Blur (enabled false) then refocus (enabled true) → real teardown + resubscribe.
+      await TestRenderer.act(async () => {
+        tree?.update(React.createElement(Probe, { enabled: false }));
+        await Promise.resolve();
+      });
+      await TestRenderer.act(async () => {
+        tree?.update(React.createElement(Probe, { enabled: true }));
+        await Promise.resolve();
+      });
+
+      // First reading after the resubscribe. If the EMA baseline persisted (0),
+      // applyEma(0, 90, 0.3) ≈ 27 → the rose tracks smoothly. If the baseline reset
+      // to null (the bug), applyEma(null, 90) = 90 → the rose SNAPS to raw.
+      await TestRenderer.act(async () => cb?.({ trueHeading: 90, magHeading: 90, accuracy: 3 }));
+
+      const ready = statuses.filter((s) => s.kind === 'ready').at(-1);
+      if (ready?.kind !== 'ready') throw new Error('expected ready heading');
+      expect(ready.heading).toBeGreaterThan(0);
+      expect(ready.heading).toBeLessThan(60); // 27 after the fix; 90 (snap) before it
+
+      await TestRenderer.act(async () => tree?.unmount());
     } finally {
       Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
     }

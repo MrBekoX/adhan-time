@@ -28,7 +28,13 @@ public class CompassHeadingModule: Module {
         }
         let manager = CLLocationManager()
         manager.delegate = delegate
-        manager.headingFilter = 1
+        // Report ALL heading changes (no minimum-angle filter). headingFilter is the minimum
+        // angular change vs the last DELIVERED event; its default is already 1°, and ANY positive
+        // value quantizes a slow qibla-alignment turn into >=filter° steps that freeze the rose
+        // (the slow-rotation freeze). kCLHeadingFilterNone lets CoreLocation's own (modest, fused)
+        // cadence through — the JS per-frame follow + EMA do the smoothing. (rules/11; spec
+        // docs/superpowers/specs/2026-06-05-qibla-slow-rotation-freeze-fix-design.md §7.2)
+        manager.headingFilter = kCLHeadingFilterNone
         manager.startUpdatingHeading()
         self.delegate = delegate
         self.manager = manager

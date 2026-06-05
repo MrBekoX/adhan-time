@@ -107,7 +107,10 @@ export function selectHeadingSource(
   if (trueHeading >= 0) {
     return { heading: trueHeading, source: 'true' };
   }
-  if (magHeading < 0) {
+  // `!(x >= 0)` (not `x < 0`) so a NaN magHeading from a malformed native sample is rejected too
+  // — NaN < 0 is false, which would otherwise let NaN through and permanently poison the EMA
+  // baseline, freezing the heading (rules/11). Defense-in-depth behind the native isNaN drop.
+  if (!(magHeading >= 0)) {
     return null;
   }
   if (location !== null) {

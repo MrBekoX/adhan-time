@@ -194,16 +194,74 @@ export function nextRoseRotation(prevTargetDeg: number, deviceHeadingDeg: number
   return prevTargetDeg + shortestRotationDelta(prevTargetDeg, -deviceHeadingDeg);
 }
 
-export function roseTweenDurationMs(deltaDeg: number): number {
-  // The fused rotation-vector / CLHeading stream is continuous (~20ms) and already smooth,
-  // so we no longer need a long tween to bridge expo-location's ~200ms gaps. A short tween
-  // just interpolates between the now-close samples; large deltas (fast spin / 0-360 seam
-  // crossing) stay shortest to track without trailing. These are an initial cut — tuned on
-  // device via OTA (see docs/superpowers/specs/2026-06-01-native-compass-heading-design.md
-  // §8). If any shimmer remains, drop to approach C (raw fused + tiny tween).
-  const magnitude = Math.abs(deltaDeg);
-  if (magnitude >= 45) return 60;
-  return 90;
+export type RoseSpringConfig = {
+  mass: number;
+  stiffness: number;
+  damping: number;
+  /** Hard-clamp at the target so velocity inherited on re-target can never glide past it. */
+  overshootClamping: boolean;
+};
+
+/**
+ * Reanimated spring config for the compass-rose retarget (Qibla bug A2 regression fix).
+ *
+ * The rose target is re-assigned at sensor rate (~30Hz). Reanimated seeds each new spring with
+ * the running spring's CURRENT velocity, so a bouncy spring keeps gliding when the heading stream
+ * stalls — the on-device coast/overshoot ("döndürmeyi bıraktım hâlâ döndü", kept rotating after I
+ * stopped). We therefore pick an OVERDAMPED spring — zeta = damping / (2·√(stiffness·mass)) =
+ * 26/20 = 1.3 > 1, so it never oscillates — AND `overshootClamping: true` (hard safety net: any
+ * residual velocity is clamped at the target). Together they smooth the irregular ~30Hz cadence —
+ * bridging the gaps the prior momentum-free `withTiming` left as visible "stepping" — WITHOUT
+ * reintroducing the coast A2 removed. Physics branch (mass/stiffness/damping) is
+ * reanimated-major-version-safe; confirmed against the Reanimated docs (Context7). Feel-only:
+ * never affects the target angle, WMM/declination, or the unreliable banner (rules/11).
+ */
+export function roseSpringConfig(): RoseSpringConfig {
+  return { mass: 1, stiffness: 100, damping: 26, overshootClamping: true };
+}
+
+/**
+ * One UI-thread frame of the compass-rose follow: eases `displayed` a fraction of the way
+ * toward `target` (both UNBOUNDED accumulated rotations, so this is plain linear math that
+ * never sees the 0/360 seam — the shortest-arc unwrap happens upstream at ingest).
+ *
+ * `next = displayed + (target − displayed)·(1 − e^(−λ·dt))`
+ *
+ * Why this shape (vs the old per-sample `withSpring` retarget):
+ * - **Runs every vsync**, not per sensor sample → the rose advances on every frame even when
+ *   samples are sparse (slow rotation), turning the old freeze-then-jump into a smooth glide.
+ * - **Cannot overshoot**: the eased fraction `(1 − e^(−λ·dt))` is in `[0, 1)` for `dt ≥ 0`, so
+ *   the result is always on the segment `[displayed, target]`. No momentum term ⇒ the A2
+ *   coast/overshoot regression is impossible by construction.
+ * - **Exactly frame-rate independent**: exponential decay is multiplicative, so two `dt/2`
+ *   steps equal one `dt` step → identical feel on 60/90/120 Hz panels (device-agnostic).
+ *
+ * `dt` is clamped to `[0, maxDtSec]` so a background/foreground gap (one huge frame) can't snap
+ * the rose. Pure + deterministic for unit testing; the worklet that calls it (QiblaCompass) is
+ * itself device-verified (the reanimated jest mock skips frame callbacks).
+ *
+ * `lambda` and `maxDtSec` are REQUIRED args (not module constants referenced inside) ON PURPOSE:
+ * this runs as a worklet, and a worklet does NOT reliably capture cross-module imported constants
+ * into its closure — on-device this threw `ReferenceError: Property 'ROSE_FOLLOW_LAMBDA' doesn't
+ * exist` every vsync (a default-param `= ROSE_FOLLOW_LAMBDA` is not scanned into the __closure).
+ * So the constants are passed in from the CALLER's worklet (QiblaCompass), where the import IS
+ * captured; this function's closure stays empty (only params + Math.* UI globals) = always safe.
+ */
+export function roseFollowStep(
+  displayed: number,
+  target: number,
+  dtSec: number,
+  lambda: number,
+  maxDtSec: number,
+): number {
+  // CRITICAL: called synchronously from the QiblaCompass useFrameCallback worklet (UI thread).
+  // The 'worklet' directive gives it a __workletHash so it is callable there (without it the
+  // plugin serializes it as a RemoteFunction → "Tried to synchronously call a non-worklet
+  // function" every vsync). It stays a normal JS callable for the unit tests. Do NOT remove, and
+  // do NOT reference module-imported constants in here (see the doc comment — closure capture).
+  'worklet';
+  const dt = Math.min(Math.max(dtSec, 0), maxDtSec);
+  return displayed + (target - displayed) * (1 - Math.exp(-lambda * dt));
 }
 
 function normalize360(v: number): number {

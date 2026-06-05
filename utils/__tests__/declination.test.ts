@@ -150,4 +150,26 @@ describe('selectHeadingSource', () => {
     });
     expect(result).toBeNull();
   });
+
+  it('rejects a NaN magHeading (malformed native sample) instead of leaking NaN into the EMA', () => {
+    // NaN < 0 is false, so a `magHeading < 0` guard would let NaN through and permanently poison
+    // the persisted smoothing baseline → frozen heading (rules/11). The `!(x >= 0)` guard rejects it.
+    const result = selectHeadingSource({
+      trueHeading: -1,
+      magHeading: NaN,
+      location: { lat: 41.0082, lon: 28.9784 },
+      date,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('rejects a NaN trueHeading and falls through to the magnetic path', () => {
+    const result = selectHeadingSource({
+      trueHeading: NaN,
+      magHeading: 130,
+      location: null,
+      date,
+    });
+    expect(result).toEqual({ heading: 130, source: 'magnetic' });
+  });
 });
