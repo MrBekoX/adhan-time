@@ -17,7 +17,7 @@ import type { Locale } from '@/locales/i18n';
 import { registerDeviceDetailed, unregisterDevice } from '@/services/deviceRegistry';
 import { applyLocale } from '@/services/localeService';
 import { cancelAllPrayerNotifications } from '@/services/notificationScheduler';
-import { scheduleAfterToggle, syncYearly } from '@/services/prayerService';
+import { scheduleAfterToggle } from '@/services/prayerService';
 import { useLocationStore } from '@/store/locationStore';
 import { usePrayerStore } from '@/store/prayerStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -52,8 +52,11 @@ export default function Settings() {
     setSound(nextSound);
     if (!location) return;
     try {
-      await cancelAllPrayerNotifications();
-      await syncYearly(location.districtId, location.districtName, location.timezone, { force: true });
+      // scheduleAfterToggle fetches/uses the cache FIRST, then cancels + reschedules
+      // onto the new sound's channel. The previous cancelAll-then-syncYearly(force)
+      // order wiped every notification if the forced network refetch failed; this
+      // mirrors onTogglePrayer and never cancels before a successful sync.
+      await scheduleAfterToggle(location.districtId, location.districtName, location.timezone);
     } catch (e) {
       logger.warn('settings-sound-change-failed', { sound: nextSound, error: String(e) });
       useUiStore.getState().setError({ code: 'toggle-failed' });

@@ -31,6 +31,15 @@ export function useAppLifecycle(): void {
 // runLifecycleInner routes failures to uiStore and does not throw here.
 let inFlight: Promise<void> | null = null;
 
+// Force-stop / aggressive-OEM kill cancels the app's AlarmManager alarms but
+// leaves expo-notifications' SharedPreferences store intact, so a normal diff
+// reconcile sees every prayer as "already scheduled" and re-registers NOTHING —
+// notifications silently die until the user changes a setting. On the first
+// lifecycle run of this process we force a full re-schedule so the real alarms
+// are always rebuilt. Kept true until a forced sync actually succeeds (a failed
+// cold start — e.g. offline at launch — must retry the force, not skip it).
+let needsColdReschedule = true;
+
 export function runLifecycleOnce(): Promise<void> {
   if (inFlight) return inFlight;
   inFlight = runLifecycleInner().finally(() => {
@@ -48,7 +57,12 @@ async function runLifecycleInner(): Promise<void> {
 
   let syncFailed = false;
   try {
-    await syncYearly(loc.districtId, loc.districtName, loc.timezone);
+    await syncYearly(loc.districtId, loc.districtName, loc.timezone, {
+      forceReschedule: needsColdReschedule,
+    });
+    // Clear only after a successful forced sync, so an offline cold start keeps
+    // forcing the self-heal on later foreground ticks instead of giving up.
+    needsColdReschedule = false;
   } catch (e) {
     syncFailed = true;
     logger.warn('lifecycle-sync-failed', { error: String(e) });

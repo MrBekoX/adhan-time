@@ -319,3 +319,41 @@ describe('resetScheduleForLocation — city switch hard reset (S4)', () => {
     expect(reconcileMock).not.toHaveBeenCalled();
   });
 });
+
+describe('syncYearly — forceReschedule (cold-start self-heal)', () => {
+  const reconcileMock = scheduler.reconcile as jest.Mock;
+
+  function validCache(): YearlyPrayerCache {
+    return {
+      districtId: DISTRICT,
+      year: 2026,
+      timezone: TZ,
+      fetchedAt: new Date(Date.now() - 60_000).toISOString(),
+      entries: range('2026-01-01', 365),
+    };
+  }
+
+  beforeEach(() => {
+    reconcileMock.mockClear();
+  });
+
+  it('forwards forceReschedule:true to reconcile when requested', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-01T12:00:00Z'));
+    usePrayerStore.setState({ cache: validCache() });
+
+    await syncYearly(DISTRICT, NAME, TZ, { forceReschedule: true });
+
+    expect(reconcileMock).toHaveBeenCalledTimes(1);
+    expect(reconcileMock.mock.calls[0][1].forceReschedule).toBe(true);
+  });
+
+  it('does not force a reschedule on a normal sync', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-01T12:00:00Z'));
+    usePrayerStore.setState({ cache: validCache() });
+
+    await syncYearly(DISTRICT, NAME, TZ);
+
+    expect(reconcileMock).toHaveBeenCalledTimes(1);
+    expect(reconcileMock.mock.calls[0][1].forceReschedule).toBeFalsy();
+  });
+});

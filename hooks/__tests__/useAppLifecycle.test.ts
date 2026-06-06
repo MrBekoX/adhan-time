@@ -476,3 +476,68 @@ describe('runLifecycleOnce — concurrency guard (overlapping runs race reconcil
     expect(syncMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('runLifecycleOnce — cold-start force reschedule (force-stop self-heal, C)', () => {
+  // The "first run since process start" flag is module-level, so re-require the
+  // module graph fresh per case. Stores + mocked services are required from the
+  // same fresh graph so they share instances with the fresh lifecycle module.
+  function freshLifecycle() {
+    jest.resetModules();
+    /* eslint-disable @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports -- jest.resetModules requires re-requiring the fresh module graph */
+    const lifecycle = require('../useAppLifecycle');
+    const prayer = require('@/services/prayerService');
+    const devreg = require('@/services/deviceRegistry');
+    const notif = require('expo-notifications');
+    const locStore = require('@/store/locationStore').useLocationStore;
+    const settingsStore = require('@/store/settingsStore').useSettingsStore;
+    const uiStore = require('@/store/uiStore').useUiStore;
+    /* eslint-enable @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports */
+
+    const sync = prayer.syncYearly as jest.Mock;
+    const reg = devreg.registerDeviceDetailed as jest.Mock;
+    const perm = notif.getPermissionsAsync as jest.Mock;
+    sync.mockReset().mockResolvedValue({ entries: [] });
+    reg.mockReset().mockResolvedValue({ ok: true });
+    perm.mockReset().mockResolvedValue({ status: 'granted' });
+    uiStore.setState({ lastError: null });
+    locStore.setState({ selected: VALID_LOCATION });
+    settingsStore.setState({
+      locale: 'tr',
+      sound: 'default',
+      enabledPrayers: ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'],
+      notificationPermissionDenied: false,
+      deviceRegistrationPending: false,
+    });
+    return { runLifecycleOnce: lifecycle.runLifecycleOnce as () => Promise<void>, sync };
+  }
+
+  it('forces a full reschedule on the first run after process start', async () => {
+    const { runLifecycleOnce, sync } = freshLifecycle();
+
+    await runLifecycleOnce();
+
+    expect(sync).toHaveBeenCalledTimes(1);
+    expect(sync.mock.calls[0][3]).toEqual(expect.objectContaining({ forceReschedule: true }));
+  });
+
+  it('does not force a reschedule on the next run once the first succeeded', async () => {
+    const { runLifecycleOnce, sync } = freshLifecycle();
+
+    await runLifecycleOnce();
+    sync.mockClear();
+    await runLifecycleOnce();
+
+    expect(sync.mock.calls[0][3]).toEqual(expect.objectContaining({ forceReschedule: false }));
+  });
+
+  it('keeps forcing the reschedule until the first forced sync actually succeeds', async () => {
+    const { runLifecycleOnce, sync } = freshLifecycle();
+    sync.mockReset().mockRejectedValueOnce(new Error('net')).mockResolvedValue({ entries: [] });
+
+    await runLifecycleOnce(); // cold start, but sync fails → flag must persist
+    expect(sync.mock.calls[0][3]).toEqual(expect.objectContaining({ forceReschedule: true }));
+
+    await runLifecycleOnce(); // still forced because the first never succeeded
+    expect(sync.mock.calls[1][3]).toEqual(expect.objectContaining({ forceReschedule: true }));
+  });
+});

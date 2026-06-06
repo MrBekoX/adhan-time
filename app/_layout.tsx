@@ -6,8 +6,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { PrayerNowBanner } from '@/components/PrayerNowBanner';
 import { colors } from '@/components/Theme';
 import { evaluateHydrationGate, forceHydrationFlags } from '@/hooks/hydrationGate';
+import { useForegroundPrayerAlert } from '@/hooks/useForegroundPrayerAlert';
 import { i18n } from '@/locales/i18n';
 import { setupForegroundHandler } from '@/services/notificationScheduler';
 import { useLocationStore } from '@/store/locationStore';
@@ -32,6 +34,11 @@ export default function RootLayout() {
     elapsedMs: timedOutFlag ? HYDRATION_TIMEOUT_MS : 0,
     timeoutMs: HYDRATION_TIMEOUT_MS,
   });
+
+  // In-app cue for a prayer that arrives while the app is foregrounded — the
+  // case expo-notifications drops (3s JS-handler timeout, rules/04). Called
+  // unconditionally (before the hydration early-return) to satisfy hook rules.
+  const prayerAlert = useForegroundPrayerAlert();
 
   useEffect(() => {
     void setupForegroundHandler();
@@ -81,6 +88,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />
           </Stack>
+          <PrayerNowBanner prayerKey={prayerAlert.active} onDismiss={prayerAlert.dismiss} />
         </I18nextProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

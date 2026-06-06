@@ -34,6 +34,13 @@ type ReconcileOptions = {
   enabledPrayers?: PrayerKey[];
   sound?: SoundKey;
   districtName?: string;
+  // Re-register every target even if expo's store already lists it as pending.
+  // A force-stop / aggressive-OEM kill cancels the AlarmManager alarms but leaves
+  // expo-notifications' SharedPreferences records intact, so the normal diff sees
+  // them as scheduled and re-registers nothing — alarms stay dead until the user
+  // changes a setting. On a cold start we force a full re-schedule so the real
+  // alarms are always restored (scheduleNotificationAsync overwrites by id).
+  forceReschedule?: boolean;
 };
 
 type TargetComputation = {
@@ -163,7 +170,9 @@ async function reconcileInner(
   const targetMap = new Map(target.map((s) => [s.id, s]));
 
   const toCancel = pendingPrayer.filter((p) => !targetMap.has(p.identifier));
-  const toSchedule = target.filter((s) => !pendingMap.has(s.id));
+  const toSchedule = options.forceReschedule
+    ? target
+    : target.filter((s) => !pendingMap.has(s.id));
   const mutationConcurrency =
     platform === 'android'
       ? ANDROID_NOTIFICATION_MUTATION_CONCURRENCY
@@ -357,10 +366,18 @@ async function scheduleOne(
 
 export async function setupForegroundHandler(): Promise<void> {
   Notifications.setNotificationHandler({
+    // This handler runs ONLY for notifications that fire while the app is in the
+    // foreground (background notifications are presented natively and never reach
+    // here — rules/04). The foreground prayer cue is owned by the in-app alert
+    // (useForegroundPrayerAlert: banner + haptic + chime): expo's foreground path
+    // is unreliable (its 3s JS-handler timeout silently drops the notification),
+    // and when it does NOT drop, a heads-up + sound here would double what the
+    // in-app cue already shows. So suppress the foreground banner/sound and keep
+    // only a silent entry in the shade for the record.
     handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldShowBanner: true,
-      shouldPlaySound: true,
+      shouldShowAlert: false,
+      shouldShowBanner: false,
+      shouldPlaySound: false,
       shouldSetBadge: false,
       shouldShowList: true,
     }),

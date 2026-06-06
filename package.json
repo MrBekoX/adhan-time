@@ -24,6 +24,7 @@
     "date-fns": "^3.6.0",
     "date-fns-tz": "^3.2.0",
     "expo": "^54.0.34",
+    "expo-audio": "~1.1.1",
     "expo-constants": "~18.0.13",
     "expo-device": "~8.0.10",
     "expo-haptics": "~15.0.8",

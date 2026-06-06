@@ -21,10 +21,11 @@ export async function syncYearly(
   districtId: string,
   districtName: string,
   timezone: string,
-  options: { force?: boolean; schedule?: boolean } = {},
+  options: { force?: boolean; schedule?: boolean; forceReschedule?: boolean } = {},
 ): Promise<YearlyPrayerCache> {
   const force = options.force ?? false;
   const shouldSchedule = options.schedule ?? true;
+  const forceReschedule = options.forceReschedule ?? false;
   const now = new Date();
   const localYear = yearInTz(now, timezone);
   const todayIso = isoDateInTz(now, timezone);
@@ -45,7 +46,7 @@ export async function syncYearly(
     cacheCovers &&
     Date.now() - new Date(cached.fetchedAt).getTime() < PRAYER_CACHE_TTL_MS
   ) {
-    if (shouldSchedule) await scheduleAll(cached, districtName);
+    if (shouldSchedule) await scheduleAll(cached, districtName, forceReschedule);
     return cached;
   }
 
@@ -70,7 +71,7 @@ export async function syncYearly(
     entries,
   };
   usePrayerStore.getState().setCache(fresh);
-  if (shouldSchedule) await scheduleAll(fresh, districtName);
+  if (shouldSchedule) await scheduleAll(fresh, districtName, forceReschedule);
   return fresh;
 }
 
@@ -135,12 +136,17 @@ export async function resetScheduleForLocation(
   await scheduleAll(cache, districtName);
 }
 
-async function scheduleAll(cache: YearlyPrayerCache, districtName: string): Promise<void> {
+async function scheduleAll(
+  cache: YearlyPrayerCache,
+  districtName: string,
+  forceReschedule = false,
+): Promise<void> {
   await ensureAndroidChannel();
   const settings = useSettingsStore.getState();
   await reconcile(cache, {
     enabledPrayers: settings.enabledPrayers as PrayerKey[],
     sound: settings.sound,
     districtName,
+    forceReschedule,
   });
 }

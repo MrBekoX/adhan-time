@@ -757,3 +757,59 @@ describe('scheduleOne — Android uses DATE trigger (CALENDAR is iOS-only)', () 
     });
   });
 });
+
+describe('reconcile — forceReschedule (force-stop / OEM-kill self-heal)', () => {
+  const schedule = Notifications.scheduleNotificationAsync as jest.Mock;
+  const cancel = Notifications.cancelScheduledNotificationAsync as jest.Mock;
+  const getAll = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
+
+  const FAKE_NOW = new Date('2026-05-02T00:00:00Z');
+  const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(FAKE_NOW);
+    schedule.mockReset().mockResolvedValue('id');
+    cancel.mockReset().mockResolvedValue(undefined);
+    getAll.mockReset().mockResolvedValue([]);
+    useUiStore.setState({ lastError: null });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function futureCache(): YearlyPrayerCache {
+    return makeCache(range('2026-05-02', 12));
+  }
+
+  // After a force-stop, Android cancels the app's AlarmManager alarms but
+  // expo-notifications' SharedPreferences store persists, so a normal diff
+  // reconcile sees every target as "already pending" and re-registers NOTHING
+  // (alarms stay dead). forceReschedule re-registers every target regardless,
+  // overwriting the stale records and restoring the real alarms.
+  it('re-schedules EVERY target even when all are already pending', async () => {
+    const cache = futureCache();
+    const pending = computeTargets(cache, TZ, FAKE_NOW, 10, enabled).map((s) => ({
+      identifier: s.id,
+    }));
+    getAll.mockResolvedValue(pending);
+
+    const result = await reconcile(cache, { enabledPrayers: enabled, forceReschedule: true });
+
+    expect(schedule).toHaveBeenCalledTimes(50);
+    expect(result.scheduled).toBe(50);
+  });
+
+  it('without forceReschedule, still skips already-pending targets (no-op diff)', async () => {
+    const cache = futureCache();
+    const pending = computeTargets(cache, TZ, FAKE_NOW, 10, enabled).map((s) => ({
+      identifier: s.id,
+    }));
+    getAll.mockResolvedValue(pending);
+
+    const result = await reconcile(cache, { enabledPrayers: enabled });
+
+    expect(schedule).toHaveBeenCalledTimes(0);
+    expect(result.scheduled).toBe(0);
+  });
+});
