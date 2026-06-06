@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import TestRenderer from 'react-test-renderer';
 
+import { ONE_EURO_BETA, ONE_EURO_DCUTOFF, ONE_EURO_MIN_CUTOFF } from '@/constants/qibla';
 import * as CompassHeading from '@/modules/compass-heading';
 import {
   classifyQuality,
@@ -23,6 +24,7 @@ const watchHeadingAsyncMock = Location.watchHeadingAsync as jest.Mock;
 jest.mock('@/modules/compass-heading', () => ({
   isAvailable: jest.fn(() => true),
   addHeadingListener: jest.fn(),
+  setTuning: jest.fn(),
 }));
 
 const isAvailableMock = CompassHeading.isAvailable as jest.Mock;
@@ -172,7 +174,7 @@ describe('useDeviceHeading subscription lifecycle', () => {
     expect(remove).toHaveBeenCalledTimes(1);
   });
 
-  it('smooths the Android heading (damps a raw step) instead of passing the raw value through', async () => {
+  it('passes the fused heading through without a JS EMA (native One Euro now smooths)', async () => {
     const original = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
@@ -209,10 +211,11 @@ describe('useDeviceHeading subscription lifecycle', () => {
       const ready = statuses.filter((s) => s.kind === 'ready').at(-1);
       expect(ready?.kind).toBe('ready');
       if (ready?.kind !== 'ready') throw new Error('expected ready heading');
-      // EMA restored on Android: a raw 0->90 step must be DAMPED (≈18 at alpha 0.2),
-      // not passed straight through as 90 (the bypass that caused on-device jitter).
-      expect(ready.heading).toBeGreaterThan(0);
-      expect(ready.heading).toBeLessThan(45);
+      // Smoothing moved to the native One Euro filter (CompassHeadingModule), so the JS fused
+      // path no longer damps — it passes the heading through. (jest mocks the native module and
+      // feeds raw values, so a 0->90 step arrives as a clean 90.) The old JS EMA was a stopgap
+      // for the then-RAW native feed; redundant now. The fallback path keeps its EMA.
+      expect(ready.heading).toBeCloseTo(90, 5);
 
       await TestRenderer.act(async () => tree?.unmount());
     } finally {
@@ -243,6 +246,26 @@ describe('useDeviceHeading — heading source selection', () => {
     expect(addHeadingListenerMock).toHaveBeenCalledTimes(1);
     expect(watchHeadingAsyncMock).not.toHaveBeenCalled();
     expect(cb).not.toBeNull();
+
+    await TestRenderer.act(async () => tree?.unmount());
+  });
+
+  it('pushes the One Euro tuning to the native module on the fused subscribe', async () => {
+    const setTuningMock = CompassHeading.setTuning as jest.Mock;
+    setTuningMock.mockClear();
+    addHeadingListenerMock.mockImplementation(() => ({ remove: jest.fn() }));
+
+    function Probe(): null {
+      useDeviceHeading({ enabled: true, location: { lat: 41.0082, lon: 28.9784 } });
+      return null;
+    }
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await TestRenderer.act(async () => {
+      tree = TestRenderer.create(React.createElement(Probe));
+      await Promise.resolve();
+    });
+
+    expect(setTuningMock).toHaveBeenCalledWith(ONE_EURO_MIN_CUTOFF, ONE_EURO_BETA, ONE_EURO_DCUTOFF);
 
     await TestRenderer.act(async () => tree?.unmount());
   });
@@ -285,13 +308,13 @@ describe('useDeviceHeading — heading source selection', () => {
       await Promise.resolve();
     });
 
-    // First sample always writes (trueHeading >= 0 → first EMA sample returns the raw value).
+    // First sample always writes (the first fused sample is the raw value; native-smoothed upstream).
     await TestRenderer.act(async () => cb?.({ trueHeading: 123, magHeading: 123, accuracy: 3 }));
     expect(headingShared.value).toBeCloseTo(123, 5);
     const afterFirst = headingShared.value;
 
-    // A tiny change (EMA moves ~0.03°) is below the deadband → shared value is NOT rewritten.
-    await TestRenderer.act(async () => cb?.({ trueHeading: 123.1, magHeading: 123.1, accuracy: 3 }));
+    // A sub-deadband change (<0.05° raw — no JS EMA now) is skipped → shared value NOT rewritten.
+    await TestRenderer.act(async () => cb?.({ trueHeading: 123.03, magHeading: 123.03, accuracy: 3 }));
     expect(headingShared.value).toBe(afterFirst);
 
     // A real movement crosses the deadband → shared value updates again.
@@ -324,7 +347,8 @@ describe('useDeviceHeading — heading source selection', () => {
     });
     expect(cb).not.toBeNull();
 
-    // trueHeading >= 0 → source 'true' (pure EMA, no WMM), isolating the deadband behavior.
+    // trueHeading >= 0 → source 'true' (no WMM). The fused JS path no longer EMAs (native
+    // smooths), so this isolates the deadband / no-starvation behaviour on a raw slow ramp.
     // 0.15°/sample ≈ a slow ~4.5°/s turn at 30Hz — exactly the fine-alignment speed that froze.
     const values: number[] = [];
     await TestRenderer.act(async () => {
@@ -347,7 +371,7 @@ describe('useDeviceHeading — heading source selection', () => {
     await TestRenderer.act(async () => tree?.unmount());
   });
 
-  it('applies lighter EMA on the fused native path than on the expo-location fallback (Android, §8)', async () => {
+  it('passes the fused path through (no JS EMA) while the expo-location fallback still EMAs (Android, §8)', async () => {
     const original = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
@@ -376,8 +400,8 @@ describe('useDeviceHeading — heading source selection', () => {
           tree = TestRenderer.create(React.createElement(Probe));
           await Promise.resolve();
         });
-        // trueHeading >= 0 → source 'true', so the published value is a pure EMA of 0->90
-        // (no WMM), isolating the smoothing factor.
+        // trueHeading >= 0 → source 'true' (no WMM). The fused path no longer EMAs (native One
+        // Euro smooths) so 0->90 passes straight to 90; the fallback keeps the Android EMA clamp.
         await TestRenderer.act(async () => cb?.({ trueHeading: 0, magHeading: 0, accuracy: 3 }));
         await TestRenderer.act(async () => cb?.({ trueHeading: 90, magHeading: 90, accuracy: 3 }));
         const ready = statuses.filter((s) => s.kind === 'ready').at(-1);
@@ -389,10 +413,10 @@ describe('useDeviceHeading — heading source selection', () => {
       const fused = await headingAfterStep(true);
       const fallback = await headingAfterStep(false);
 
-      // Light EMA (HEADING_EMA_ALPHA) tracks more of the 0->90 step; the noisy fallback uses
-      // the heavier Android clamp and stays closer to 0.
-      expect(fused).toBeGreaterThan(fallback);
+      // Fused = pass-through (90, native smooths upstream); fallback = EMA-damped (0 < x < 90).
+      expect(fused).toBeCloseTo(90, 5);
       expect(fallback).toBeGreaterThan(0);
+      expect(fallback).toBeLessThan(90);
     } finally {
       Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
     }
@@ -400,19 +424,22 @@ describe('useDeviceHeading — heading source selection', () => {
 });
 
 describe('useDeviceHeading — resubscribe stability (A1)', () => {
-  // Qibla bug A1: when the tab blurs/refocuses (or location.kind flutters), the
-  // [enabled] effect tears down + resubscribes the sensor. If the EMA/baseline state
-  // lived in the effect closure it reset to null on every resubscribe, so the next
-  // reading was published RAW → the rose SNAPPED from a cold baseline (the on-device
-  // "freeze then jump"). The smoothing state must persist across resubscribes.
-  it('preserves the smoothed EMA baseline across an enabled toggle (no snap on resubscribe)', async () => {
+  // Qibla bug A1: when the tab blurs/refocuses, the [enabled] effect tears down + resubscribes
+  // the sensor. The smoothing state (st.smoothed) lives in a ref, NOT the effect closure, so it
+  // PERSISTS across resubscribe — otherwise the next reading published RAW and the needle SNAPPED
+  // from a cold baseline (the on-device "freeze then jump").
+  // The native One Euro now smooths the FUSED path (JS passes it through), so this baseline-
+  // persistence guard now applies to the expo-location FALLBACK path, which still keeps the JS
+  // EMA — this test drives the fallback to keep that invariant under test.
+  it('preserves the EMA baseline across an enabled toggle on the fallback path (no resubscribe snap)', async () => {
     const original = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
+      isAvailableMock.mockReturnValue(false); // force the expo-location fallback (it keeps the JS EMA)
       let cb: ((r: { trueHeading: number; magHeading: number; accuracy: number }) => void) | null = null;
-      addHeadingListenerMock.mockImplementation((listener) => {
-        cb = listener;
-        return { remove: jest.fn() };
+      watchHeadingAsyncMock.mockImplementation(async (listener) => {
+        cb = listener as (r: { trueHeading: number; magHeading: number; accuracy: number }) => void;
+        return { remove: jest.fn() } as unknown as Location.LocationSubscription;
       });
       const statuses: ReturnType<typeof useDeviceHeading>[] = [];
 
@@ -440,15 +467,15 @@ describe('useDeviceHeading — resubscribe stability (A1)', () => {
         await Promise.resolve();
       });
 
-      // First reading after the resubscribe. If the EMA baseline persisted (0),
-      // applyEma(0, 90, 0.3) ≈ 27 → the rose tracks smoothly. If the baseline reset
-      // to null (the bug), applyEma(null, 90) = 90 → the rose SNAPS to raw.
+      // First reading after the resubscribe. If the EMA baseline persisted (0), the Android
+      // fallback clamp gives applyEma(0, 90, 0.2) = 18 → smooth. If the baseline reset to null
+      // (the bug), applyEma(null, 90) = 90 → the needle SNAPS to raw.
       await TestRenderer.act(async () => cb?.({ trueHeading: 90, magHeading: 90, accuracy: 3 }));
 
       const ready = statuses.filter((s) => s.kind === 'ready').at(-1);
       if (ready?.kind !== 'ready') throw new Error('expected ready heading');
       expect(ready.heading).toBeGreaterThan(0);
-      expect(ready.heading).toBeLessThan(60); // 27 after the fix; 90 (snap) before it
+      expect(ready.heading).toBeLessThan(60); // ~18 (preserved) after the fix; 90 (snap) before it
 
       await TestRenderer.act(async () => tree?.unmount());
     } finally {

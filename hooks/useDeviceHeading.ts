@@ -9,6 +9,9 @@ import {
   HEADING_PUBLISH_MIN_IDLE_DELTA_DEG,
   HEADING_PUBLISH_MIN_INTERVAL_MS,
   HEADING_SHARED_DEADBAND_DEG,
+  ONE_EURO_BETA,
+  ONE_EURO_DCUTOFF,
+  ONE_EURO_MIN_CUTOFF,
 } from '@/constants/qibla';
 import * as CompassHeading from '@/modules/compass-heading';
 import { selectHeadingSource } from '@/utils/declination';
@@ -122,13 +125,16 @@ export function useDeviceHeading({
       if (selected === null) return;
 
       const platformOS = Platform.OS as PlatformOS;
-      // The fused native stream (rotation-vector / CLHeading) is clean ~20ms input → light
-      // EMA per spec §8. The expo-location fallback azimuth is noisy → keep the heavier
-      // platform clamp so the fallback needle stays stable.
-      const smoothingAlpha = usingFusedSource
-        ? HEADING_EMA_ALPHA
-        : headingSmoothingAlphaForPlatform(platformOS, HEADING_EMA_ALPHA);
-      const next = applyEma(st.smoothed, selected.heading, smoothingAlpha);
+      // Fused path: smoothing now lives in the native One Euro filter, so pass the heading
+      // through here (a second JS EMA would re-introduce lag — the very thing we removed).
+      // Fallback (expo-location) path is noisy and unfiltered → keep the platform-clamped EMA.
+      const next = usingFusedSource
+        ? selected.heading
+        : applyEma(
+            st.smoothed,
+            selected.heading,
+            headingSmoothingAlphaForPlatform(platformOS, HEADING_EMA_ALPHA),
+          );
       st.smoothed = next;
       // UI-thread animation source: write samples (past a small deadband) so the rose reads
       // this on the UI thread, independent of React's gated re-renders. The deadband skips
@@ -173,6 +179,7 @@ export function useDeviceHeading({
       try {
         if (CompassHeading.isAvailable()) {
           usingFusedSource = true;
+          CompassHeading.setTuning(ONE_EURO_MIN_CUTOFF, ONE_EURO_BETA, ONE_EURO_DCUTOFF);
           const sub = CompassHeading.addHeadingListener(handleReading);
           if (cancelled) {
             sub.remove();

@@ -92,6 +92,18 @@ export const HEADING_PUBLISH_MIN_IDLE_DELTA_DEG = 0.25;
 export const HEADING_SHARED_DEADBAND_DEG = 0.05;
 
 /**
+ * One Euro filter params for the native heading smoother (Android `CompassHeadingModule`),
+ * pushed via `CompassHeading.setTuning`. JS-settable so tuning ships via OTA without a rebuild
+ * (spec §3). Starting values; tuned on A30/Xiaomi via the CompassHDBG logcat (spec §9).
+ *   minCutoff (Hz): cutoff at rest — lower = smoother/more lag when still.
+ *   beta:           speed coefficient — higher = less lag during fast motion.
+ *   dCutoff (Hz):   derivative low-pass cutoff (standard 1.0).
+ */
+export const ONE_EURO_MIN_CUTOFF = 1.0;
+export const ONE_EURO_BETA = 0.02;
+export const ONE_EURO_DCUTOFF = 1.0;
+
+/**
  * Alignment thresholds (degrees) for "facing qibla" with hysteresis.
  *
  * Without hysteresis at a single 3° threshold the indicator flickered on/off when |delta|
@@ -116,8 +128,10 @@ export const ALIGN_EXIT_DEG = 8;
  * independent (identical feel on 60/90/120 Hz panels — required for a device-agnostic store
  * release). Spec: docs/superpowers/specs/2026-06-05-qibla-slow-rotation-freeze-fix-design.md §7.4.
  */
-// Rate constant (1/s): time-constant τ = 1/λ ≈ 0.11 s. Higher = snappier, lower = smoother.
-export const ROSE_FOLLOW_LAMBDA = 9;
+// Rate constant (1/s): τ = 1/λ. Raised 9 → 18 (τ≈0.055s) once native One Euro smooths the feed:
+// the follow is now near-pure interpolation between samples (no second smoothing layer → no
+// stacked latency / catch-up). OTA-tunable alongside ONE_EURO_* (spec §7). Higher = snappier.
+export const ROSE_FOLLOW_LAMBDA = 18;
 // Clamp the per-frame dt so a background/foreground gap (one huge frame) can't snap the rose.
 export const ROSE_FOLLOW_MAX_DT_SEC = 0.05;
 // Convergence band (degrees): within this the follow snaps and stops writing (no idle redraw).

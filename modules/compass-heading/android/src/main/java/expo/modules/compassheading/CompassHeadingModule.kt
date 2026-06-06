@@ -6,6 +6,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
+import android.util.Log
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -30,6 +31,11 @@ class CompassHeadingModule : Module() {
   private var lastEmitNanos = 0L
   private var lastAccuracy = Int.MIN_VALUE
 
+  private val headingFilter = CircularOneEuroFilter()
+  // Per-sample sensor-clock cadence, for the HAL-vs-JS diagnostic (CompassHDBG). Distinct from
+  // lastEmitNanos (our 30Hz emit gate): this is the RAW sensor delivery interval.
+  private var lastSampleNanos = 0L
+
   private val listener = object : SensorEventListener {
     override fun onSensorChanged(event: SensorEvent) {
       // A few OEM rotation-vector sensors emit malformed event.values; skip that sample
@@ -48,12 +54,23 @@ class CompassHeadingModule : Module() {
       // this guard must live here.
       if (azimuthDeg.isNaN()) return
 
-      // Accuracy is read PER-EVENT from SensorEvent.accuracy (SENSOR_STATUS_*). Values 0
-      // (UNRELIABLE) and -1 (NO_CONTACT) map downstream to the unreliable band. A quality/
-      // calibration transition must reach JS promptly so the red calibration banner / unreliable
-      // state flips without waiting for the time gate (rules/11) — so an accuracy change BYPASSES
-      // the time gate below. Otherwise cap emits at ~30Hz (the SOLE gate — no angular gate, which
-      // is what froze slow rotation; see the throttle-state note above).
+      // Filter EVERY sample (builds the One Euro state); dt comes from the real sensor clock.
+      val tSec = event.timestamp / 1_000_000_000.0
+      val filteredDeg = headingFilter.filter(azimuthDeg, tSec)
+
+      if (DEBUG_HEADING) {
+        val sensorDtMs = if (lastSampleNanos == 0L) 0.0
+          else (event.timestamp - lastSampleNanos) / 1_000_000.0
+        val emitDtMs = if (lastEmitNanos == 0L) 0.0
+          else (event.timestamp - lastEmitNanos) / 1_000_000.0
+        Log.d(
+          "CompassHDBG",
+          "raw=%.2f filt=%.2f sensorDtMs=%.1f emitDtMs=%.1f minCutoff=%.3f beta=%.4f"
+            .format(azimuthDeg, filteredDeg, sensorDtMs, emitDtMs, headingFilter.minCutoff, headingFilter.beta),
+        )
+      }
+      lastSampleNanos = event.timestamp
+
       if (event.accuracy == lastAccuracy &&
         event.timestamp - lastEmitNanos < MIN_EMIT_INTERVAL_NANOS
       ) {
@@ -63,16 +80,11 @@ class CompassHeadingModule : Module() {
       lastAccuracy = event.accuracy
       lastEmitNanos = event.timestamp
 
-      // Bundle (not mapOf): avoids the internal Map->Bundle copy + the Pair/vararg churn;
-      // putDouble/putInt take primitives. Fresh Bundle per emit — reusing one races the
-      // cross-thread JSI reader (the payload is not contractually deep-copied before sendEvent
-      // returns). trueHeading is -1 on Android (magnetic-referenced); the JS WMM path converts to
-      // true north — never add declination natively (rules/11).
       sendEvent(
         "onHeading",
         Bundle().apply {
           putDouble("trueHeading", -1.0)
-          putDouble("magHeading", azimuthDeg)
+          putDouble("magHeading", filteredDeg)
           putInt("accuracy", event.accuracy)
         },
       )
@@ -100,6 +112,12 @@ class CompassHeadingModule : Module() {
       sm != null && resolveSensor(sm) != null
     }
 
+    Function("setTuning") { minCutoff: Double, beta: Double, dCutoff: Double ->
+      headingFilter.minCutoff = minCutoff
+      headingFilter.beta = beta
+      headingFilter.dCutoff = dCutoff
+    }
+
     OnStartObserving {
       val ctx = appContext.reactContext ?: return@OnStartObserving
       val sm = ctx.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
@@ -109,6 +127,8 @@ class CompassHeadingModule : Module() {
       // Reset throttle so the first reading after (re)subscribe emits immediately (no gate delay).
       lastEmitNanos = 0L
       lastAccuracy = Int.MIN_VALUE
+      lastSampleNanos = 0L
+      headingFilter.reset()
       // Request ~30Hz at the source (samplingPeriodUs) instead of SENSOR_DELAY_GAME (~50Hz): trims
       // the firehose at the HAL. It is only a hint (devices commonly over-deliver), so the in-handler
       // gates above enforce the real ~30Hz ceiling.
@@ -122,6 +142,9 @@ class CompassHeadingModule : Module() {
   }
 
   companion object {
+    // Diagnostic logcat (adb logcat -s CompassHDBG). Keep TRUE for preview verification builds;
+    // set FALSE for production (rules/04, spec §6).
+    private const val DEBUG_HEADING = true
     // ~30Hz request at the sensor source (33,333µs). Hint only; the gates below are the ceiling.
     private const val SENSOR_SAMPLING_PERIOD_US = 33_333
     // Hard emit ceiling ~30Hz (33ms in sensor-clock nanos) regardless of device over-delivery.
