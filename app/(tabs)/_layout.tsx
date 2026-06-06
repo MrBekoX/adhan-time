@@ -1,12 +1,18 @@
 import { Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CrescentTabIcon, HizbStarTabIcon, KaabaTabIcon } from '@/components/TabIcons';
 import { colors, fonts } from '@/components/Theme';
 
 export default function TabsLayout() {
   const { t } = useTranslation();
+  // Overriding tabBarStyle.height/paddingBottom disables React Navigation's automatic
+  // bottom safe-area inset, so on devices with a 3-button system nav bar the tab content
+  // rendered BEHIND it (unreachable — reported on Xiaomi). Add the inset back: 0 on
+  // gesture-nav, ~48px on 3-button nav → responsive to whichever the device exposes.
+  const insets = useSafeAreaInsets();
   return (
     <Tabs
       screenOptions={{
@@ -14,9 +20,9 @@ export default function TabsLayout() {
           backgroundColor: colors.bgInkBottom,
           borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
-          height: 72,
+          height: 72 + insets.bottom,
           paddingTop: 12,
-          paddingBottom: 14,
+          paddingBottom: 14 + insets.bottom,
           elevation: 0,
           shadowOpacity: 0,
         },
