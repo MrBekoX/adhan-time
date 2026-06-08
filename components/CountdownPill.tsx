@@ -84,7 +84,9 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginHorizontal: 4,
     lineHeight: 96,
-    fontStyle: 'italic',
+    // Upright colon: the numerals are not italic, so an italic ':' looked
+    // mismatched/slanted between them.
+    fontStyle: 'normal',
   },
   tag: {
     flexDirection: 'row',

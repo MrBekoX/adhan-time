@@ -92,6 +92,7 @@ async function runLifecycleInner(): Promise<void> {
     locale: settings.locale,
     sound: settings.sound,
     enabledPrayers: settings.enabledPrayers,
+    reminderMinutes: settings.reminderMinutes,
   });
 
   const settingsActions = useSettingsStore.getState();

@@ -83,3 +83,21 @@ export function isWithinPrayerWindow(
   const diff = now.getTime() - prayerInstant.getTime();
   return diff >= 0 && diff < windowMs;
 }
+
+// True when `now` falls in the 1-minute window starting reminderMinutes before
+// the prayer. Operates on absolute UTC instants (prayerInstant - offset) so it
+// stays correct across DST shifts. reminderMinutes <= 0 disables the reminder.
+export function isWithinReminderWindow(
+  localDate: string,
+  localTime: string,
+  tz: string,
+  now: Date,
+  reminderMinutes: number,
+  windowMs = 60_000,
+): boolean {
+  if (reminderMinutes <= 0) return false;
+  const prayerInstant = localTimestampToUtc(localDate, localTime, tz).getTime();
+  const reminderInstant = prayerInstant - reminderMinutes * 60_000;
+  const diff = now.getTime() - reminderInstant;
+  return diff >= 0 && diff < windowMs;
+}

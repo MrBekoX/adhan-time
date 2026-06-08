@@ -10,6 +10,13 @@ export const ANDROID_CHANNEL_NOTIFICATION_NAME = 'Ezan Vakitleri (Bildirim Sesi)
 
 export const NOTIFICATION_ID_PREFIX = 'prayer';
 export const ROLLING_WINDOW_DAYS = 10;
+// Pre-prayer reminder: a "Yaklaşıyor / Coming up" notification fired this many
+// minutes before each adhan. User-set 0–30 (0 = off). Reminders are scheduled
+// only for the nearest REMINDER_WINDOW_DAYS days so the doubled queue stays
+// under the iOS pending cap (adhans are always scheduled first — see
+// notificationScheduler.computeTargetsWithStats).
+export const REMINDER_MAX_MINUTES = 30;
+export const REMINDER_WINDOW_DAYS = 2;
 // iOS allows ~64 pending UNCalendarNotificationTriggers system-wide; we cap at
 // 50 so prayer notifications never silently fall off when other apps share the
 // slot. With all 6 prayers enabled the rolling window auto-shrinks to 8 days
@@ -52,9 +59,14 @@ export function buildNotificationId(
   prayerKey: string,
   timezone = 'tz-na',
   fireAtIso = '',
+  kind: 'adhan' | 'reminder' = 'adhan',
 ): string {
   const firePart = fireAtIso ? `-${idPart(fireAtIso.slice(11, 16))}` : '';
-  return `${NOTIFICATION_ID_PREFIX}-${idPart(districtId)}-${dateIso}-${idPart(prayerKey)}-${idPart(timezone)}${firePart}`;
+  // The '-reminder' infix keeps reminder ids distinct from their adhan while
+  // still matching isPrayerNotificationId (startsWith 'prayer-'), so reconcile
+  // and cancelAll sweep both kinds.
+  const kindPart = kind === 'reminder' ? '-reminder' : '';
+  return `${NOTIFICATION_ID_PREFIX}${kindPart}-${idPart(districtId)}-${dateIso}-${idPart(prayerKey)}-${idPart(timezone)}${firePart}`;
 }
 
 export function isPrayerNotificationId(id: string): boolean {

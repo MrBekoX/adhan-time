@@ -16,7 +16,9 @@ import {
   ANDROID_CHANNEL_ID,
   ANDROID_CHANNEL_NOTIFICATION_ID,
   PENDING_NOTIFICATION_HARD_CAP,
+  REMINDER_WINDOW_DAYS,
   buildNotificationId,
+  isPrayerNotificationId,
 } from '@/constants/notifications';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
 import { useUiStore } from '@/store/uiStore';
@@ -41,6 +43,27 @@ describe('notification identity', () => {
     expect(buildNotificationId('9541', '2026-05-27', 'imsak', 'Europe/Istanbul')).not.toBe(
       buildNotificationId('9541', '2026-05-27', 'imsak', 'America/New_York'),
     );
+  });
+
+  it('gives reminder ids a distinct -reminder infix but still matches isPrayerNotificationId', () => {
+    const adhan = buildNotificationId(
+      '9541',
+      '2026-05-27',
+      'imsak',
+      'Europe/Istanbul',
+      '2026-05-27T02:54:00.000Z',
+    );
+    const reminder = buildNotificationId(
+      '9541',
+      '2026-05-27',
+      'imsak',
+      'Europe/Istanbul',
+      '2026-05-27T02:44:00.000Z',
+      'reminder',
+    );
+    expect(reminder).toContain('prayer-reminder-');
+    expect(reminder).not.toBe(adhan);
+    expect(isPrayerNotificationId(reminder)).toBe(true);
   });
 });
 
@@ -143,6 +166,50 @@ describe('computeTargets — V14 tz-aware rolling window', () => {
 
     const dates = Array.from(new Set(targets.map((t) => t.dateIso))).sort();
     expect(dates).toEqual(['2026-05-02', '2026-05-04']);
+  });
+});
+
+describe('computeTargets — pre-prayer reminders', () => {
+  // 00:00Z = 02:00 Berlin CEST on 2026-05-01 → all of 05-01's prayers are future.
+  const now = new Date('2026-05-01T00:00:00Z');
+  const cache = makeCache(range('2026-05-01', 12));
+
+  it('emits no reminders when reminderMinutes=0', () => {
+    const targets = computeTargets(cache, TZ, now, 8, [...PRAYER_KEYS], 0);
+    expect(targets.every((t) => t.kind !== 'reminder')).toBe(true);
+  });
+
+  it('stays within the iOS hard cap and never drops an adhan (6 prayers, rm=10)', () => {
+    const targets = computeTargets(cache, TZ, now, 8, [...PRAYER_KEYS], 10).slice(
+      0,
+      PENDING_NOTIFICATION_HARD_CAP,
+    );
+    expect(targets.length).toBeLessThanOrEqual(PENDING_NOTIFICATION_HARD_CAP);
+    const adhans = targets.filter((t) => t.kind !== 'reminder');
+    // 8-day window × 6 prayers = 48 adhans, all present (reminders are appended after).
+    expect(adhans).toHaveLength(48);
+  });
+
+  it('schedules each reminder exactly reminderMinutes before its adhan', () => {
+    const targets = computeTargets(cache, TZ, now, 8, [...PRAYER_KEYS], 10);
+    const adhan = targets.find(
+      (t) => t.kind !== 'reminder' && t.dateIso === '2026-05-01' && t.prayerKey === 'ogle',
+    )!;
+    const reminder = targets.find(
+      (t) => t.kind === 'reminder' && t.dateIso === '2026-05-01' && t.prayerKey === 'ogle',
+    )!;
+    expect(reminder.kind).toBe('reminder');
+    expect(reminder.reminderMinutes).toBe(10);
+    expect(adhan.fireAt.getTime() - reminder.fireAt.getTime()).toBe(10 * 60_000);
+  });
+
+  it('limits reminders to the nearest REMINDER_WINDOW_DAYS days', () => {
+    const targets = computeTargets(cache, TZ, now, 8, [...PRAYER_KEYS], 10);
+    const reminderDates = new Set(
+      targets.filter((t) => t.kind === 'reminder').map((t) => t.dateIso),
+    );
+    expect(reminderDates.size).toBeLessThanOrEqual(REMINDER_WINDOW_DAYS);
+    expect(reminderDates.size).toBeGreaterThan(0);
   });
 });
 
@@ -365,6 +432,49 @@ describe('V2 — iOS pending limit hard cap (≤ 50 notifications)', () => {
 
     expect(result.scheduled).toBe(50);
     expect(result.total).toBe(50);
+  });
+
+  it('schedules reminder notifications tagged with kind=reminder in their data payload', async () => {
+    await reconcile(freshCache(), { enabledPrayers: [...PRAYER_KEYS], reminderMinutes: 10 });
+    const reminderCall = schedule.mock.calls.find(
+      ([arg]) => typeof arg?.identifier === 'string' && arg.identifier.includes('prayer-reminder-'),
+    );
+    expect(reminderCall).toBeDefined();
+    expect(reminderCall![0].content.data).toMatchObject({ kind: 'reminder' });
+  });
+
+  function countCalls(predicate: (id: string) => boolean): number {
+    return schedule.mock.calls.filter(
+      ([arg]) => typeof arg?.identifier === 'string' && predicate(arg.identifier),
+    ).length;
+  }
+
+  it('still delivers reminders when 5 prayers would otherwise fill the whole cap', async () => {
+    // 5 prayers × 10-day default window = 50 adhans = the entire cap. Without a
+    // reminder budget the slice(0,50) drops every reminder. The window must
+    // shrink so reminders survive (adhans stay first-priority, never dropped).
+    const enabled: PrayerKey[] = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam'];
+    const result = await reconcile(freshCache(), { enabledPrayers: enabled, reminderMinutes: 10 });
+
+    expect(result.total).toBeLessThanOrEqual(PENDING_NOTIFICATION_HARD_CAP);
+    expect(result.failed).toBe(0);
+    expect(countCalls((id) => id.includes('prayer-reminder-'))).toBeGreaterThan(0);
+    // Adhans for the nearest REMINDER_WINDOW_DAYS must all still be present.
+    expect(countCalls((id) => !id.includes('prayer-reminder-'))).toBeGreaterThanOrEqual(
+      enabled.length * REMINDER_WINDOW_DAYS,
+    );
+  });
+
+  it('delivers a full reminder set for all 6 prayers without dropping any adhan', async () => {
+    const result = await reconcile(freshCache(), {
+      enabledPrayers: [...PRAYER_KEYS],
+      reminderMinutes: 10,
+    });
+    expect(result.total).toBeLessThanOrEqual(PENDING_NOTIFICATION_HARD_CAP);
+    // All 6 prayers × REMINDER_WINDOW_DAYS reminders survive the budget.
+    expect(countCalls((id) => id.includes('prayer-reminder-'))).toBe(
+      PRAYER_KEYS.length * REMINDER_WINDOW_DAYS,
+    );
   });
 
   it('serializes Android schedule mutations within one reconcile so native notification work is not flooded', async () => {

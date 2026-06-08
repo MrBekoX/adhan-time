@@ -31,6 +31,9 @@ const LOCALE_OPTIONS: readonly { locale: Locale; label: string; shortLabel: stri
   { locale: 'zh', label: '中文', shortLabel: 'zh' },
 ];
 
+// Pre-prayer reminder lead times in minutes (0 = off). Capped at 30 (REMINDER_MAX_MINUTES).
+const REMINDER_OPTIONS = [0, 5, 10, 15, 30] as const;
+
 export default function Settings() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -41,6 +44,8 @@ export default function Settings() {
   const sound = useSettingsStore((s) => s.sound);
   const enabledPrayers = useSettingsStore((s) => s.enabledPrayers);
   const setSound = useSettingsStore((s) => s.setSound);
+  const reminderMinutes = useSettingsStore((s) => s.reminderMinutes);
+  const setReminderMinutes = useSettingsStore((s) => s.setReminderMinutes);
   const togglePrayer = useSettingsStore((s) => s.togglePrayer);
   const location = useLocationStore((s) => s.selected);
   const deviceRegistrationPending = useSettingsStore((s) => s.deviceRegistrationPending);
@@ -59,6 +64,20 @@ export default function Settings() {
       await scheduleAfterToggle(location.districtId, location.districtName, location.timezone);
     } catch (e) {
       logger.warn('settings-sound-change-failed', { sound: nextSound, error: String(e) });
+      useUiStore.getState().setError({ code: 'toggle-failed' });
+    }
+  };
+
+  const onReminderChange = async (next: number): Promise<void> => {
+    setReminderMinutes(next);
+    if (!location) return;
+    try {
+      // Same path as the sound/prayer toggles: reschedule the rolling window so
+      // the new reminder lead time takes effect immediately. The next foreground
+      // tick re-registers the device, propagating reminderMinutes to the server.
+      await scheduleAfterToggle(location.districtId, location.districtName, location.timezone);
+    } catch (e) {
+      logger.warn('settings-reminder-change-failed', { minutes: next, error: String(e) });
       useUiStore.getState().setError({ code: 'toggle-failed' });
     }
   };
@@ -99,6 +118,7 @@ export default function Settings() {
         locale,
         sound,
         enabledPrayers,
+        reminderMinutes,
       });
       const ui = useUiStore.getState();
       if (result.ok) {
@@ -244,7 +264,21 @@ export default function Settings() {
           </Row>
         </Section>
 
-        <Section title={t('screens.settings.enabledPrayers')} ordinal="iv">
+        <Section title={t('screens.settings.reminder')} ordinal="iv">
+          <Row>
+            {REMINDER_OPTIONS.map((m) => (
+              <Chip
+                key={m}
+                active={reminderMinutes === m}
+                label={m === 0 ? t('screens.settings.reminderOff') : t('units.minuteShort')}
+                shortLabel={m === 0 ? '·' : String(m)}
+                onPress={() => void onReminderChange(m)}
+              />
+            ))}
+          </Row>
+        </Section>
+
+        <Section title={t('screens.settings.enabledPrayers')} ordinal="v">
           {PRAYER_KEYS.map((key, i) => (
             <View key={key} style={[styles.toggleRow, i < PRAYER_KEYS.length - 1 && styles.toggleRowBorder]}>
               <View style={styles.toggleLeft}>
@@ -263,7 +297,7 @@ export default function Settings() {
         </Section>
 
         {deviceRegistrationPending && (
-          <Section title={t('screens.settings.deviceRegistration')} ordinal="v">
+          <Section title={t('screens.settings.deviceRegistration')} ordinal="vi">
             <Text style={styles.subvalue}>
               {t('screens.settings.deviceRegistrationFailedHint')}
             </Text>
@@ -283,7 +317,7 @@ export default function Settings() {
 
         <Section
           title={t('screens.settings.privacy')}
-          ordinal={deviceRegistrationPending ? 'vi' : 'v'}
+          ordinal={deviceRegistrationPending ? 'vii' : 'vi'}
         >
           <Button
             title={deleting ? t('screens.settings.deleteAccountInProgress') : t('screens.settings.deleteAccount')}

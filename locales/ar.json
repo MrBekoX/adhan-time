@@ -43,6 +43,10 @@
       "title": "العشاء",
       "body": "دخل وقت العشاء.",
       "bodyWithCity": "دخل وقت العشاء في {{city}}."
+    },
+    "reminder": {
+      "title": "اقترب الوقت",
+      "body": "بقي {{minutes}} دقيقة على {{prayer}}."
     }
   },
   "errors": {
@@ -156,6 +160,8 @@
       "preferences": "التفضيلات",
       "language": "اللغة",
       "sound": "الصوت",
+      "reminder": "تذكير",
+      "reminderOff": "إيقاف",
       "enabledPrayers": "الصلوات المفعّلة",
       "city": "المدينة",
       "changeCity": "تغيير المدينة",
@@ -222,6 +228,7 @@
     "minute_few": "{{count}} دقائق",
     "minute_many": "{{count}} دقيقة",
     "minute_other": "{{count}} دقيقة",
+    "minuteShort": "د",
     "km": "{{value}} كم",
     "degrees": "{{value}}°",
     "meters": "{{value}} م"

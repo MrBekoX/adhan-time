@@ -51,4 +51,8 @@ export type ScheduledPrayer = {
   prayerKey: PrayerKey;
   dateIso: string;
   fireAt: Date;
+  // Absent = adhan (the at-time notification). 'reminder' = the pre-prayer
+  // "Yaklaşıyor / Coming up" nudge fired reminderMinutes before the adhan.
+  kind?: 'adhan' | 'reminder';
+  reminderMinutes?: number; // reminder only; drives the body copy
 };

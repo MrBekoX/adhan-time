@@ -13,7 +13,7 @@ import {
   type ReservedLogRow,
   processBatchResponse,
 } from '../_shared/expo-push.ts';
-import { prayerBody, prayerTitle } from '../_shared/i18n.ts';
+import { prayerBody, prayerTitle, reminderBody, reminderTitle } from '../_shared/i18n.ts';
 import {
   fetchPrayerYear,
   isPrayerEntryArray,
@@ -22,6 +22,7 @@ import {
 import {
   formatInTz,
   isWithinPrayerWindow,
+  isWithinReminderWindow,
   localYearInTz,
 } from '../_shared/push-window.ts';
 // Sound/channel routing lives in a pure, unit-tested module (sound-routing.ts) so
@@ -49,6 +50,7 @@ type Device = {
   locale: string;
   sound: string;
   enabled_prayers: string[];
+  reminder_minutes?: number;
   rate_limited_until?: string | null;
 };
 
@@ -93,24 +95,55 @@ Deno.serve(async (req: Request) => {
           if (!dev.enabled_prayers.includes(key)) continue;
           const localTime = entry.times?.[key];
           if (!localTime) continue;
-          if (!isWithinPrayerWindow(todayInTz, localTime, tz, now)) continue;
 
-          pairs.push({
-            message: {
-              to: dev.expo_push_token,
-              title: prayerTitle(dev.locale, key),
-              body: prayerBody(dev.locale, key, dev.district_name),
-              sound: pushSoundFor(dev.sound),
-              channelId: pushChannelFor(dev.sound),
-              data: { prayerKey: key, source: 'server' },
-            },
-            log: {
-              device_id: dev.id,
-              prayer_key: key,
-              scheduled_for: now.toISOString(),
-              local_date: todayInTz,
-            },
-          });
+          // The adhan and its reminder fire at different minutes, so each window
+          // is checked independently (no early `continue` that would skip the
+          // reminder when the adhan window doesn't match).
+          if (isWithinPrayerWindow(todayInTz, localTime, tz, now)) {
+            pairs.push({
+              message: {
+                to: dev.expo_push_token,
+                title: prayerTitle(dev.locale, key),
+                body: prayerBody(dev.locale, key, dev.district_name),
+                sound: pushSoundFor(dev.sound),
+                channelId: pushChannelFor(dev.sound),
+                data: { prayerKey: key, source: 'server' },
+              },
+              log: {
+                device_id: dev.id,
+                prayer_key: key,
+                scheduled_for: now.toISOString(),
+                local_date: todayInTz,
+              },
+            });
+          }
+
+          // Pre-prayer reminder: an independent event fired reminder_minutes
+          // before the adhan. Logged under '{key}-reminder' so its push_log
+          // dedup row never collides with the adhan's (device_id, key, date).
+          // Assumes the reminder instant stays on the prayer's own local day
+          // (we only inspect today's entry). Safe in practice: the earliest
+          // prayer (imsak) is pre-dawn, never within reminder_minutes (≤30) of
+          // local midnight, so a reminder never lands on the previous day.
+          const rm = dev.reminder_minutes ?? 0;
+          if (rm > 0 && isWithinReminderWindow(todayInTz, localTime, tz, now, rm)) {
+            pairs.push({
+              message: {
+                to: dev.expo_push_token,
+                title: reminderTitle(dev.locale),
+                body: reminderBody(dev.locale, key, rm),
+                sound: pushSoundFor(dev.sound),
+                channelId: pushChannelFor(dev.sound),
+                data: { prayerKey: key, kind: 'reminder', source: 'server' },
+              },
+              log: {
+                device_id: dev.id,
+                prayer_key: `${key}-reminder`,
+                scheduled_for: now.toISOString(),
+                local_date: todayInTz,
+              },
+            });
+          }
         }
       } catch (e) {
         console.error('device loop error', dev.id, e);

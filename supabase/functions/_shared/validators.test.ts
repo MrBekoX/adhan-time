@@ -21,6 +21,37 @@ describe('validateRegisterPayload', () => {
     }
   });
 
+  it('defaults reminderMinutes to 0 when absent (old-client compatibility)', () => {
+    const r = validateRegisterPayload(validPayload);
+    expect(r.ok && r.data.reminderMinutes).toBe(0);
+  });
+
+  it('accepts an in-range reminderMinutes', () => {
+    const r = validateRegisterPayload({ ...validPayload, reminderMinutes: 30 });
+    expect(r.ok && r.data.reminderMinutes).toBe(30);
+  });
+
+  it('rejects a reminderMinutes above 30', () => {
+    expect(validateRegisterPayload({ ...validPayload, reminderMinutes: 31 })).toEqual({
+      ok: false,
+      code: 'invalid_reminder',
+    });
+  });
+
+  it('rejects a negative reminderMinutes', () => {
+    expect(validateRegisterPayload({ ...validPayload, reminderMinutes: -1 })).toEqual({
+      ok: false,
+      code: 'invalid_reminder',
+    });
+  });
+
+  it('rejects a non-integer reminderMinutes', () => {
+    expect(validateRegisterPayload({ ...validPayload, reminderMinutes: 10.5 })).toEqual({
+      ok: false,
+      code: 'invalid_reminder',
+    });
+  });
+
   it('rejects null body', () => {
     expect(validateRegisterPayload(null)).toEqual({ ok: false, code: 'invalid_body' });
   });

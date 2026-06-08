@@ -39,6 +39,10 @@
       "title": "宵礼",
       "body": "宵礼时间已到。",
       "bodyWithCity": "{{city}} 宵礼时间已到。"
+    },
+    "reminder": {
+      "title": "即将到来",
+      "body": "距{{prayer}}还有 {{minutes}} 分钟。"
     }
   },
   "errors": {
@@ -152,6 +156,8 @@
       "preferences": "偏好",
       "language": "语言",
       "sound": "声音",
+      "reminder": "提醒",
+      "reminderOff": "关闭",
       "enabledPrayers": "启用的礼拜",
       "city": "城市",
       "changeCity": "更改城市",
@@ -208,6 +214,7 @@
   "units": {
     "hour_other": "{{count}} 小时",
     "minute_other": "{{count}} 分钟",
+    "minuteShort": "分",
     "km": "{{value}} 公里",
     "degrees": "{{value}}°",
     "meters": "{{value}} 米"

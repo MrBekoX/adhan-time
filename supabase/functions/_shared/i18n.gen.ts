@@ -33,6 +33,10 @@ export const SHARED_I18N = {
         "title": "Yatsı",
         "body": "Yatsı vakti girdi.",
         "bodyWithCity": "{{city}} için yatsı vakti girdi."
+      },
+      "reminder": {
+        "title": "Yaklaşıyor",
+        "body": "{{prayer}} vaktine {{minutes}} dk kaldı."
       }
     }
   },
@@ -67,6 +71,10 @@ export const SHARED_I18N = {
         "title": "Isha",
         "body": "Isha time has started.",
         "bodyWithCity": "Isha time has started in {{city}}."
+      },
+      "reminder": {
+        "title": "Coming up",
+        "body": "{{minutes}} min to {{prayer}}."
       }
     }
   },
@@ -101,6 +109,10 @@ export const SHARED_I18N = {
         "title": "العشاء",
         "body": "دخل وقت العشاء.",
         "bodyWithCity": "دخل وقت العشاء في {{city}}."
+      },
+      "reminder": {
+        "title": "اقترب الوقت",
+        "body": "بقي {{minutes}} دقيقة على {{prayer}}."
       }
     }
   },
@@ -135,6 +147,10 @@ export const SHARED_I18N = {
         "title": "宵礼",
         "body": "宵礼时间已到。",
         "bodyWithCity": "{{city}} 宵礼时间已到。"
+      },
+      "reminder": {
+        "title": "即将到来",
+        "body": "距{{prayer}}还有 {{minutes}} 分钟。"
       }
     }
   }

@@ -146,6 +146,7 @@ async function scheduleAll(
   await reconcile(cache, {
     enabledPrayers: settings.enabledPrayers as PrayerKey[],
     sound: settings.sound,
+    reminderMinutes: settings.reminderMinutes,
     districtName,
     forceReschedule,
   });

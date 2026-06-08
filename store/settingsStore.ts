@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { migrateSettingsState } from './settingsStore.migration';
 
+import { REMINDER_MAX_MINUTES } from '@/constants/notifications';
 import { DEFAULT_ENABLED_PRAYERS, type PrayerKey } from '@/constants/prayers';
 import type { Locale } from '@/locales/i18n';
 
@@ -11,6 +12,8 @@ type State = {
   locale: Locale;
   sound: 'default' | 'notification';
   enabledPrayers: PrayerKey[];
+  // Minutes before each adhan to fire a pre-prayer reminder (0 = off, max 30).
+  reminderMinutes: number;
   onboardingCompleted: boolean;
   notificationPermissionDenied: boolean;
   // Persisted across launches so a registration failure during onboarding
@@ -24,6 +27,7 @@ type Actions = {
   setLocale: (locale: State['locale']) => void;
   setSound: (sound: State['sound']) => void;
   togglePrayer: (key: PrayerKey) => void;
+  setReminderMinutes: (min: number) => void;
   setOnboardingCompleted: (v: boolean) => void;
   setNotificationPermissionDenied: (v: boolean) => void;
   setDeviceRegistrationPending: (v: boolean) => void;
@@ -37,6 +41,8 @@ const initial: State = {
   // switch to the plain system sound in Settings.
   sound: 'notification',
   enabledPrayers: [...DEFAULT_ENABLED_PRAYERS],
+  // Pre-prayer reminder defaults to off; opt-in from Settings.
+  reminderMinutes: 0,
   onboardingCompleted: false,
   notificationPermissionDenied: false,
   deviceRegistrationPending: false,
@@ -49,6 +55,8 @@ export const useSettingsStore = create<State & Actions>()(
       ...initial,
       setLocale: (locale) => set({ locale }),
       setSound: (sound) => set({ sound }),
+      setReminderMinutes: (min) =>
+        set({ reminderMinutes: Math.max(0, Math.min(REMINDER_MAX_MINUTES, Math.round(min))) }),
       togglePrayer: (key) => {
         const cur = get().enabledPrayers;
         const next = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
@@ -73,12 +81,13 @@ export const useSettingsStore = create<State & Actions>()(
     }),
     {
       name: 'settings',
-      version: 5,
+      version: 6,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({
         locale: s.locale,
         sound: s.sound,
         enabledPrayers: s.enabledPrayers,
+        reminderMinutes: s.reminderMinutes,
         onboardingCompleted: s.onboardingCompleted,
         notificationPermissionDenied: s.notificationPermissionDenied,
         deviceRegistrationPending: s.deviceRegistrationPending,

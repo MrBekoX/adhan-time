@@ -23,7 +23,9 @@ const SHARED_PATH = path.resolve(
   '../../supabase/functions/_shared/i18n.json',
 );
 
-type PrayerCopy = { title: string; body: string; bodyWithCity: string };
+// bodyWithCity is optional: the per-prayer entries carry it, but the
+// `reminder` entry has only title + body (its body interpolates prayer/minutes).
+type PrayerCopy = { title: string; body: string; bodyWithCity?: string };
 type SharedShape = Record<string, { prayer: Record<string, PrayerCopy> }>;
 
 const mobileByLocale = { tr, en, ar, zh } as const;

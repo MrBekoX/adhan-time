@@ -43,6 +43,10 @@
       "title": "Yatsı",
       "body": "Yatsı vakti girdi.",
       "bodyWithCity": "{{city}} için yatsı vakti girdi."
+    },
+    "reminder": {
+      "title": "Yaklaşıyor",
+      "body": "{{prayer}} vaktine {{minutes}} dk kaldı."
     }
   },
   "errors": {
@@ -156,6 +160,8 @@
       "preferences": "Tercihler",
       "language": "Dil",
       "sound": "Ses",
+      "reminder": "Hatırlatıcı",
+      "reminderOff": "Kapalı",
       "enabledPrayers": "Aktif Vakitler",
       "city": "Şehir",
       "changeCity": "Şehri Değiştir",
@@ -214,6 +220,7 @@
     "hour_other": "{{count}} saat",
     "minute_one": "{{count}} dakika",
     "minute_other": "{{count}} dakika",
+    "minuteShort": "dk",
     "km": "{{value}} km",
     "degrees": "{{value}}°",
     "meters": "{{value}} m"

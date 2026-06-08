@@ -1,4 +1,4 @@
-import { interpolate, prayerBody, prayerTitle } from './i18n';
+import { interpolate, prayerBody, prayerTitle, reminderBody, reminderTitle } from './i18n';
 
 describe('i18n.interpolate', () => {
   it('replaces a single placeholder', () => {
@@ -43,5 +43,29 @@ describe('prayerBody', () => {
     expect(prayerBody('xx', 'yatsi', 'Ankara')).toBe(
       'Ankara için yatsı vakti girdi.',
     );
+  });
+});
+
+describe('reminderTitle', () => {
+  it('returns the localized reminder title (tr)', () => {
+    expect(reminderTitle('tr')).toBe('Yaklaşıyor');
+  });
+  it('returns the localized reminder title (en)', () => {
+    expect(reminderTitle('en')).toBe('Coming up');
+  });
+  it('falls back to tr for an unknown locale', () => {
+    expect(reminderTitle('xx')).toBe('Yaklaşıyor');
+  });
+});
+
+describe('reminderBody', () => {
+  it('interpolates prayer name + minutes (tr)', () => {
+    expect(reminderBody('tr', 'ogle', 10)).toBe('Öğle vaktine 10 dk kaldı.');
+  });
+  it('interpolates prayer name + minutes (en)', () => {
+    expect(reminderBody('en', 'ogle', 10)).toBe('10 min to Dhuhr.');
+  });
+  it('falls back to tr for an unknown locale', () => {
+    expect(reminderBody('xx', 'imsak', 5)).toBe('İmsak vaktine 5 dk kaldı.');
   });
 });

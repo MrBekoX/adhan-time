@@ -28,6 +28,7 @@ async function upsertDevice(payload: ValidPayload): Promise<UpsertResult> {
         locale: payload.locale,
         sound: payload.sound,
         enabled_prayers: payload.enabledPrayers,
+        reminder_minutes: payload.reminderMinutes,
         last_seen_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },

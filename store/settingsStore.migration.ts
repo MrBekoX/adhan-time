@@ -8,6 +8,7 @@ export type PersistedSettingsShape = {
   onboardingCompleted?: boolean;
   notificationPermissionDenied?: boolean;
   deviceRegistrationPending?: boolean;
+  reminderMinutes?: number;
 };
 
 export function migrateSettingsState(
@@ -32,6 +33,10 @@ export function migrateSettingsState(
     // single bundled notification sound. Anyone who had any adhan option now gets
     // that notification sound; 'default' (system sound) is unchanged.
     safe = { ...safe, sound: 'notification' };
+  }
+  if (version < 6) {
+    // Pre-prayer reminder added; existing users default to off (0).
+    safe = { ...safe, reminderMinutes: safe.reminderMinutes ?? 0 };
   }
 
   return safe;

@@ -1,6 +1,8 @@
 import { migrateSettingsState } from '../settingsStore.migration';
 import { useSettingsStore } from '../settingsStore';
 
+import { REMINDER_MAX_MINUTES } from '@/constants/notifications';
+
 describe('migrateSettingsState (V5 — settingsStore v1 → v2)', () => {
   it('adds notificationPermissionDenied=false to v1 blobs that lack the field', () => {
     const result = migrateSettingsState(
@@ -27,27 +29,32 @@ describe('migrateSettingsState (V5 — settingsStore v1 → v2)', () => {
     expect(result.notificationPermissionDenied).toBe(true);
   });
 
-  it('passes v3+ blobs through unchanged', () => {
+  it('passes v3+ blobs through but backfills the v6 reminderMinutes field', () => {
     const blob = {
       locale: 'ar',
       notificationPermissionDenied: true,
       deviceRegistrationPending: false,
     };
-    expect(migrateSettingsState(blob, 3)).toEqual(blob);
+    // The v3→v5 field-adds and sound remap don't fire for this blob, but the
+    // v6 step backfills reminderMinutes for any pre-v6 persisted state.
+    expect(migrateSettingsState(blob, 3)).toEqual({ ...blob, reminderMinutes: 0 });
   });
 
   it('handles empty/null persisted state without crashing', () => {
     expect(migrateSettingsState(undefined, 1)).toEqual({
       notificationPermissionDenied: false,
       deviceRegistrationPending: false,
+      reminderMinutes: 0,
     });
     expect(migrateSettingsState(null, 1)).toEqual({
       notificationPermissionDenied: false,
       deviceRegistrationPending: false,
+      reminderMinutes: 0,
     });
     expect(migrateSettingsState({}, 1)).toEqual({
       notificationPermissionDenied: false,
       deviceRegistrationPending: false,
+      reminderMinutes: 0,
     });
   });
 });
@@ -170,5 +177,40 @@ describe('useSettingsStore — V16+F6 deviceRegistrationPending flag', () => {
     // is a server-side reminder — after a "Delete my data" wipe, there is no
     // device row left to register, so the pending flag must clear.
     expect(useSettingsStore.getState().deviceRegistrationPending).toBe(false);
+  });
+});
+
+describe('useSettingsStore — reminderMinutes', () => {
+  beforeEach(() => useSettingsStore.setState({ reminderMinutes: 0 }));
+
+  it('defaults to 0 (off)', () => {
+    expect(useSettingsStore.getState().reminderMinutes).toBe(0);
+  });
+
+  it('clamps a value above the max down to 30', () => {
+    useSettingsStore.getState().setReminderMinutes(35);
+    expect(useSettingsStore.getState().reminderMinutes).toBe(REMINDER_MAX_MINUTES);
+  });
+
+  it('clamps a negative value up to 0', () => {
+    useSettingsStore.getState().setReminderMinutes(-5);
+    expect(useSettingsStore.getState().reminderMinutes).toBe(0);
+  });
+
+  it('rounds a fractional value to the nearest minute', () => {
+    useSettingsStore.getState().setReminderMinutes(7.6);
+    expect(useSettingsStore.getState().reminderMinutes).toBe(8);
+  });
+});
+
+describe('migrateSettingsState (v6 — reminderMinutes backfill)', () => {
+  it('adds reminderMinutes=0 to a v5 blob that lacks the field', () => {
+    const result = migrateSettingsState({ locale: 'tr', sound: 'notification' }, 5);
+    expect(result.reminderMinutes).toBe(0);
+  });
+
+  it('does not clobber a reminderMinutes carried from a future build', () => {
+    const result = migrateSettingsState({ locale: 'tr', reminderMinutes: 15 }, 5);
+    expect(result.reminderMinutes).toBe(15);
   });
 });

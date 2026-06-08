@@ -42,6 +42,7 @@ const INPUT = {
   locale: 'tr',
   sound: 'default',
   enabledPrayers: ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'],
+  reminderMinutes: 0,
 };
 
 beforeEach(() => {

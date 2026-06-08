@@ -13,6 +13,8 @@ import {
   DEFAULT_SOUND,
   NOTIFICATION_SOUND_FILE,
   PENDING_NOTIFICATION_HARD_CAP,
+  REMINDER_MAX_MINUTES,
+  REMINDER_WINDOW_DAYS,
   ROLLING_WINDOW_DAYS,
   ROLLING_WINDOW_DAYS_ALL_PRAYERS,
   type SoundKey,
@@ -34,6 +36,10 @@ type ReconcileOptions = {
   enabledPrayers?: PrayerKey[];
   sound?: SoundKey;
   districtName?: string;
+  // Minutes before each adhan to also schedule a "Yaklaşıyor / Coming up"
+  // reminder (0 / undefined = off). See computeTargetsWithStats for the
+  // adhan-first ordering that protects the iOS ≤50 cap.
+  reminderMinutes?: number;
   // Re-register every target even if expo's store already lists it as pending.
   // A force-stop / aggressive-OEM kill cancels the AlarmManager alarms but leaves
   // expo-notifications' SharedPreferences records intact, so the normal diff sees
@@ -139,16 +145,47 @@ async function reconcileInner(
     enabled.length === ALL_PRAYERS_COUNT
       ? ROLLING_WINDOW_DAYS_ALL_PRAYERS
       : ROLLING_WINDOW_DAYS;
-  const windowDays = options.windowDays ?? defaultWindow;
   const soundPref: SoundKey = options.sound ?? 'default';
+  // Clamp the persisted/option value at the point of use: setReminderMinutes
+  // clamps on user action, but a rehydrated or out-of-range value (corruption,
+  // a downgrade from a future build) would otherwise schedule reminders at an
+  // arbitrary lead time with no guard.
+  const reminderMinutes = Math.max(
+    0,
+    Math.min(REMINDER_MAX_MINUTES, Math.round(options.reminderMinutes ?? 0)),
+  );
+  // When reminders are on they double part of the queue, so reserve cap headroom
+  // by shrinking the ADHAN window — otherwise 5 prayers × 10 days already fills
+  // all 50 slots and every reminder is sliced off (silent no-op). Adhans stay
+  // first in the target list (never dropped); this only trades a few days of
+  // far-future adhan coverage — which the server fallback backstops — for the
+  // near-term reminders the user explicitly asked for.
+  let windowDays = options.windowDays ?? defaultWindow;
+  if (reminderMinutes > 0 && enabled.length > 0) {
+    const maxAdhanDays =
+      Math.floor(PENDING_NOTIFICATION_HARD_CAP / enabled.length) - REMINDER_WINDOW_DAYS;
+    windowDays = Math.min(windowDays, Math.max(REMINDER_WINDOW_DAYS, maxAdhanDays));
+  }
   const tz = cache.timezone;
   const now = new Date();
 
-  const computed = computeTargetsWithStats(cache, tz, now, windowDays, enabled);
+  const computed = computeTargetsWithStats(cache, tz, now, windowDays, enabled, reminderMinutes);
   const target = computed.targets.slice(
     0,
     PENDING_NOTIFICATION_HARD_CAP,
   );
+  // With the reminder budget above, targets should already fit; this stays as an
+  // absolute backstop AND a canary so a future regression that over-fills the
+  // queue is visible in logs instead of silently dropping notifications.
+  if (computed.targets.length > PENDING_NOTIFICATION_HARD_CAP) {
+    logger.warn('targets-exceeded-cap', {
+      total: computed.targets.length,
+      cap: PENDING_NOTIFICATION_HARD_CAP,
+      enabled: enabled.length,
+      windowDays,
+      reminderMinutes,
+    });
+  }
   if (
     computed.parseAttempted > 0 &&
     (computed.parseAttempted - computed.parseSkipped) / computed.parseAttempted < 0.8
@@ -255,8 +292,9 @@ export function computeTargets(
   now: Date,
   windowDays: number,
   enabled: PrayerKey[],
+  reminderMinutes = 0,
 ): ScheduledPrayer[] {
-  return computeTargetsWithStats(cache, tz, now, windowDays, enabled).targets;
+  return computeTargetsWithStats(cache, tz, now, windowDays, enabled, reminderMinutes).targets;
 }
 
 function computeTargetsWithStats(
@@ -265,8 +303,14 @@ function computeTargetsWithStats(
   now: Date,
   windowDays: number,
   enabled: PrayerKey[],
+  reminderMinutes: number,
 ): TargetComputation {
-  const out: ScheduledPrayer[] = [];
+  // Two passes collected separately so adhans can be returned BEFORE reminders:
+  // reconcile slices the combined list to PENDING_NOTIFICATION_HARD_CAP, and
+  // adhan-first ordering guarantees the cap drops reminders before any adhan
+  // (the at-time prayer notification must never be silently lost — rules/04).
+  const adhans: ScheduledPrayer[] = [];
+  const reminders: ScheduledPrayer[] = [];
   let parseAttempted = 0;
   let parseSkipped = 0;
   // Index the ~365 yearly entries once (O(n)) instead of scanning per day
@@ -289,12 +333,34 @@ function computeTargetsWithStats(
       try {
         const fireAt = parsePrayerTime(value, dateIso, tz);
         if (fireAt.getTime() <= now.getTime()) continue;
-        out.push({
+        adhans.push({
           id: buildNotificationId(cache.districtId, dateIso, key, tz, fireAt.toISOString()),
           prayerKey: key,
           dateIso,
           fireAt,
         });
+        // Reminder only for the nearest REMINDER_WINDOW_DAYS days (cap budget)
+        // and only if its fire moment is still in the future.
+        if (reminderMinutes > 0 && d < REMINDER_WINDOW_DAYS) {
+          const reminderFireAt = new Date(fireAt.getTime() - reminderMinutes * 60_000);
+          if (reminderFireAt.getTime() > now.getTime()) {
+            reminders.push({
+              id: buildNotificationId(
+                cache.districtId,
+                dateIso,
+                key,
+                tz,
+                reminderFireAt.toISOString(),
+                'reminder',
+              ),
+              prayerKey: key,
+              dateIso,
+              fireAt: reminderFireAt,
+              kind: 'reminder',
+              reminderMinutes,
+            });
+          }
+        }
       } catch (e) {
         // A single malformed entry must not abort the whole window.
         parseSkipped++;
@@ -302,7 +368,7 @@ function computeTargetsWithStats(
       }
     }
   }
-  return { targets: out, parseAttempted, parseSkipped };
+  return { targets: [...adhans, ...reminders], parseAttempted, parseSkipped };
 }
 
 async function scheduleOne(
@@ -311,17 +377,24 @@ async function scheduleOne(
   soundPref: SoundKey,
   districtName?: string,
 ): Promise<void> {
+  const isReminder = s.kind === 'reminder';
   const content = {
-    title: i18n.t(`prayer.${s.prayerKey}.title`),
-    body: districtName
-      ? i18n.t(`prayer.${s.prayerKey}.bodyWithCity`, { city: districtName })
-      : i18n.t(`prayer.${s.prayerKey}.body`),
+    title: isReminder ? i18n.t('prayer.reminder.title') : i18n.t(`prayer.${s.prayerKey}.title`),
+    body: isReminder
+      ? i18n.t('prayer.reminder.body', {
+          prayer: i18n.t(`prayer.${s.prayerKey}.title`),
+          minutes: s.reminderMinutes,
+        })
+      : districtName
+        ? i18n.t(`prayer.${s.prayerKey}.bodyWithCity`, { city: districtName })
+        : i18n.t(`prayer.${s.prayerKey}.body`),
     sound: soundForPrayer(soundPref),
     data: {
       prayerKey: s.prayerKey,
       dateIso: s.dateIso,
       timezone: tz,
       fireAt: s.fireAt.toISOString(),
+      kind: s.kind ?? 'adhan',
     },
   };
 

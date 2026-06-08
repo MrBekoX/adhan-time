@@ -31,6 +31,7 @@ export default function Permissions() {
       locale: settings.locale,
       sound: settings.sound,
       enabledPrayers: settings.enabledPrayers,
+      reminderMinutes: settings.reminderMinutes,
     });
     setLoading(false);
 

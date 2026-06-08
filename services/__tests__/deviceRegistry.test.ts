@@ -44,6 +44,7 @@ describe('registerDeviceDetailed — V16 retry + UI reason surface', () => {
     locale: 'tr',
     sound: 'default',
     enabledPrayers: ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'],
+    reminderMinutes: 0,
   };
 
   let fetchMock: jest.SpyInstance;
@@ -192,6 +193,7 @@ describe('registerDevice — F6 boolean wrapper', () => {
     locale: 'tr',
     sound: 'default',
     enabledPrayers: ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'],
+    reminderMinutes: 0,
   };
 
   let fetchMock: jest.SpyInstance;

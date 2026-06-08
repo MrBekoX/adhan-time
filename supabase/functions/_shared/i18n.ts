@@ -31,3 +31,15 @@ export function prayerBody(locale: string, key: string, city: string): string {
   if (!copy) return key;
   return interpolate(copy.bodyWithCity, { city });
 }
+
+export function reminderTitle(locale: string): string {
+  const catalog = SHARED_I18N[normalizeLocale(locale)];
+  return catalog?.prayer?.reminder?.title ?? 'reminder';
+}
+
+export function reminderBody(locale: string, key: string, minutes: number): string {
+  const catalog = SHARED_I18N[normalizeLocale(locale)];
+  const template = catalog?.prayer?.reminder?.body;
+  if (!template) return key;
+  return interpolate(template, { prayer: prayerTitle(locale, key), minutes: String(minutes) });
+}

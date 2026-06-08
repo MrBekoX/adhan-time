@@ -11,6 +11,7 @@ export type FinalizeInput = {
   locale: string;
   sound: string;
   enabledPrayers: string[];
+  reminderMinutes: number;
 };
 
 export type FinalizeResult =
@@ -40,6 +41,7 @@ export async function finalizeOnboarding(input: FinalizeInput): Promise<Finalize
       locale: input.locale,
       sound: input.sound,
       enabledPrayers: input.enabledPrayers,
+      reminderMinutes: input.reminderMinutes,
     });
     return { ok: true, permissionGranted };
   } catch (error) {

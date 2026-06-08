@@ -43,6 +43,10 @@
       "title": "Isha",
       "body": "Isha time has started.",
       "bodyWithCity": "Isha time has started in {{city}}."
+    },
+    "reminder": {
+      "title": "Coming up",
+      "body": "{{minutes}} min to {{prayer}}."
     }
   },
   "errors": {
@@ -156,6 +160,8 @@
       "preferences": "preferences",
       "language": "Language",
       "sound": "Sound",
+      "reminder": "Reminder",
+      "reminderOff": "Off",
       "enabledPrayers": "Enabled Prayers",
       "city": "City",
       "changeCity": "Change City",
@@ -214,6 +220,7 @@
     "hour_other": "{{count}} hours",
     "minute_one": "{{count}} minute",
     "minute_other": "{{count}} minutes",
+    "minuteShort": "min",
     "km": "{{value}} km",
     "degrees": "{{value}}°",
     "meters": "{{value}} m"

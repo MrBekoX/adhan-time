@@ -16,6 +16,7 @@ type RegisterPayload = {
   locale: string;
   sound: string;
   enabledPrayers: string[];
+  reminderMinutes: number;
 };
 
 function getHmacSecret(): string | null {

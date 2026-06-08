@@ -1,6 +1,7 @@
 import {
   formatInTz,
   isWithinPrayerWindow,
+  isWithinReminderWindow,
   localTimestampToUtc,
   localYearInTz,
 } from './push-window';
@@ -50,6 +51,34 @@ describe('isWithinPrayerWindow (V12 — 60s match)', () => {
     expect(isWithinPrayerWindow('2026-05-02', '13:06', 'Europe/Istanbul', now, 5 * 60_000)).toBe(
       true,
     );
+  });
+});
+
+describe('isWithinReminderWindow', () => {
+  // ogle 13:06 Istanbul (UTC+3) = 10:06Z; a 10-min reminder fires at 09:56Z.
+  it('matches at the reminder minute', () => {
+    const now = new Date('2026-05-02T09:56:00Z');
+    expect(isWithinReminderWindow('2026-05-02', '13:06', 'Europe/Istanbul', now, 10)).toBe(true);
+  });
+
+  it('still matches 59 seconds into the reminder window', () => {
+    const now = new Date('2026-05-02T09:56:59Z');
+    expect(isWithinReminderWindow('2026-05-02', '13:06', 'Europe/Istanbul', now, 10)).toBe(true);
+  });
+
+  it('does not match at the adhan minute itself', () => {
+    const now = new Date('2026-05-02T10:06:00Z');
+    expect(isWithinReminderWindow('2026-05-02', '13:06', 'Europe/Istanbul', now, 10)).toBe(false);
+  });
+
+  it('returns false when reminderMinutes is 0', () => {
+    const now = new Date('2026-05-02T10:06:00Z');
+    expect(isWithinReminderWindow('2026-05-02', '13:06', 'Europe/Istanbul', now, 0)).toBe(false);
+  });
+
+  it('rejects one second before the reminder window opens', () => {
+    const now = new Date('2026-05-02T09:55:59Z');
+    expect(isWithinReminderWindow('2026-05-02', '13:06', 'Europe/Istanbul', now, 10)).toBe(false);
   });
 });
 

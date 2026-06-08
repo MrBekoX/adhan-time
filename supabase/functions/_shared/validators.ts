@@ -24,6 +24,7 @@ export type ValidPayload = {
   locale: Locale;
   sound: Sound;
   enabledPrayers: string[];
+  reminderMinutes: number;
 };
 
 export type ValidationResult =
@@ -77,6 +78,22 @@ export function validateRegisterPayload(body: unknown): ValidationResult {
     return { ok: false, code: 'invalid_country_name' };
   }
 
+  // reminderMinutes is optional for backward compatibility: clients on older
+  // builds omit it and default to 0 (off). When present it must be an integer
+  // in [0, 30] (the device side already clamps; this is defense in depth).
+  let reminderMinutes = 0;
+  if (b.reminderMinutes !== undefined) {
+    if (
+      typeof b.reminderMinutes !== 'number' ||
+      !Number.isInteger(b.reminderMinutes) ||
+      b.reminderMinutes < 0 ||
+      b.reminderMinutes > 30
+    ) {
+      return { ok: false, code: 'invalid_reminder' };
+    }
+    reminderMinutes = b.reminderMinutes;
+  }
+
   return {
     ok: true,
     data: {
@@ -88,6 +105,7 @@ export function validateRegisterPayload(body: unknown): ValidationResult {
       locale: b.locale as Locale,
       sound: b.sound as Sound,
       enabledPrayers: [...(b.enabledPrayers as string[])],
+      reminderMinutes,
     },
   };
 }
