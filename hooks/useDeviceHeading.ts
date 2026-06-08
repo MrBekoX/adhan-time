@@ -9,25 +9,27 @@ import {
   HEADING_PUBLISH_MIN_IDLE_DELTA_DEG,
   HEADING_PUBLISH_MIN_INTERVAL_MS,
   HEADING_SHARED_DEADBAND_DEG,
+  INTERFERENCE_HOLD_MS,
   ONE_EURO_BETA,
   ONE_EURO_DCUTOFF,
   ONE_EURO_MIN_CUTOFF,
 } from '@/constants/qibla';
 import * as CompassHeading from '@/modules/compass-heading';
-import { selectHeadingSource } from '@/utils/declination';
+import { computeExpectedFieldMicroTesla, selectHeadingSource } from '@/utils/declination';
 import {
   applyEma,
-  classifyQuality,
   headingSmoothingAlphaForPlatform,
-  normalizeAccuracyForPlatform,
+  isInterference,
+  resolveHeadingReliability,
   shouldPublishHeadingUpdate,
   signedDelta,
   type HeadingQuality,
   type PlatformOS,
+  type ReliabilityReason,
 } from '@/utils/heading';
 import { logger } from '@/utils/logger';
 
-export type { HeadingQuality };
+export type { HeadingQuality, ReliabilityReason };
 
 export type HeadingStatus =
   | { kind: 'idle' }
@@ -39,9 +41,11 @@ export type HeadingStatus =
       heading: number;
       /** 'true' = geographic north, 'magnetic' = uncorrected (only when trueHeading unavailable). */
       source: 'true' | 'magnetic';
-      /** Approximate accuracy in degrees (normalized across platforms). null if unknown. */
+      /** Approximate accuracy in degrees (normalized across platforms). null if unknown/interfered. */
       accuracyDeg: number | null;
       quality: HeadingQuality;
+      /** Recovery action when unreliable: 'interference' (move away from metal), 'calibrate', or null. */
+      reason: ReliabilityReason;
     };
 
 type Options = {
@@ -90,6 +94,9 @@ export function useDeviceHeading({
     lastPublishedAt: number;
     lastPublishedQuality: HeadingQuality | null;
     lastPublishedSource: 'true' | 'magnetic' | null;
+    lastPublishedReason: ReliabilityReason | null;
+    /** Wall-clock ms until which interference is HELD active (time hysteresis vs banner flicker). */
+    interferenceUntil: number;
   }>({
     smoothed: null,
     lastSharedHeading: null,
@@ -97,6 +104,8 @@ export function useDeviceHeading({
     lastPublishedAt: 0,
     lastPublishedQuality: null,
     lastPublishedSource: null,
+    lastPublishedReason: null,
+    interferenceUntil: 0,
   });
 
   useEffect(() => {
@@ -140,20 +149,50 @@ export function useDeviceHeading({
       // this on the UI thread, independent of React's gated re-renders. The deadband skips
       // sub-0.4° sensor jitter while stationary, so the rose tween settles and the screen
       // idles instead of redrawing every frame (see HEADING_SHARED_DEADBAND_DEG).
+      // Resolve reliability from ALL sensor signals (fused accuracy + RAW magnetometer accuracy +
+      // field-magnitude interference vs the expected geomagnetic intensity), not just the OEM's fused
+      // accuracy — which reads "high" under interference / an uncalibrated mag (rules/11).
+      const loc = locationRef.current;
+      const expectedFieldMicroTesla = loc
+        ? computeExpectedFieldMicroTesla(loc.lat, loc.lon)
+        : null;
+      const now = Date.now();
+      // Interference with TIME HYSTERESIS: a moving phone makes |B| swing across the threshold, which
+      // flickered the banner on/off. Hold the "interfered" state for INTERFERENCE_HOLD_MS after the
+      // last raw detection, so it stays a single stable warning until the field has been clean that long.
+      const rawInterference = isInterference(
+        typeof reading.fieldMicroTesla === 'number' ? reading.fieldMicroTesla : null,
+        expectedFieldMicroTesla,
+      );
+      if (rawInterference) st.interferenceUntil = now + INTERFERENCE_HOLD_MS;
+      const { accuracyDeg, quality, reason } = resolveHeadingReliability(
+        {
+          primaryAccuracy: reading.accuracy,
+          magAccuracy: typeof reading.magAccuracy === 'number' ? reading.magAccuracy : null,
+          interference: now < st.interferenceUntil,
+        },
+        platformOS,
+      );
+
+      // FREEZE the rose when unreliable (interference / uncalibrated): do NOT push a garbage heading
+      // to the UI-thread source — the dial holds its last position while the banner tells the user how
+      // to recover. Feeding it would reproduce the "kafasına göre" garbage swing the user saw (and the
+      // market compasses avoid). The deadband still rejects idle jitter on a reliable stream.
       const hs = headingSharedRef.current;
       if (
         hs &&
+        quality !== 'unreliable' &&
         (st.lastSharedHeading === null ||
           Math.abs(signedDelta(next, st.lastSharedHeading)) >= HEADING_SHARED_DEADBAND_DEG)
       ) {
         hs.value = next;
         st.lastSharedHeading = next;
       }
-      const accuracyDeg = normalizeAccuracyForPlatform(reading.accuracy, platformOS);
-      const quality = classifyQuality(accuracyDeg);
+
       const metadataChanged =
-        selected.source !== st.lastPublishedSource || quality !== st.lastPublishedQuality;
-      const now = Date.now();
+        selected.source !== st.lastPublishedSource ||
+        quality !== st.lastPublishedQuality ||
+        reason !== st.lastPublishedReason;
       if (
         !metadataChanged &&
         !shouldPublishHeadingUpdate({
@@ -171,8 +210,9 @@ export function useDeviceHeading({
       st.lastPublishedAt = now;
       st.lastPublishedQuality = quality;
       st.lastPublishedSource = selected.source;
+      st.lastPublishedReason = reason;
 
-      setStatus({ kind: 'ready', heading: next, source: selected.source, accuracyDeg, quality });
+      setStatus({ kind: 'ready', heading: next, source: selected.source, accuracyDeg, quality, reason });
     };
 
     void (async () => {

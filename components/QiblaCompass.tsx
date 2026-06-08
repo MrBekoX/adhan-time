@@ -1,7 +1,6 @@
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Animated, {
-  runOnJS,
   type SharedValue,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -12,7 +11,12 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import KAABA_IMAGE from '../assets/images/kaaba.png';
-import { ROSE_FOLLOW_EPSILON, ROSE_FOLLOW_LAMBDA, ROSE_FOLLOW_MAX_DT_SEC } from '@/constants/qibla';
+import {
+  ROSE_APPEAR_SNAP_MS,
+  ROSE_FOLLOW_EPSILON,
+  ROSE_FOLLOW_LAMBDA,
+  ROSE_FOLLOW_MAX_DT_SEC,
+} from '@/constants/qibla';
 import { nextRoseRotation, roseFollowStep, roseSpringConfig, showAlignmentVisuals } from '@/utils/heading';
 
 import { CompassRose } from './CompassRose';
@@ -74,52 +78,76 @@ function QiblaCompassImpl({
   // while the tween always picks the short way around.
   // Displayed rose angle (unbounded, shortest-arc accumulated). Driven every vsync by the
   // follow loop below on the PRIMARY path, or by the fallback spring effect on the test path.
-  const roseRotation = useSharedValue(0);
+  // Seed both from the live heading (read ONCE at mount): every tab blur unmounts QiblaCompass
+  // (Body shows a placeholder until location+heading are ready again), so a fresh 0 would reset
+  // the rose to North and sweep it back up to the bearing on refocus. headingShared lives in the
+  // parent (QiblaScreen, never unmounts) and is JS-thread-written, so this read is cheap+current;
+  // -1 = no reading yet → 0. The rose rotates by −heading.
+  const [seededRose] = useState(() =>
+    headingShared && headingShared.value >= 0 ? -headingShared.value : 0,
+  );
+  const roseRotation = useSharedValue(seededRose);
   // UI-thread accumulator for the unwrapped rose target (grows unbounded, shortest-arc).
-  const roseTargetSV = useSharedValue(0);
+  const roseTargetSV = useSharedValue(seededRose);
+  // Wall-clock ms since THIS mount, accumulated on the UI thread — drives the appear-snap window
+  // below. Deliberately a shared value, NOT frame.timeSinceFirstFrame: useFrameCallback
+  // re-registers on every re-render (aligned/qiblaBearing/unreliable change), which resets
+  // timeSinceFirstFrame and would re-open the snap window mid-use; this counter only resets when
+  // the component actually remounts (per tab focus).
+  const appearElapsedMs = useSharedValue(0);
   const haloOpacity = useSharedValue(0);
   // JS-side accumulator for the fallback (deviceHeading) path. We must NOT read
   // roseRotation.value on the JS thread to derive the next target: that read blocks on the
   // UI thread and returns a mid-tween value, so the shortest-arc baseline races and the rose
   // stutters. Keeping the unwrapped target in a ref makes each step deterministic.
-  const roseTargetRef = useRef(0);
-  // Armed-state of the per-frame follow loop, coordinated on the UI thread between the ingest
-  // reaction (arms on a new sample) and the frame callback (disarms on convergence) so a
-  // settled — or tab-blurred (feed stops → converges) — rose stops burning vsync frames.
-  const frameArmed = useSharedValue(false);
-
-  // PRIMARY rose driver: a per-vsync exponential follow (roseFollowStep). Unlike the old
-  // per-sample `withSpring` retarget — which only moved when a sample arrived and SETTLED in
-  // the gaps — this advances the displayed angle EVERY frame toward the accumulated target,
-  // so a sparse slow-rotation feed becomes a smooth glide instead of the freeze-then-jump.
-  // It has no momentum term, so it can never coast past the target on a stall (the A2 coast
-  // regression is impossible by construction), and it is exactly frame-rate independent
-  // (identical on 60/90/120 Hz). Inactive on the fallback path (autostart false + never armed).
-  const roseFrameRef = useRef<{ setActive: (active: boolean) => void } | null>(null);
-  const armFrame = useCallback(() => roseFrameRef.current?.setActive(true), []);
-  const disarmFrame = useCallback(() => roseFrameRef.current?.setActive(false), []);
-  const roseFrame = useFrameCallback((frame) => {
+  const roseTargetRef = useRef(seededRose);
+  // PRIMARY rose driver: a per-vsync exponential follow (roseFollowStep) that advances the
+  // displayed angle EVERY frame toward the accumulated target, so a sparse slow-rotation feed
+  // becomes a smooth glide instead of freeze-then-jump. No momentum term ⇒ it can never coast
+  // past the target on a stall (the A2 coast regression is impossible by construction) and it
+  // is exactly frame-rate independent (identical on 60/90/120 Hz).
+  //
+  // ALWAYS-ON while mounted (autostart), NOT armed/disarmed per motion. The previous design
+  // disarmed on convergence (setActive(false)) and re-armed on the next sample via
+  // runOnJS(armFrame) — a JS-thread round-trip at EVERY motion-resume (~40-80ms). Jerky hand
+  // motion (many micro-pauses → converge → disarm → re-arm) turned that into the reported cyclic
+  // micro-freeze ("donuyor düzeliyor"). With the callback always running, a settled rose just
+  // early-returns each vsync (a few UI-thread ops, no bridge hop) and resumes instantly on the
+  // next sample. Bounded: QiblaCompass unmounts on tab blur (Body swaps it out once heading is
+  // no longer 'ready'), tearing the loop down off-screen — so no idle-battery cost.
+  //
+  // Gated on `headingShared`: the fallback (deviceHeading/withSpring) path never updates
+  // roseTargetSV, so an active follow there would drag the rose toward 0 and fight the spring.
+  // The autostart flag is false without it, AND the worklet early-returns as a belt-and-braces
+  // guard (the autostart arg is only read once, at mount).
+  useFrameCallback((frame) => {
+    if (!headingShared) return; // fallback path owns the rose via the withSpring effect below
+    const dtMs = frame.timeSincePreviousFrame ?? 16.667;
+    // Advance the appear clock every frame (even while idle below) so the snap window is true
+    // wall-clock from mount, not "frames in which the rose happened to move".
+    if (appearElapsedMs.value < ROSE_APPEAR_SNAP_MS) appearElapsedMs.value += dtMs;
     const target = roseTargetSV.value;
     const cur = roseRotation.value;
     if (Math.abs(target - cur) < ROSE_FOLLOW_EPSILON) {
-      if (cur !== target) roseRotation.value = target; // snap the last sub-ε remainder
-      if (frameArmed.value) {
-        frameArmed.value = false;
-        runOnJS(disarmFrame)(); // converged (or feed stopped) → stop the vsync loop
-      }
+      if (cur !== target) roseRotation.value = target; // snap the last sub-ε remainder, then idle
       return;
     }
-    const dtSec = (frame.timeSincePreviousFrame ?? 16.667) / 1000;
-    // Pass the constants in: a worklet can't reliably capture cross-module imported constants
-    // into a CALLEE worklet's closure (on-device ReferenceError), but THIS worklet (same file as
-    // the import refs below... they're imported into QiblaCompass) captures them fine.
+    // First ~200ms after the compass (re)appears: converge INSTANTLY, don't ease. The only gap in
+    // this window is a one-time discontinuity — seed vs first sample, the GPS-lock declination
+    // correction, or a rotation that happened while the tab was blurred — which a snap absorbs with
+    // no visible sweep. Real ongoing motion (past the window) is smooth-followed below.
+    if (appearElapsedMs.value < ROSE_APPEAR_SNAP_MS) {
+      roseRotation.value = target;
+      return;
+    }
+    const dtSec = dtMs / 1000;
+    // Pass the constants in: a CALLEE worklet can't reliably capture cross-module imported
+    // constants into its closure (on-device ReferenceError), but THIS worklet captures them fine.
     roseRotation.value = roseFollowStep(cur, target, dtSec, ROSE_FOLLOW_LAMBDA, ROSE_FOLLOW_MAX_DT_SEC);
-  }, false);
-  roseFrameRef.current = roseFrame;
+  }, !!headingShared);
 
-  // PRIMARY ingest: accumulate the shortest-arc unwrapped target on the UI thread, then arm
-  // the follow loop. The `frameArmed` guard makes re-arm a no-op while already running, so
-  // continuous rotation crosses the JS bridge at most once per motion start (not per sample).
+  // PRIMARY ingest: accumulate the shortest-arc unwrapped target on the UI thread. The always-on
+  // follow above picks it up on the next vsync — no per-sample arm or JS-bridge hop.
   useAnimatedReaction(
     () => headingShared?.value ?? -1,
     (heading) => {
@@ -128,15 +156,11 @@ function QiblaCompassImpl({
       let delta = ((((target - roseTargetSV.value) % 360) + 540) % 360) - 180;
       if (delta <= -180) delta += 360;
       roseTargetSV.value += delta;
-      if (!frameArmed.value) {
-        frameArmed.value = true;
-        runOnJS(armFrame)();
-      }
     },
   );
 
   // FALLBACK path (no shared value — e.g. unit tests): drive from the deviceHeading prop with
-  // the retained overdamped, overshoot-clamped spring (the follow loop stays disarmed here).
+  // the retained overdamped, overshoot-clamped spring (the follow loop stays inactive here).
   useEffect(() => {
     if (headingShared) return; // the UI-thread follow owns the rose
     const nextTarget = nextRoseRotation(roseTargetRef.current, deviceHeading);

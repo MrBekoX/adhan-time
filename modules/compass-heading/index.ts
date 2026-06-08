@@ -9,8 +9,19 @@ export type HeadingReading = {
   trueHeading: number;
   /** Azimuth in [0,360). Android: magnetic-north referenced. iOS: CLHeading.magneticHeading. */
   magHeading: number;
-  /** Platform-native: iOS degrees (-1 sentinel) / Android SENSOR_STATUS_* level (0..3). */
+  /** Platform-native: iOS degrees (-1 sentinel) / Android fused rotation-vector SENSOR_STATUS_* (0..3). */
   accuracy: number;
+  /**
+   * Android RAW magnetometer calibration accuracy (SENSOR_STATUS_* 0..3); -1 when absent (iOS, or a
+   * build without the magnetometer). The fused `accuracy` above can read "high" with an uncalibrated
+   * mag, so the JS reliability gate takes the worse of the two (rules/11).
+   */
+  magAccuracy?: number;
+  /**
+   * Android RAW magnetometer field magnitude |B| in microtesla; -1 when absent (iOS). Compared in JS
+   * to the expected geomagnetic intensity to detect magnetic interference the fused accuracy misses.
+   */
+  fieldMicroTesla?: number;
 };
 
 type NativeCompassHeading = {

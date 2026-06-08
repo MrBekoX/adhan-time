@@ -5,7 +5,7 @@
  * the React/native sensor stack. See rules/01-architecture.md.
  */
 
-import { HEADING_ACCURACY } from '@/constants/qibla';
+import { FIELD_MAX_UT, FIELD_MIN_UT, FIELD_TOLERANCE_UT, HEADING_ACCURACY } from '@/constants/qibla';
 
 export type HeadingQuality = 'high' | 'medium' | 'low' | 'unreliable' | 'unknown';
 
@@ -71,6 +71,107 @@ export function normalizeAccuracyForPlatform(
   // value === 0 → SENSOR_STATUS_UNRELIABLE. Force above lowMaxDeg so classifyQuality
   // returns 'unreliable'. Without this the UI would treat it as the most precise reading.
   return 999;
+}
+
+export type ReliabilityReason = 'interference' | 'calibrate' | null;
+
+export type HeadingReliability = {
+  /** Normalized accuracy in degrees for the footer readout; null = unknown / not shown. */
+  accuracyDeg: number | null;
+  quality: HeadingQuality;
+  /** What the user must do to recover: move away from metal, figure-8 calibrate, or nothing. */
+  reason: ReliabilityReason;
+};
+
+export type ReliabilityInput = {
+  /** Primary accuracy: Android fused rotation-vector SENSOR_STATUS_* (0..3); iOS CLHeading.headingAccuracy (deg, -1 sentinel). */
+  primaryAccuracy: number;
+  /** RAW magnetometer SENSOR_STATUS_* (0..3) on Android; null/negative when absent (iOS / older build). */
+  magAccuracy: number | null;
+  /**
+   * Whether magnetic interference is currently active. The CALLER computes this (via `isInterference`
+   * over the measured + expected field) and applies the time hysteresis (INTERFERENCE_HOLD_MS) so a
+   * field gradient does not flicker the warning — keeping this resolver pure.
+   */
+  interference: boolean;
+};
+
+/**
+ * Whether the measured field magnitude indicates magnetic interference (a magnet/metal near the
+ * phone) corrupting the heading. Region-aware: compares |B| to the expected geomagnetic intensity for
+ * the location (Earth's field is ~22 µT at the magnetic equator to ~67 µT near the poles, so a single
+ * global threshold is wrong); falls back to absolute sanity bounds when the expected value is unknown.
+ * The fused sensor can report "high accuracy" while severely interfered (measured on-device:
+ * |B| = 190 µT with accuracy = 3), so this is a SEPARATE gate from the calibration accuracy (rules/11).
+ */
+export function isInterference(
+  fieldMicroTesla: number | null,
+  expectedFieldMicroTesla: number | null,
+): boolean {
+  if (fieldMicroTesla === null || !Number.isFinite(fieldMicroTesla) || fieldMicroTesla <= 0) {
+    return false; // no field reading (iOS / absent) → cannot judge; defer to the accuracy gate.
+  }
+  if (
+    expectedFieldMicroTesla !== null &&
+    Number.isFinite(expectedFieldMicroTesla) &&
+    expectedFieldMicroTesla > 0
+  ) {
+    return Math.abs(fieldMicroTesla - expectedFieldMicroTesla) > FIELD_TOLERANCE_UT;
+  }
+  return fieldMicroTesla < FIELD_MIN_UT || fieldMicroTesla > FIELD_MAX_UT;
+}
+
+function reasonForQuality(quality: HeadingQuality): ReliabilityReason {
+  return quality === 'medium' ||
+    quality === 'low' ||
+    quality === 'unreliable' ||
+    quality === 'unknown'
+    ? 'calibrate'
+    : null;
+}
+
+/**
+ * Resolves the trustworthy heading reliability from ALL available sensor signals, not just the fused
+ * accuracy the OEM reports (which lies under interference / an uncalibrated magnetometer — rules/11).
+ *
+ * Android: takes the WORSE of the rotation-vector accuracy and the RAW magnetometer's calibration
+ * accuracy, then overlays a field-magnitude interference gate. An uncalibrated mag → 'calibrate';
+ * interference (|B| anomaly) → 'interference'; both surface as quality 'unreliable' so the UI freezes
+ * the rose, suppresses the alignment cues, and shows the recovery banner.
+ *
+ * iOS: CLHeading fuses + calibrates internally and exposes headingAccuracy (and CoreLocation shows its
+ * own figure-8 HUD); the raw field is unavailable, so we map the accuracy band only.
+ */
+export function resolveHeadingReliability(
+  input: ReliabilityInput,
+  platformOS: PlatformOS,
+): HeadingReliability {
+  if (platformOS === 'ios') {
+    const accuracyDeg = normalizeAccuracyForPlatform(input.primaryAccuracy, 'ios');
+    const quality = classifyQuality(accuracyDeg);
+    return { accuracyDeg, quality, reason: reasonForQuality(quality) };
+  }
+
+  const hasMag = typeof input.magAccuracy === 'number' && input.magAccuracy >= 0;
+  const level = hasMag
+    ? Math.min(input.primaryAccuracy, input.magAccuracy as number)
+    : input.primaryAccuracy;
+  const accuracyDeg = normalizeAccuracyForPlatform(level, 'android');
+  const quality = classifyQuality(accuracyDeg);
+
+  // Uncalibrated magnetometer (SENSOR_STATUS_UNRELIABLE) → figure-8. Checked BEFORE interference so a
+  // truly-uncalibrated sensor tells the user to calibrate (not "move away from metal").
+  if (quality === 'unreliable' || quality === 'unknown') {
+    return { accuracyDeg, quality: 'unreliable', reason: 'calibrate' };
+  }
+
+  // Interference can coexist with a "high" reported accuracy → a separate gate (caller-computed with
+  // time hysteresis, so it does not flicker as the phone moves through a magnetic gradient).
+  if (input.interference) {
+    return { accuracyDeg: null, quality: 'unreliable', reason: 'interference' };
+  }
+
+  return { accuracyDeg, quality, reason: reasonForQuality(quality) };
 }
 
 /**

@@ -65,6 +65,39 @@ export function computeMagneticDeclination(
   }
 }
 
+// Single-entry memo for the expected field intensity (same rationale + cadence as the declination
+// memo above — the qibla hook may query it per heading sample once GPS locks).
+let fieldMemoKey: string | null = null;
+let fieldMemoValue: number | null = null;
+
+/**
+ * Returns the EXPECTED geomagnetic total field intensity |B| at (lat, lon) in microtesla (µT),
+ * from the NOAA WMM (`geomagnetism` `point.f`, reported in nanotesla). Used to detect magnetic
+ * interference: a measured |B| far from this expected value means a magnet/metal is corrupting the
+ * heading even when the sensor still reports "high accuracy" (rules/11). Returns null on model
+ * failure / out-of-range coordinates — callers then fall back to absolute sanity bounds.
+ */
+export function computeExpectedFieldMicroTesla(
+  lat: number,
+  lon: number,
+  date: Date = new Date(),
+): number | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  const key = declinationCacheKey(lat, lon, date);
+  if (key === fieldMemoKey) return fieldMemoValue;
+  try {
+    const point = geomagnetism.model(date).point([lat, lon]);
+    if (!Number.isFinite(point.f)) return null;
+    fieldMemoKey = key;
+    fieldMemoValue = point.f / 1000; // nanotesla → microtesla
+    return fieldMemoValue;
+  } catch (e) {
+    logger.warn('expected-field-compute-failed', { lat, lon, error: String(e) });
+    return null;
+  }
+}
+
 /**
  * Applies a declination correction to a magnetic heading, returning a heading
  * referenced to true north in [0, 360).

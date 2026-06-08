@@ -159,7 +159,7 @@ function Body({
     <View style={styles.body}>
       {showCalibration && (
         <View style={styles.bannerWrap}>
-          <CalibrationBanner unreliable={unreliable} />
+          <CalibrationBanner unreliable={unreliable} reason={heading.reason} />
         </View>
       )}
 

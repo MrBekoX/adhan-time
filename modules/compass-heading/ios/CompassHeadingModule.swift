@@ -24,6 +24,11 @@ public class CompassHeadingModule: Module {
             "trueHeading": heading.trueHeading,
             "magHeading": heading.magneticHeading,
             "accuracy": heading.headingAccuracy,
+            // iOS fuses + calibrates internally (CLHeading) and shows its own figure-8 HUD; the raw
+            // magnetometer accuracy/field are not exposed, so emit the absent sentinels (-1) → the JS
+            // reliability gate falls back to CLHeading.headingAccuracy on iOS.
+            "magAccuracy": -1,
+            "fieldMicroTesla": -1.0,
           ])
         }
         let manager = CLLocationManager()

@@ -6,12 +6,18 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
 import android.util.Log
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import kotlin.math.abs
 
 class CompassHeadingModule : Module() {
   private var sensorManager: SensorManager? = null
+  private var sensorThread: HandlerThread? = null
+  private var sensorHandler: Handler? = null
+  @Volatile private var observing = false
   private val rotationMatrix = FloatArray(9)
   private val orientation = FloatArray(3)
 
@@ -25,16 +31,36 @@ class CompassHeadingModule : Module() {
   // open is ~1 GC / 6 min — acceptable; the display idles via the follow's self-disarm. Spec:
   // docs/superpowers/specs/2026-06-05-qibla-slow-rotation-freeze-fix-design.md §7.1
   //
-  // THREADING: these fields are confined to the sensor-callback thread (onSensorChanged). The reset
-  // in OnStartObserving runs BEFORE registerListener(), so registerListener() publishes the reset to
-  // the sensor thread (happens-before) — hence no @Volatile needed for these primitive fields.
+  // THREADING: these fields are confined to CompassHeadingSensor (onSensorChanged). The reset in
+  // OnStartObserving runs BEFORE registerListener(..., sensorHandler), so registerListener publishes
+  // the reset to the sensor thread (happens-before) — hence no @Volatile needed for these fields.
   private var lastEmitNanos = 0L
   private var lastAccuracy = Int.MIN_VALUE
 
+  // Raw-glitch reject state (sensor thread only — same happens-before as the throttle fields above).
+  // Some rotation-vector HALs emit a single physically-impossible azimuth sample (measured up to
+  // ~56° in one ~20ms step ≈ 2800°/s on a Galaxy A30). One Euro is speed-adaptive, so it reads that
+  // spike's huge velocity as "fast motion", opens its cutoff and PASSES it → a visible jump. We drop
+  // such a sample at the SOURCE (before the filter) when its angular RATE vs the previous ACCEPTED
+  // raw sample exceeds a hand-impossible ceiling. This is NOT the displacement gate the throttle
+  // comment warns against: that quantized ALL motion by ANGLE (and froze slow turns); this rejects
+  // ONLY by RATE and ONLY physically-impossible spikes, so every real sweep (≤~1000°/s) passes
+  // untouched. A consecutive-reject cap guarantees it can never freeze the rose (real motion re-seeds).
+  private var lastRawDeg = 0.0
+  private var lastRawNanos = 0L
+  private var consecutiveGlitchRejects = 0
+
+  // RAW magnetometer signals (a SEPARATE TYPE_MAGNETIC_FIELD sensor) for interference + calibration
+  // detection (rules/11). The FUSED rotation-vector accuracy stays "high" under magnetic interference
+  // and even with an uncalibrated magnetometer (measured on-device: |B|=190µT at a desk with
+  // accuracy=3, heading garbage), so it cannot be trusted alone. We read the raw magnetometer's own
+  // calibration accuracy + field magnitude |B| and let the JS resolve reliability. Sensor-thread
+  // confined: magListener is registered on the SAME Handler as the rotation-vector listener, so all
+  // callbacks serialize on one thread (same happens-before as the throttle fields above).
+  private var magAccuracy = -1
+  private var fieldMicroTesla = -1.0
+
   private val headingFilter = CircularOneEuroFilter()
-  // Per-sample sensor-clock cadence, for the HAL-vs-JS diagnostic (CompassHDBG). Distinct from
-  // lastEmitNanos (our 30Hz emit gate): this is the RAW sensor delivery interval.
-  private var lastSampleNanos = 0L
 
   private val listener = object : SensorEventListener {
     override fun onSensorChanged(event: SensorEvent) {
@@ -54,22 +80,36 @@ class CompassHeadingModule : Module() {
       // this guard must live here.
       if (azimuthDeg.isNaN()) return
 
+      // Raw-glitch reject (see field comment). Skip a single physically-impossible sample so the One
+      // Euro never sees its velocity; keep lastRaw* UNCHANGED so the next real sample is measured from
+      // the pre-glitch reference. The consecutive cap means even a sustained high-rate region (which a
+      // hand cannot produce) re-seeds after a few drops instead of freezing the rose forever.
+      if (lastRawNanos != 0L) {
+        val dtSec = (event.timestamp - lastRawNanos) / 1_000_000_000.0
+        if (dtSec > 0.0) {
+          var rawDelta = (((azimuthDeg - lastRawDeg + 540.0) % 360.0) + 360.0) % 360.0 - 180.0
+          if (rawDelta <= -180.0) rawDelta += 360.0
+          val rateDegPerSec = abs(rawDelta) / dtSec
+          if (rateDegPerSec > MAX_AZIMUTH_RATE_DEG_S &&
+            consecutiveGlitchRejects < MAX_CONSECUTIVE_GLITCH_REJECTS
+          ) {
+            consecutiveGlitchRejects += 1
+            Log.w(
+              TAG,
+              "rejected glitch raw=%.1f prev=%.1f delta=%.1f rate=%.0f deg/s"
+                .format(azimuthDeg, lastRawDeg, rawDelta, rateDegPerSec),
+            )
+            return
+          }
+        }
+      }
+      consecutiveGlitchRejects = 0
+      lastRawDeg = azimuthDeg
+      lastRawNanos = event.timestamp
+
       // Filter EVERY sample (builds the One Euro state); dt comes from the real sensor clock.
       val tSec = event.timestamp / 1_000_000_000.0
       val filteredDeg = headingFilter.filter(azimuthDeg, tSec)
-
-      if (DEBUG_HEADING) {
-        val sensorDtMs = if (lastSampleNanos == 0L) 0.0
-          else (event.timestamp - lastSampleNanos) / 1_000_000.0
-        val emitDtMs = if (lastEmitNanos == 0L) 0.0
-          else (event.timestamp - lastEmitNanos) / 1_000_000.0
-        Log.d(
-          "CompassHDBG",
-          "raw=%.2f filt=%.2f sensorDtMs=%.1f emitDtMs=%.1f minCutoff=%.3f beta=%.4f"
-            .format(azimuthDeg, filteredDeg, sensorDtMs, emitDtMs, headingFilter.minCutoff, headingFilter.beta),
-        )
-      }
-      lastSampleNanos = event.timestamp
 
       if (event.accuracy == lastAccuracy &&
         event.timestamp - lastEmitNanos < MIN_EMIT_INTERVAL_NANOS
@@ -80,14 +120,7 @@ class CompassHeadingModule : Module() {
       lastAccuracy = event.accuracy
       lastEmitNanos = event.timestamp
 
-      sendEvent(
-        "onHeading",
-        Bundle().apply {
-          putDouble("trueHeading", -1.0)
-          putDouble("magHeading", filteredDeg)
-          putInt("accuracy", event.accuracy)
-        },
-      )
+      emitHeading(filteredDeg, event.accuracy)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
@@ -96,11 +129,62 @@ class CompassHeadingModule : Module() {
     }
   }
 
+  // RAW magnetometer listener (separate sensor, same Handler/thread). Tracks the magnetometer's own
+  // calibration accuracy (SENSOR_STATUS_*) and field magnitude |B| (µT) for interference detection.
+  private val magListener = object : SensorEventListener {
+    override fun onSensorChanged(event: SensorEvent) {
+      val x = event.values[0].toDouble()
+      val y = event.values[1].toDouble()
+      val z = event.values[2].toDouble()
+      val magnitude = Math.sqrt(x * x + y * y + z * z)
+      if (magnitude.isFinite()) fieldMicroTesla = magnitude
+      magAccuracy = event.accuracy
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+      magAccuracy = accuracy
+    }
+  }
+
   // Hardware-fused (accel+gyro+mag); GEOMAGNETIC variant (gyro-free, still fused) is the
   // fallback for devices without a gyroscope.
   private fun resolveSensor(sm: SensorManager): Sensor? =
     sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
       ?: sm.getDefaultSensor(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR)
+
+  private fun resolveMagnetometer(sm: SensorManager): Sensor? =
+    sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+
+  private fun emitHeading(filteredDeg: Double, accuracy: Int) {
+    if (!observing) return
+
+    val payload = Bundle().apply {
+      putDouble("trueHeading", -1.0)
+      putDouble("magHeading", filteredDeg)
+      putInt("accuracy", accuracy)
+      putInt("magAccuracy", magAccuracy)
+      putDouble("fieldMicroTesla", fieldMicroTesla)
+    }
+
+    appContext.executeOnJavaScriptThread(
+      Runnable {
+        if (observing) {
+          sendEvent("onHeading", payload)
+        }
+      },
+    )
+  }
+
+  private fun stopSensorThread() {
+    observing = false
+    sensorManager?.unregisterListener(listener)
+    sensorManager?.unregisterListener(magListener)
+    sensorManager = null
+    sensorHandler?.removeCallbacksAndMessages(null)
+    sensorHandler = null
+    sensorThread?.quitSafely()
+    sensorThread = null
+  }
 
   override fun definition() = ModuleDefinition {
     Name("CompassHeading")
@@ -123,31 +207,65 @@ class CompassHeadingModule : Module() {
       val sm = ctx.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
         ?: return@OnStartObserving
       val sensor = resolveSensor(sm) ?: return@OnStartObserving
+      stopSensorThread()
       sensorManager = sm
-      // Reset throttle so the first reading after (re)subscribe emits immediately (no gate delay).
+      // Reset throttle + glitch-reject state so the first reading after (re)subscribe emits
+      // immediately (no gate delay) and is never measured against a stale pre-blur reference.
       lastEmitNanos = 0L
       lastAccuracy = Int.MIN_VALUE
-      lastSampleNanos = 0L
+      lastRawDeg = 0.0
+      lastRawNanos = 0L
+      consecutiveGlitchRejects = 0
+      magAccuracy = -1
+      fieldMicroTesla = -1.0
       headingFilter.reset()
-      // Request ~30Hz at the source (samplingPeriodUs) instead of SENSOR_DELAY_GAME (~50Hz): trims
-      // the firehose at the HAL. It is only a hint (devices commonly over-deliver), so the in-handler
-      // gates above enforce the real ~30Hz ceiling.
-      sm.registerListener(listener, sensor, SENSOR_SAMPLING_PERIOD_US)
+      // Deliver sensor callbacks on a dedicated HandlerThread (NOT the main/UI thread). Without an
+      // explicit Handler, registerListener posts onSensorChanged to the main looper, so the matrix
+      // math + One Euro filter + JS-bridge ran on the UI thread at ~50Hz and starved Reanimated's
+      // rose follow on that same thread → freeze-then-jump on low-end devices. Off-main delivery +
+      // executeOnJavaScriptThread (emitHeading) keeps the UI thread free for rendering.
+      val thread = HandlerThread(SENSOR_THREAD_NAME).apply { start() }
+      val handler = Handler(thread.looper)
+      sensorThread = thread
+      sensorHandler = handler
+      // Set observing only AFTER a successful registration: callbacks are posted to `handler`
+      // (so flipping the flag here can't miss an event), and a failed registration never leaves
+      // observing=true with a half-torn-down thread.
+      if (sm.registerListener(listener, sensor, SENSOR_SAMPLING_PERIOD_US, handler)) {
+        observing = true
+        // Also observe the RAW magnetometer (interference + calibration) on the SAME Handler. Best
+        // effort: if it is absent, magAccuracy stays -1 and JS falls back to the rotation-vector.
+        resolveMagnetometer(sm)?.let { mag ->
+          sm.registerListener(magListener, mag, MAG_SAMPLING_PERIOD_US, handler)
+        }
+      } else {
+        stopSensorThread()
+      }
     }
 
     OnStopObserving {
-      sensorManager?.unregisterListener(listener)
-      sensorManager = null
+      stopSensorThread()
     }
   }
 
   companion object {
-    // Diagnostic logcat (adb logcat -s CompassHDBG). Keep TRUE for preview verification builds;
-    // set FALSE for production (rules/04, spec §6).
-    private const val DEBUG_HEADING = true
+    private const val TAG = "CompassHeading"
+    private const val SENSOR_THREAD_NAME = "CompassHeadingSensor"
     // ~30Hz request at the sensor source (33,333µs). Hint only; the gates below are the ceiling.
     private const val SENSOR_SAMPLING_PERIOD_US = 33_333
+    // RAW magnetometer sample rate for interference/calibration detection — ~10Hz is ample (|B| and
+    // the calibration accuracy change slowly), keeping the extra sensor off the hot path.
+    private const val MAG_SAMPLING_PERIOD_US = 100_000
     // Hard emit ceiling ~30Hz (33ms in sensor-clock nanos) regardless of device over-delivery.
     private const val MIN_EMIT_INTERVAL_NANOS = 33_000_000L
+    // Raw-glitch reject ceiling. A handheld phone tops out well under ~1000°/s even on a fast wrist
+    // flick; rotation-vector glitches measured ~2800°/s (56° in ~20ms). 1500°/s sits clearly above
+    // any human motion and below the glitch band, so it rejects spikes without ever clipping a real
+    // sweep. NOT OTA-tunable on purpose (native source guard); the Log.w above reports each hit so
+    // the value can be validated/retuned from device logcat.
+    private const val MAX_AZIMUTH_RATE_DEG_S = 1500.0
+    // Never reject more than this many in a row → if a device genuinely sustains a high rate, real
+    // motion re-seeds instead of the rose freezing forever (religious-accuracy safety, rules/11).
+    private const val MAX_CONSECUTIVE_GLITCH_REJECTS = 3
   }
 }

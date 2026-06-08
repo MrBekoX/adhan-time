@@ -8,7 +8,8 @@ import kotlin.math.abs
  * keep the two byte-for-byte equivalent; the TS jest tests are the canonical guard (this is
  * not jest-reachable). Runs on the sensor-callback thread; `minCutoff/beta/dCutoff` are written
  * from the JS thread via setTuning so they are @Volatile, while the filter STATE stays confined
- * to the sensor thread.
+ * to the sensor thread. CONTRACT: setTuning is called ONCE before the listener subscribes (no
+ * mid-stream retune), so the three-field write is never observed torn by the sensor thread.
  */
 class CircularOneEuroFilter(
   @Volatile var minCutoff: Double = 1.0,

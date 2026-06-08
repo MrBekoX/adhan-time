@@ -194,6 +194,8 @@
       "calibrationTitle": "Compass calibration",
       "calibrationBody": "Wave the phone in a figure-8 motion.",
       "calibrationUnreliable": "Compass is unreliable — are there metal or electronic devices nearby?",
+      "interferenceTitle": "Magnetic interference",
+      "interferenceBody": "The heading is corrupted — move the phone away from metal, magnets, or electronics.",
       "instructionTurnLeft": "Turn the phone {{degrees}}° left",
       "instructionTurnRight": "Turn the phone {{degrees}}° right",
       "instructionAligned": "Facing the qibla",

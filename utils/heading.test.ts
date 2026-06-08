@@ -3,7 +3,9 @@ import { ROSE_FOLLOW_LAMBDA, ROSE_FOLLOW_MAX_DT_SEC } from '@/constants/qibla';
 import {
   applyEma,
   headingSmoothingAlphaForPlatform,
+  isInterference,
   nextRoseRotation,
+  resolveHeadingReliability,
   roseFollowStep,
   roseSpringConfig,
   shouldPublishHeadingUpdate,
@@ -353,5 +355,109 @@ describe('roseFollowStep', () => {
 
   it('uses ROSE_FOLLOW_LAMBDA as the default rate', () => {
     expect(step(0, 90, FRAME)).toBeCloseTo(step(0, 90, FRAME, ROSE_FOLLOW_LAMBDA), 9);
+  });
+});
+
+describe('isInterference', () => {
+  it('returns false when there is no field reading (iOS / absent)', () => {
+    expect(isInterference(null, 48)).toBe(false);
+    expect(isInterference(0, 48)).toBe(false);
+    expect(isInterference(NaN, 48)).toBe(false);
+  });
+
+  it('flags |B| far from the expected geomagnetic intensity (on-device desk case)', () => {
+    expect(isInterference(190, 48)).toBe(true);
+    expect(isInterference(128, 48)).toBe(true);
+  });
+
+  it('passes |B| close to the expected intensity (clean, held in the air)', () => {
+    expect(isInterference(41, 48)).toBe(false);
+    expect(isInterference(48, 48)).toBe(false);
+  });
+
+  it('uses the FIELD_TOLERANCE_UT boundary (strict greater-than)', () => {
+    expect(isInterference(48 + 20, 48)).toBe(false);
+    expect(isInterference(48 + 21, 48)).toBe(true);
+  });
+
+  it('falls back to absolute sanity bounds when the expected intensity is unknown', () => {
+    expect(isInterference(41, null)).toBe(false);
+    expect(isInterference(190, null)).toBe(true);
+    expect(isInterference(10, null)).toBe(true);
+  });
+});
+
+describe('resolveHeadingReliability (android)', () => {
+  const android = 'android' as const;
+
+  it('is high + no reason for a clean, calibrated reading', () => {
+    const r = resolveHeadingReliability(
+      { primaryAccuracy: 3, magAccuracy: 3, interference: false },
+      android,
+    );
+    expect(r.quality).toBe('high');
+    expect(r.reason).toBeNull();
+  });
+
+  it('flags INTERFERENCE even when the fused accuracy reads high (the desk case)', () => {
+    const r = resolveHeadingReliability(
+      { primaryAccuracy: 3, magAccuracy: 3, interference: true },
+      android,
+    );
+    expect(r.quality).toBe('unreliable');
+    expect(r.reason).toBe('interference');
+  });
+
+  it('flags CALIBRATE when the RAW magnetometer is uncalibrated though the fused accuracy is high', () => {
+    const r = resolveHeadingReliability(
+      { primaryAccuracy: 3, magAccuracy: 0, interference: false },
+      android,
+    );
+    expect(r.quality).toBe('unreliable');
+    expect(r.reason).toBe('calibrate');
+  });
+
+  it('prioritises calibrate over interference for a truly uncalibrated sensor', () => {
+    const r = resolveHeadingReliability(
+      { primaryAccuracy: 0, magAccuracy: 0, interference: true },
+      android,
+    );
+    expect(r.reason).toBe('calibrate');
+  });
+
+  it('takes the worse of rotation-vector and magnetometer accuracy', () => {
+    const r = resolveHeadingReliability(
+      { primaryAccuracy: 3, magAccuracy: 1, interference: false },
+      android,
+    );
+    expect(r.quality).toBe('medium');
+    expect(r.reason).toBe('calibrate');
+  });
+
+  it('falls back to the primary accuracy when the magnetometer reading is absent', () => {
+    const r = resolveHeadingReliability(
+      { primaryAccuracy: 3, magAccuracy: null, interference: false },
+      android,
+    );
+    expect(r.quality).toBe('high');
+    expect(r.reason).toBeNull();
+  });
+});
+
+describe('resolveHeadingReliability (ios)', () => {
+  it('maps the CLHeading accuracy band and never runs the field gate', () => {
+    const good = resolveHeadingReliability(
+      { primaryAccuracy: 5, magAccuracy: null, interference: false },
+      'ios',
+    );
+    expect(good.quality).toBe('high');
+    expect(good.reason).toBeNull();
+
+    const uncalibrated = resolveHeadingReliability(
+      { primaryAccuracy: -1, magAccuracy: null, interference: false },
+      'ios',
+    );
+    expect(uncalibrated.quality).toBe('unknown');
+    expect(uncalibrated.reason).toBe('calibrate');
   });
 });

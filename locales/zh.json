@@ -190,6 +190,8 @@
       "calibrationTitle": "指南针校准",
       "calibrationBody": "在空中摆动手机划出 8 字。",
       "calibrationUnreliable": "指南针不可靠 — 附近是否有金属或电子设备?",
+      "interferenceTitle": "磁干扰",
+      "interferenceBody": "方向受到干扰 — 请让手机远离金属、磁铁或电子设备。",
       "instructionTurnLeft": "将手机向左转 {{degrees}}°",
       "instructionTurnRight": "将手机向右转 {{degrees}}°",
       "instructionAligned": "已朝向克尔白",

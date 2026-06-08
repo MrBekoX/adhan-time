@@ -170,8 +170,8 @@ describe('QiblaCompass — rose animation driver (A2 regression fix: overshoot-c
   });
 });
 
-describe('CompassRose — RTL geometry lock (K8)', () => {
-  it('pins the rose root to LTR direction so cardinals stay in physical N/E/S/W', () => {
+describe('CompassRose — single <Svg> dial (perf rebuild) + LTR lock (K8)', () => {
+  it('renders the dial as ONE <Svg> node (not a ~40-View tree), LTR-locked', () => {
     let tree: TestRenderer.ReactTestRenderer | null = null;
     TestRenderer.act(() => {
       tree = TestRenderer.create(<CompassRose size={260} />);
@@ -179,9 +179,47 @@ describe('CompassRose — RTL geometry lock (K8)', () => {
     if (!tree) throw new Error('renderer not created');
     const t = tree as TestRenderer.ReactTestRenderer;
 
-    const style = rootStyleOf(t);
-    expect(style.direction).toBe('ltr');
-    expect(style.writingDirection).toBe('ltr');
+    // The dial collapses to a single Svg HOST view — the per-frame rotation now transforms
+    // one node instead of ~40 Views (root cause of the A30 jank). (`findAll` also matches the
+    // react-native-svg component wrappers that forward the testID, so we count host nodes only.)
+    const tagged = t.root.findAll((n) => n.props?.testID === 'qibla-compass-dial');
+    const dialHosts = tagged.filter((n) => typeof n.type === 'string');
+    expect(dialHosts).toHaveLength(1);
+
+    // SPEC-K8: LTR invariant preserved on the dial so east stays on the right under RTL.
+    const ltrLocked = tagged.some((n) => {
+      const style = flattenStyle(n.props?.style);
+      return style.direction === 'ltr' && style.writingDirection === 'ltr';
+    });
+    expect(ltrLocked).toBe(true);
+
+    TestRenderer.act(() => {
+      t.unmount();
+    });
+  });
+});
+
+describe('QiblaCompass — lean rotating group (single dial node)', () => {
+  it('renders exactly one <Svg> dial inside the compass', () => {
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    TestRenderer.act(() => {
+      tree = TestRenderer.create(
+        <QiblaCompass
+          size={260}
+          deviceHeading={0}
+          qiblaBearing={151}
+          aligned={false}
+          unreliable={false}
+        />,
+      );
+    });
+    if (!tree) throw new Error('renderer not created');
+    const t = tree as TestRenderer.ReactTestRenderer;
+
+    const dialHosts = t.root.findAll(
+      (n) => typeof n.type === 'string' && n.props?.testID === 'qibla-compass-dial',
+    );
+    expect(dialHosts).toHaveLength(1);
 
     TestRenderer.act(() => {
       t.unmount();

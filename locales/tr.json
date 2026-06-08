@@ -194,6 +194,8 @@
       "calibrationTitle": "Pusula kalibrasyonu",
       "calibrationBody": "Telefonu havada 8 hareketi çiz.",
       "calibrationUnreliable": "Pusula güvenilir değil — etrafında metal/elektronik cihaz var mı?",
+      "interferenceTitle": "Manyetik parazit",
+      "interferenceBody": "Yön bozuluyor — telefonu metal, mıknatıs veya elektronikten uzaklaştır.",
       "instructionTurnLeft": "Telefonu {{degrees}}° sola çevir",
       "instructionTurnRight": "Telefonu {{degrees}}° sağa çevir",
       "instructionAligned": "Kıbleye dönüksün",

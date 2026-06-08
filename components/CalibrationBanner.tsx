@@ -9,14 +9,18 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import type { ReliabilityReason } from '@/utils/heading';
+
 import { colors, fonts, radius, spacing } from './Theme';
 
 type Props = {
   /** When true, renders the unreliable variant (stronger warning copy + danger color). */
   unreliable: boolean;
+  /** Why the heading is unreliable — drives a tailored recovery message (rules/11). */
+  reason?: ReliabilityReason;
 };
 
-export function CalibrationBanner({ unreliable }: Props) {
+export function CalibrationBanner({ unreliable, reason }: Props) {
   const { t } = useTranslation();
   const t01 = useSharedValue(0);
 
@@ -30,8 +34,18 @@ export function CalibrationBanner({ unreliable }: Props) {
     return { transform: [{ translateX: x }, { translateY: y }] };
   });
 
-  const accent = unreliable ? colors.danger : colors.primary;
-  const body = unreliable ? t('screens.qibla.calibrationUnreliable') : t('screens.qibla.calibrationBody');
+  // Magnetic interference needs a DIFFERENT action than calibration ("move away from metal" vs
+  // "figure-8"), so a generic banner would mislead. Interference is always the danger variant.
+  const interference = reason === 'interference';
+  const accent = unreliable || interference ? colors.danger : colors.primary;
+  const title = interference
+    ? t('screens.qibla.interferenceTitle')
+    : t('screens.qibla.calibrationTitle');
+  const body = interference
+    ? t('screens.qibla.interferenceBody')
+    : unreliable
+      ? t('screens.qibla.calibrationUnreliable')
+      : t('screens.qibla.calibrationBody');
 
   return (
     <View style={[styles.wrap, { borderColor: accent }]}>
@@ -39,9 +53,7 @@ export function CalibrationBanner({ unreliable }: Props) {
         <Animated.View style={[styles.dot, { backgroundColor: accent }, dotStyle]} />
       </View>
       <View style={styles.textBox}>
-        <Text style={[styles.title, { color: accent }]}>
-          {t('screens.qibla.calibrationTitle')}
-        </Text>
+        <Text style={[styles.title, { color: accent }]}>{title}</Text>
         <Text style={styles.body}>{body}</Text>
       </View>
     </View>

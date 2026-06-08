@@ -19,7 +19,19 @@ function GradientCanvasImpl({
   const stops = useMemo(() => buildStops(topColor, bottomColor, bands), [topColor, bottomColor, bands]);
 
   return (
-    <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+    // renderToHardwareTextureAndroid + collapsable={false}: rasterise the whole static background
+    // (36 bands + 2 glows) to ONE off-screen GPU texture ONCE, so when the rotating qibla compass on
+    // top invalidates its region every frame the compositor just BLITS this cached texture instead of
+    // re-blending ~38 layers (measured: the gradient was ~half the A30 rotation jank). The view is
+    // static (never transformed), unlike the dial where the same prop was a no-op — pixels are
+    // IDENTICAL, only the compositing path changes. shouldRasterizeIOS does the same on iOS.
+    <View
+      style={StyleSheet.absoluteFillObject}
+      pointerEvents="none"
+      renderToHardwareTextureAndroid
+      shouldRasterizeIOS
+      collapsable={false}
+    >
       <View style={styles.column}>
         {stops.map((c, i) => (
           <View key={`${c}-${i}`} style={[styles.band, { backgroundColor: c }]} />

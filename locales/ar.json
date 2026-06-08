@@ -194,6 +194,8 @@
       "calibrationTitle": "معايرة البوصلة",
       "calibrationBody": "حرّك الهاتف على شكل الرقم 8 في الهواء.",
       "calibrationUnreliable": "البوصلة غير موثوقة — هل توجد أجهزة معدنية أو إلكترونية بالقرب منك؟",
+      "interferenceTitle": "تشويش مغناطيسي",
+      "interferenceBody": "الاتجاه غير صحيح — أبعِد الهاتف عن المعادن أو المغناطيس أو الأجهزة الإلكترونية.",
       "instructionTurnLeft": "أدر الهاتف {{degrees}}° إلى اليسار",
       "instructionTurnRight": "أدر الهاتف {{degrees}}° إلى اليمين",
       "instructionAligned": "أنت متجه نحو القبلة",
