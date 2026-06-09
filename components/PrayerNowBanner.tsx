@@ -6,27 +6,33 @@ import { colors, fonts, radius, spacing } from './Theme';
 
 import { type PrayerKey } from '@/constants/prayers';
 
-// Presentational (rules/01): the active prayer + dismiss arrive via props from
+// Presentational (rules/01): the active alert + dismiss arrive via props from
 // the root layout, which owns useForegroundPrayerAlert. Shown as a top overlay
-// when a prayer time arrives while the app is foregrounded (the case
-// expo-notifications drops — rules/04). Reuses the existing prayer.<key>.title /
-// .body strings, so no new i18n keys.
-type Props = { prayerKey: PrayerKey | null; onDismiss: () => void };
+// when a prayer time (adhan) OR its pre-prayer reminder arrives while the app is
+// foregrounded (the case expo-notifications drops — rules/04). Reuses the
+// existing prayer.<key>.* and prayer.reminder.* strings, so no new i18n keys.
+type Alert = { key: PrayerKey; kind: 'adhan' | 'reminder'; minutes: number };
+type Props = { alert: Alert | null; onDismiss: () => void };
 
-export function PrayerNowBanner({ prayerKey, onDismiss }: Props) {
+export function PrayerNowBanner({ alert, onDismiss }: Props) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  if (!prayerKey) return null;
+  if (!alert) return null;
 
-  const accent = colors.prayer[prayerKey] ?? colors.primary;
+  const accent = colors.prayer[alert.key] ?? colors.primary;
+  const isReminder = alert.kind === 'reminder';
+  const eyebrow = isReminder ? t('prayer.reminder.title') : t(`prayer.${alert.key}.title`);
+  const message = isReminder
+    ? t('prayer.reminder.body', { prayer: t(`prayer.${alert.key}.title`), minutes: alert.minutes })
+    : t(`prayer.${alert.key}.body`);
 
   return (
     <View pointerEvents="box-none" style={[styles.overlay, { paddingTop: insets.top + spacing.sm }]}>
       <View style={[styles.banner, { borderColor: accent }]} accessibilityRole="alert">
         <View style={[styles.dot, { backgroundColor: accent }]} />
         <View style={styles.body}>
-          <Text style={[styles.eyebrow, { color: accent }]}>{t(`prayer.${prayerKey}.title`)}</Text>
-          <Text style={styles.message}>{t(`prayer.${prayerKey}.body`)}</Text>
+          <Text style={[styles.eyebrow, { color: accent }]}>{eyebrow}</Text>
+          <Text style={styles.message}>{message}</Text>
         </View>
         <Pressable
           testID="prayer-now-dismiss"

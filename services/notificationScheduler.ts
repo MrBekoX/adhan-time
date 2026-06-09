@@ -17,6 +17,7 @@ import {
   REMINDER_WINDOW_DAYS,
   ROLLING_WINDOW_DAYS,
   ROLLING_WINDOW_DAYS_ALL_PRAYERS,
+  VIBRATION_PATTERN,
   type SoundKey,
   buildNotificationId,
   channelIdForPrayer,
@@ -67,7 +68,7 @@ export async function ensureAndroidChannel(): Promise<void> {
     name: ANDROID_CHANNEL_NAME,
     importance: Notifications.AndroidImportance.HIGH,
     sound: DEFAULT_SOUND,
-    vibrationPattern: [0, 500, 250, 500],
+    vibrationPattern: VIBRATION_PATTERN,
     enableVibrate: true,
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   });
@@ -78,7 +79,7 @@ export async function ensureAndroidChannel(): Promise<void> {
     name: ANDROID_CHANNEL_NOTIFICATION_NAME,
     importance: Notifications.AndroidImportance.HIGH,
     sound: NOTIFICATION_SOUND_FILE,
-    vibrationPattern: [0, 500, 250, 500],
+    vibrationPattern: VIBRATION_PATTERN,
     enableVibrate: true,
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   });
@@ -441,18 +442,20 @@ export async function setupForegroundHandler(): Promise<void> {
   Notifications.setNotificationHandler({
     // This handler runs ONLY for notifications that fire while the app is in the
     // foreground (background notifications are presented natively and never reach
-    // here — rules/04). The foreground prayer cue is owned by the in-app alert
-    // (useForegroundPrayerAlert: banner + haptic + chime): expo's foreground path
-    // is unreliable (its 3s JS-handler timeout silently drops the notification),
-    // and when it does NOT drop, a heads-up + sound here would double what the
-    // in-app cue already shows. So suppress the foreground banner/sound and keep
-    // only a silent entry in the shade for the record.
+    // here — rules/04). We let the OS play the channel sound (and vibration) so the
+    // audible cue is reliable in EVERY app state — foreground, locked-foreground
+    // (app open then screen off), and background. An earlier design suppressed the
+    // foreground sound and replaced it with an in-app chime driven by a 1s JS timer;
+    // that timer is suspended when the screen is off, so a prayer/reminder fired
+    // while the app was open-then-locked arrived SILENTLY. Our handler returns
+    // instantly, so expo's 3s-timeout drop never applies. The OS heads-up banner
+    // stays suppressed because the in-app PrayerNowBanner owns the foreground visual
+    // (no double banner); a silent shade entry is still kept via shouldShowList.
     handleNotification: async () => ({
-      shouldShowAlert: false,
       shouldShowBanner: false,
-      shouldPlaySound: false,
-      shouldSetBadge: false,
       shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
     }),
   });
 }

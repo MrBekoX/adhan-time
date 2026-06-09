@@ -1,25 +1,23 @@
 import * as Haptics from 'expo-haptics';
 import * as React from 'react';
-import { AppState } from 'react-native';
+import { AppState, Vibration } from 'react-native';
 import TestRenderer from 'react-test-renderer';
 
 import { detectPrayerCrossing, useForegroundPrayerAlert } from '../useForegroundPrayerAlert';
 
 import type { PrayerKey } from '@/constants/prayers';
-import { playForegroundChime } from '@/services/foregroundChime';
 import type { PrayerTime, YearlyPrayerCache } from '@/services/types';
 import { useLocationStore } from '@/store/locationStore';
 import { usePrayerStore } from '@/store/prayerStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { parsePrayerTime } from '@/utils/time';
 
+// Haptics/Vibration are asserted to NEVER fire: the OS notification (channel sound +
+// vibration, foreground sound enabled in setupForegroundHandler) owns the audible
+// cue; the hook is visual-only.
 jest.mock('expo-haptics', () => ({
   notificationAsync: jest.fn(async () => undefined),
   NotificationFeedbackType: { Success: 'success' },
-}));
-
-jest.mock('@/services/foregroundChime', () => ({
-  playForegroundChime: jest.fn(async () => undefined),
 }));
 
 const TZ = 'Europe/Berlin';
@@ -92,6 +90,15 @@ describe('detectPrayerCrossing', () => {
     const other = { districtId: '0000', timezone: TZ };
     expect(detectPrayerCrossing(cache, other, ALL, fire - 1000, fire)).toBeNull();
   });
+
+  it('detects the reminder instant (fireAt - offsetMs) when an offset is given', () => {
+    const fire = fireOf('18:00'); // aksam adhan
+    const offset = 10 * 60_000; // 10-min reminder → fires at 17:50
+    const reminder = fire - offset;
+    expect(detectPrayerCrossing(cache, location, ALL, reminder - 1000, reminder, offset)).toBe('aksam');
+    // With the offset applied, the adhan instant itself is NOT detected.
+    expect(detectPrayerCrossing(cache, location, ALL, fire - 1000, fire, offset)).toBeNull();
+  });
 });
 
 describe('useForegroundPrayerAlert (hook)', () => {
@@ -109,7 +116,7 @@ describe('useForegroundPrayerAlert (hook)', () => {
     jest.useFakeTimers();
     captured = undefined;
     (Haptics.notificationAsync as jest.Mock).mockClear();
-    (playForegroundChime as jest.Mock).mockClear();
+    jest.spyOn(Vibration, 'vibrate').mockImplementation(() => undefined);
     usePrayerStore.setState({ cache });
     useLocationStore.setState({
       selected: {
@@ -122,7 +129,7 @@ describe('useForegroundPrayerAlert (hook)', () => {
         timezone: TZ,
       },
     });
-    useSettingsStore.setState({ enabledPrayers: ALL });
+    useSettingsStore.setState({ enabledPrayers: ALL, reminderMinutes: 0 });
     setAppState('active');
   });
 
@@ -131,7 +138,7 @@ describe('useForegroundPrayerAlert (hook)', () => {
     jest.restoreAllMocks();
   });
 
-  it('raises an alert + haptic + chime when an enabled prayer crosses while foreground', async () => {
+  it('raises an in-app banner when an enabled prayer crosses while foreground, and leaves the audible cue to the OS (no JS chime/vibration)', async () => {
     const fire = fireOf('18:00');
     jest.setSystemTime(fire - 500);
     let tree: TestRenderer.ReactTestRenderer | null = null;
@@ -143,9 +150,48 @@ describe('useForegroundPrayerAlert (hook)', () => {
       jest.advanceTimersByTime(1000);
     });
 
-    expect(captured?.active).toBe('aksam');
-    expect(Haptics.notificationAsync).toHaveBeenCalledTimes(1);
-    expect(playForegroundChime).toHaveBeenCalledTimes(1);
+    expect(captured?.active).toEqual({ key: 'aksam', kind: 'adhan', minutes: 0 });
+    // The OS notification now plays the channel sound + vibration in every app state
+    // (the handler no longer suppresses foreground sound), so the hook must NOT fire a
+    // second JS chime/vibration — that would double the cue when the screen is on and
+    // is the part that died silently when the screen was off.
+    expect(Haptics.notificationAsync).not.toHaveBeenCalled();
+    expect(Vibration.vibrate).not.toHaveBeenCalled();
+    await TestRenderer.act(async () => tree?.unmount());
+  });
+
+  it('raises a REMINDER banner when an enabled prayer reminder crosses, audible cue left to the OS', async () => {
+    useSettingsStore.setState({ enabledPrayers: ALL, reminderMinutes: 10 });
+    const reminder = fireOf('18:00') - 10 * 60_000; // aksam reminder = 17:50
+    jest.setSystemTime(reminder - 500);
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await TestRenderer.act(async () => {
+      tree = TestRenderer.create(React.createElement(Probe));
+    });
+
+    await TestRenderer.act(async () => {
+      jest.advanceTimersByTime(1000);
+    });
+
+    expect(captured?.active).toEqual({ key: 'aksam', kind: 'reminder', minutes: 10 });
+    expect(Haptics.notificationAsync).not.toHaveBeenCalled();
+    expect(Vibration.vibrate).not.toHaveBeenCalled();
+    await TestRenderer.act(async () => tree?.unmount());
+  });
+
+  it('does NOT raise a reminder alert when reminderMinutes is 0 (off)', async () => {
+    useSettingsStore.setState({ enabledPrayers: ALL, reminderMinutes: 0 });
+    const reminder = fireOf('18:00') - 10 * 60_000;
+    jest.setSystemTime(reminder - 500);
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await TestRenderer.act(async () => {
+      tree = TestRenderer.create(React.createElement(Probe));
+    });
+    await TestRenderer.act(async () => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(captured?.active).toBeNull();
+    expect(Vibration.vibrate).not.toHaveBeenCalled();
     await TestRenderer.act(async () => tree?.unmount());
   });
 
@@ -163,7 +209,7 @@ describe('useForegroundPrayerAlert (hook)', () => {
     });
 
     expect(captured?.active).toBeNull();
-    expect(playForegroundChime).not.toHaveBeenCalled();
+    expect(Vibration.vibrate).not.toHaveBeenCalled();
     await TestRenderer.act(async () => tree?.unmount());
   });
 
@@ -196,7 +242,7 @@ describe('useForegroundPrayerAlert (hook)', () => {
     await TestRenderer.act(async () => {
       jest.advanceTimersByTime(1000);
     });
-    expect(captured?.active).toBe('aksam');
+    expect(captured?.active).toEqual({ key: 'aksam', kind: 'adhan', minutes: 0 });
 
     await TestRenderer.act(async () => {
       captured?.dismiss();

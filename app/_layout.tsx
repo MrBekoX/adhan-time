@@ -88,7 +88,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />
           </Stack>
-          <PrayerNowBanner prayerKey={prayerAlert.active} onDismiss={prayerAlert.dismiss} />
+          <PrayerNowBanner alert={prayerAlert.active} onDismiss={prayerAlert.dismiss} />
         </I18nextProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

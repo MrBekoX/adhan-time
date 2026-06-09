@@ -9,6 +9,7 @@ import {
   ensureAndroidChannel,
   reconcile,
   resetAllScheduledNotifications,
+  setupForegroundHandler,
 } from '../notificationScheduler';
 import type { PrayerTime, YearlyPrayerCache } from '../types';
 
@@ -64,6 +65,24 @@ describe('notification identity', () => {
     expect(reminder).toContain('prayer-reminder-');
     expect(reminder).not.toBe(adhan);
     expect(isPrayerNotificationId(reminder)).toBe(true);
+  });
+});
+
+describe('setupForegroundHandler', () => {
+  it('lets the OS play the prayer sound in the foreground instead of dropping it silently', async () => {
+    (Notifications.setNotificationHandler as jest.Mock).mockClear();
+    await setupForegroundHandler();
+    expect(Notifications.setNotificationHandler).toHaveBeenCalledTimes(1);
+    const handler = (Notifications.setNotificationHandler as jest.Mock).mock.calls[0][0];
+    const behavior = await handler.handleNotification();
+    // The OS owns the audible cue in EVERY app state — foreground, locked-foreground
+    // (app open then screen off, where the JS-timer chime was suspended), and
+    // background. The in-app PrayerNowBanner owns the foreground visual, so the OS
+    // heads-up banner stays suppressed to avoid a double banner.
+    expect(behavior.shouldPlaySound).toBe(true);
+    expect(behavior.shouldShowBanner).toBe(false);
+    expect(behavior.shouldShowList).toBe(true);
+    expect(behavior.shouldSetBadge).toBe(false);
   });
 });
 

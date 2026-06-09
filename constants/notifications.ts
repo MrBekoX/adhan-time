@@ -25,6 +25,14 @@ export const PENDING_NOTIFICATION_HARD_CAP = 50;
 export const ROLLING_WINDOW_DAYS_ALL_PRAYERS = 8;
 export const ALL_PRAYERS_COUNT = 6;
 
+// Vibration pattern [wait, buzz, pause, buzz] shared by the Android notification
+// channels (background) AND the in-app foreground cue, so a prayer/reminder feels
+// the same whether the app is open or not. Foreground uses react-native's
+// Vibration (a strong, settings-independent alert buzz) because the OS channel
+// vibration is suppressed for foreground notifications and Haptics.notificationAsync
+// alone is too subtle / depends on the system haptic-feedback setting.
+export const VIBRATION_PATTERN = [0, 500, 250, 500];
+
 // The bundled custom notification sound (<=30s, PCM WAV). iOS plays it by
 // filename; Android plays it via the notification channel below. Declared in
 // app.json's expo-notifications plugin. Self-generated and owned (no third-party
