@@ -14,6 +14,9 @@ const MAX_TZ_LEN = 64;
 
 export type Locale = 'tr' | 'en' | 'ar' | 'zh';
 export type Sound = 'default' | 'adhanShort' | 'adhanLong' | 'notification';
+export type Platform = 'android' | 'ios';
+
+const ALLOWED_PLATFORMS = new Set(['android', 'ios']);
 
 export type ValidPayload = {
   expoPushToken: string;
@@ -25,6 +28,12 @@ export type ValidPayload = {
   sound: Sound;
   enabledPrayers: string[];
   reminderMinutes: number;
+  // Both optional/back-compat: older clients omit them. They gate the server
+  // safety-net push (a non-exempt Android device has an unreliable killed-app
+  // local alarm → shorter staleness threshold). Absent → undefined → the
+  // conservative 5-day gate (no behavior change).
+  platform?: Platform;
+  batteryExempt?: boolean;
 };
 
 export type ValidationResult =
@@ -94,6 +103,23 @@ export function validateRegisterPayload(body: unknown): ValidationResult {
     reminderMinutes = b.reminderMinutes;
   }
 
+  // platform/batteryExempt are optional (older clients omit them); when present
+  // they must be well-formed so the server gating can trust them.
+  let platform: Platform | undefined;
+  if (b.platform !== undefined) {
+    if (typeof b.platform !== 'string' || !ALLOWED_PLATFORMS.has(b.platform)) {
+      return { ok: false, code: 'invalid_platform' };
+    }
+    platform = b.platform as Platform;
+  }
+  let batteryExempt: boolean | undefined;
+  if (b.batteryExempt !== undefined) {
+    if (typeof b.batteryExempt !== 'boolean') {
+      return { ok: false, code: 'invalid_battery_exempt' };
+    }
+    batteryExempt = b.batteryExempt;
+  }
+
   return {
     ok: true,
     data: {
@@ -106,6 +132,8 @@ export function validateRegisterPayload(body: unknown): ValidationResult {
       sound: b.sound as Sound,
       enabledPrayers: [...(b.enabledPrayers as string[])],
       reminderMinutes,
+      platform,
+      batteryExempt,
     },
   };
 }

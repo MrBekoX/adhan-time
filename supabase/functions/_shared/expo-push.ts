@@ -10,6 +10,10 @@ export type ExpoMessage = {
   // Android plays the sound configured on this channel (custom adhan sounds
   // can't ride the `sound` field on Android); iOS ignores it and uses `sound`.
   channelId?: string;
+  // 'high' → FCM high-priority, which wakes a killed app out of Doze (Play
+  // Services is battery-exempt). Required for the safety-net push to actually
+  // reach a battery-optimized, killed device — device-proven on a Galaxy A30s.
+  priority?: 'default' | 'normal' | 'high';
   data?: Record<string, unknown>;
 };
 

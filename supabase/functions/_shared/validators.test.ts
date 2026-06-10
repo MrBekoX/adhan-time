@@ -165,6 +165,37 @@ describe('validateRegisterPayload', () => {
       .toEqual({ ok: false, code: 'invalid_district_name' });
   });
 
+  it('accepts optional platform + batteryExempt and passes them through', () => {
+    const r = validateRegisterPayload({ ...validPayload, platform: 'android', batteryExempt: false });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data.platform).toBe('android');
+      expect(r.data.batteryExempt).toBe(false);
+    }
+  });
+
+  it('accepts platform ios', () => {
+    const r = validateRegisterPayload({ ...validPayload, platform: 'ios', batteryExempt: true });
+    expect(r.ok && r.data.platform).toBe('ios');
+    expect(r.ok && r.data.batteryExempt).toBe(true);
+  });
+
+  it('leaves platform/batteryExempt undefined when absent (old-client compatibility)', () => {
+    const r = validateRegisterPayload(validPayload);
+    expect(r.ok && r.data.platform).toBeUndefined();
+    expect(r.ok && r.data.batteryExempt).toBeUndefined();
+  });
+
+  it('rejects an unknown platform value', () => {
+    expect(validateRegisterPayload({ ...validPayload, platform: 'windows' }))
+      .toEqual({ ok: false, code: 'invalid_platform' });
+  });
+
+  it('rejects a non-boolean batteryExempt', () => {
+    expect(validateRegisterPayload({ ...validPayload, batteryExempt: 'yes' }))
+      .toEqual({ ok: false, code: 'invalid_battery_exempt' });
+  });
+
   it('rejects payload with empty districtName', () => {
     expect(validateRegisterPayload({ ...validPayload, districtName: '' }))
       .toEqual({ ok: false, code: 'invalid_district_name' });

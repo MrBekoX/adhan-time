@@ -3,6 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 import { createAsyncDedupe } from '../_shared/async-dedupe.ts';
 import { verifyCronSecret } from '../_shared/cron-auth.ts';
+import { SHORT_STALE_MS, isDueForBackstop } from '../_shared/device-gating.ts';
 import {
   buildDeviceErrorLog,
   filterPairsByReservedLogs,
@@ -37,7 +38,6 @@ const EXPO_TOKEN = Deno.env.get('EXPO_ACCESS_TOKEN');
 // Shared secret with pg_cron — fail closed when unset so the function never
 // accidentally exposes a public POST endpoint after a redeploy.
 const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? null;
-const STALE_DAYS = 5;
 const PRAYER_KEYS = ['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'yatsi'] as const;
 type PrayerKey = (typeof PRAYER_KEYS)[number];
 
@@ -52,6 +52,11 @@ type Device = {
   enabled_prayers: string[];
   reminder_minutes?: number;
   rate_limited_until?: string | null;
+  last_seen_at: string;
+  // Gating signals reported by newer clients (null on older rows): a non-exempt
+  // Android device has an unreliable killed-app local alarm → shorter backstop.
+  platform?: string | null;
+  battery_exempt?: boolean | null;
 };
 
 
@@ -62,7 +67,11 @@ Deno.serve(async (req: Request) => {
   try {
     const now = new Date();
     const nowIso = now.toISOString();
-    const cutoff = new Date(Date.now() - STALE_DAYS * 86400_000).toISOString();
+    // Fetch the SUPERSET: everyone silent ≥ the shortest backstop (3h). Each
+    // device's actual eligibility (5d for reliable devices, 3h for non-exempt
+    // Android) is re-checked per-device below via isDueForBackstop, so a device
+    // with working local delivery is never double-pushed.
+    const cutoff = new Date(now.getTime() - SHORT_STALE_MS).toISOString();
     const { data: devices, error } = await supabase
       .from('devices')
       .select('*')
@@ -82,6 +91,10 @@ Deno.serve(async (req: Request) => {
 
     for (const dev of devices as Device[]) {
       try {
+        // Re-apply this device's own staleness gate (the query used the loosest).
+        // Reliable devices (iOS / battery-exempt / not-yet-reported) keep the
+        // 5-day gate; only an explicit non-exempt Android device gets the 3h backstop.
+        if (!isDueForBackstop(dev, new Date(dev.last_seen_at), now)) continue;
         const tz = dev.timezone;
         const todayInTz = formatInTz(now, tz, 'yyyy-MM-dd');
         const yearInTz = localYearInTz(now, tz);
@@ -107,6 +120,7 @@ Deno.serve(async (req: Request) => {
                 body: prayerBody(dev.locale, key, dev.district_name),
                 sound: pushSoundFor(dev.sound),
                 channelId: pushChannelFor(dev.sound),
+                priority: 'high',
                 data: { prayerKey: key, source: 'server' },
               },
               log: {
@@ -134,6 +148,7 @@ Deno.serve(async (req: Request) => {
                 body: reminderBody(dev.locale, key, rm),
                 sound: pushSoundFor(dev.sound),
                 channelId: pushChannelFor(dev.sound),
+                priority: 'high',
                 data: { prayerKey: key, kind: 'reminder', source: 'server' },
               },
               log: {
