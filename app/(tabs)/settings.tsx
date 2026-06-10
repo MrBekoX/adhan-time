@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandRow } from '@/components/BrandRow';
@@ -14,6 +14,7 @@ import { SyncErrorBanner } from '@/components/SyncErrorBanner';
 import { colors, fonts, radius, spacing } from '@/components/Theme';
 import { PRAYER_KEYS, type PrayerKey } from '@/constants/prayers';
 import type { Locale } from '@/locales/i18n';
+import { requestBatteryExemption } from '@/services/batteryOptimization';
 import { registerDeviceDetailed, unregisterDevice } from '@/services/deviceRegistry';
 import { applyLocale } from '@/services/localeService';
 import { cancelAllPrayerNotifications } from '@/services/notificationScheduler';
@@ -181,6 +182,22 @@ export default function Settings() {
     router.replace('/onboarding/select-language');
   };
 
+  const isAndroid = Platform.OS === 'android';
+  const onOpenBatterySettings = (): void => {
+    void requestBatteryExemption();
+  };
+  // Roman ordinals for the trailing optional sections, assigned in render order
+  // (fixed sections above use i–v): battery reliability (Android only),
+  // device-registration retry (on failure), privacy. Walk the same order so each
+  // rendered section gets the next ordinal regardless of which ones are skipped.
+  const optionalRomans = ['vi', 'vii', 'viii'];
+  let nextOrdinal = 0;
+  const batteryOrdinal = optionalRomans[nextOrdinal];
+  if (isAndroid) nextOrdinal += 1;
+  const deviceRegistrationOrdinal = optionalRomans[nextOrdinal];
+  if (deviceRegistrationPending) nextOrdinal += 1;
+  const privacyOrdinal = optionalRomans[nextOrdinal];
+
   const onDeleteAccount = (): void => {
     Alert.alert(
       t('screens.settings.deleteAccountTitle'),
@@ -296,8 +313,23 @@ export default function Settings() {
           ))}
         </Section>
 
+        {isAndroid && (
+          <Section title={t('screens.settings.notificationReliability')} ordinal={batteryOrdinal}>
+            <Text style={styles.subvalue}>{t('screens.settings.batteryHint')}</Text>
+            <View style={styles.spacer} />
+            <Button
+              title={t('screens.settings.batteryButton')}
+              variant="secondary"
+              onPress={onOpenBatterySettings}
+            />
+          </Section>
+        )}
+
         {deviceRegistrationPending && (
-          <Section title={t('screens.settings.deviceRegistration')} ordinal="vi">
+          <Section
+            title={t('screens.settings.deviceRegistration')}
+            ordinal={deviceRegistrationOrdinal}
+          >
             <Text style={styles.subvalue}>
               {t('screens.settings.deviceRegistrationFailedHint')}
             </Text>
@@ -317,7 +349,7 @@ export default function Settings() {
 
         <Section
           title={t('screens.settings.privacy')}
-          ordinal={deviceRegistrationPending ? 'vii' : 'vi'}
+          ordinal={privacyOrdinal}
         >
           <Button
             title={deleting ? t('screens.settings.deleteAccountInProgress') : t('screens.settings.deleteAccount')}

@@ -37,7 +37,11 @@ describe('migrateSettingsState (V5 — settingsStore v1 → v2)', () => {
     };
     // The v3→v5 field-adds and sound remap don't fire for this blob, but the
     // v6 step backfills reminderMinutes for any pre-v6 persisted state.
-    expect(migrateSettingsState(blob, 3)).toEqual({ ...blob, reminderMinutes: 0 });
+    expect(migrateSettingsState(blob, 3)).toEqual({
+      ...blob,
+      reminderMinutes: 0,
+      batteryExemptionAsked: false,
+    });
   });
 
   it('handles empty/null persisted state without crashing', () => {
@@ -45,17 +49,40 @@ describe('migrateSettingsState (V5 — settingsStore v1 → v2)', () => {
       notificationPermissionDenied: false,
       deviceRegistrationPending: false,
       reminderMinutes: 0,
+      batteryExemptionAsked: false,
     });
     expect(migrateSettingsState(null, 1)).toEqual({
       notificationPermissionDenied: false,
       deviceRegistrationPending: false,
       reminderMinutes: 0,
+      batteryExemptionAsked: false,
     });
     expect(migrateSettingsState({}, 1)).toEqual({
       notificationPermissionDenied: false,
       deviceRegistrationPending: false,
       reminderMinutes: 0,
+      batteryExemptionAsked: false,
     });
+  });
+});
+
+describe('migrateSettingsState (v6 → v7 — battery-exemption asked flag)', () => {
+  it('backfills batteryExemptionAsked=false on v6 blobs so onboarding asks once', () => {
+    const blob = {
+      locale: 'tr',
+      sound: 'notification',
+      enabledPrayers: ['imsak', 'ogle'],
+      reminderMinutes: 30,
+      onboardingCompleted: true,
+      notificationPermissionDenied: false,
+      deviceRegistrationPending: false,
+    };
+    expect(migrateSettingsState(blob, 6)).toEqual({ ...blob, batteryExemptionAsked: false });
+  });
+
+  it('preserves an existing batteryExemptionAsked=true through later migrations', () => {
+    const blob = { reminderMinutes: 10, batteryExemptionAsked: true };
+    expect(migrateSettingsState(blob, 6).batteryExemptionAsked).toBe(true);
   });
 });
 

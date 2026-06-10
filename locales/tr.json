@@ -178,7 +178,10 @@
       "deviceRegistration": "Sunucu Kaydı",
       "retryDeviceRegistration": "Cihazı Yeniden Kaydet",
       "retryingDeviceRegistration": "Yeniden kaydediliyor…",
-      "deviceRegistrationFailedHint": "Sunucu kaydı henüz tamamlanmadı. Tekrar dene."
+      "deviceRegistrationFailedHint": "Sunucu kaydı henüz tamamlanmadı. Tekrar dene.",
+      "notificationReliability": "Bildirim Güvenilirliği",
+      "batteryHint": "Uygulama kapalıyken ezan bildirimlerinin kaçmaması için pil optimizasyonunu kapat.",
+      "batteryButton": "Pil Kısıtlamasını Kapat"
     },
     "qibla": {
       "tabLabel": "Kıble",

@@ -20,6 +20,9 @@ type State = {
   // (or any prior outage) gets retried on the next foreground tick even
   // after the app process is killed.
   deviceRegistrationPending: boolean;
+  // Whether we've already shown the Android battery-optimization exemption prompt
+  // (onboarding asks once; Settings can re-trigger it manually).
+  batteryExemptionAsked: boolean;
   hydrated: boolean;
 };
 
@@ -31,6 +34,7 @@ type Actions = {
   setOnboardingCompleted: (v: boolean) => void;
   setNotificationPermissionDenied: (v: boolean) => void;
   setDeviceRegistrationPending: (v: boolean) => void;
+  setBatteryExemptionAsked: (v: boolean) => void;
   setHydrated: (v: boolean) => void;
   reset: () => void;
 };
@@ -46,6 +50,7 @@ const initial: State = {
   onboardingCompleted: false,
   notificationPermissionDenied: false,
   deviceRegistrationPending: false,
+  batteryExemptionAsked: false,
   hydrated: false,
 };
 
@@ -65,6 +70,7 @@ export const useSettingsStore = create<State & Actions>()(
       setOnboardingCompleted: (v) => set({ onboardingCompleted: v }),
       setNotificationPermissionDenied: (v) => set({ notificationPermissionDenied: v }),
       setDeviceRegistrationPending: (v) => set({ deviceRegistrationPending: v }),
+      setBatteryExemptionAsked: (v) => set({ batteryExemptionAsked: v }),
       setHydrated: (v) => set({ hydrated: v }),
       reset: () =>
         set({
@@ -81,7 +87,7 @@ export const useSettingsStore = create<State & Actions>()(
     }),
     {
       name: 'settings',
-      version: 6,
+      version: 7,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({
         locale: s.locale,
@@ -91,6 +97,7 @@ export const useSettingsStore = create<State & Actions>()(
         onboardingCompleted: s.onboardingCompleted,
         notificationPermissionDenied: s.notificationPermissionDenied,
         deviceRegistrationPending: s.deviceRegistrationPending,
+        batteryExemptionAsked: s.batteryExemptionAsked,
       }),
       migrate: (persisted, version) => migrateSettingsState(persisted, version) as State,
       onRehydrateStorage: () => (state) => {

@@ -178,7 +178,10 @@
       "deviceRegistration": "تسجيل الخادم",
       "retryDeviceRegistration": "أعد تسجيل الجهاز",
       "retryingDeviceRegistration": "جارٍ إعادة التسجيل…",
-      "deviceRegistrationFailedHint": "لم يتم تسجيل جهازك بعد لخدمة التنبيهات الاحتياطية. حاول مرة أخرى."
+      "deviceRegistrationFailedHint": "لم يتم تسجيل جهازك بعد لخدمة التنبيهات الاحتياطية. حاول مرة أخرى.",
+      "notificationReliability": "موثوقية التنبيهات",
+      "batteryHint": "أوقف تحسين البطارية حتى تصل تنبيهات الأذان حتى عند إغلاق التطبيق.",
+      "batteryButton": "إيقاف قيود البطارية"
     },
     "qibla": {
       "tabLabel": "القبلة",

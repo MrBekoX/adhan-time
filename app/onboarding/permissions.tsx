@@ -1,12 +1,13 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { HorizonRule } from '@/components/HorizonRule';
 import { colors, fonts, spacing } from '@/components/Theme';
+import { requestBatteryExemption, shouldAskBatteryExemption } from '@/services/batteryOptimization';
 import { finalizeOnboarding } from '@/services/onboardingFinalize';
 import { useLocationStore } from '@/store/locationStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -51,6 +52,22 @@ export default function Permissions() {
     // user still finishes onboarding so they can use the app and re-enable
     // notifications later from system Settings.
     setNotificationPermissionDenied(!result.permissionGranted);
+
+    // Android only, once: ask the user to exempt the app from battery optimization.
+    // A killed, non-exempt app has its exact alarms deferred by Doze on aggressive
+    // OEMs (Samsung) → missed adhan (device-proven). Best-effort; failure to launch
+    // the dialog must not block finishing onboarding.
+    if (
+      shouldAskBatteryExemption({
+        isAndroid: Platform.OS === 'android',
+        permissionGranted: result.permissionGranted,
+        alreadyAsked: settings.batteryExemptionAsked,
+      })
+    ) {
+      await requestBatteryExemption();
+      useSettingsStore.getState().setBatteryExemptionAsked(true);
+    }
+
     setOnboardingCompleted(true);
     router.replace('/(tabs)/home');
   };

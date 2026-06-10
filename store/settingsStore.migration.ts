@@ -9,6 +9,7 @@ export type PersistedSettingsShape = {
   notificationPermissionDenied?: boolean;
   deviceRegistrationPending?: boolean;
   reminderMinutes?: number;
+  batteryExemptionAsked?: boolean;
 };
 
 export function migrateSettingsState(
@@ -37,6 +38,11 @@ export function migrateSettingsState(
   if (version < 6) {
     // Pre-prayer reminder added; existing users default to off (0).
     safe = { ...safe, reminderMinutes: safe.reminderMinutes ?? 0 };
+  }
+  if (version < 7) {
+    // Battery-optimization exemption prompt added (Android). Existing users
+    // haven't been asked yet, so onboarding/Settings can offer it once.
+    safe = { ...safe, batteryExemptionAsked: safe.batteryExemptionAsked ?? false };
   }
 
   return safe;

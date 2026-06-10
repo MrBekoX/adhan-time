@@ -178,7 +178,10 @@
       "deviceRegistration": "Server Registration",
       "retryDeviceRegistration": "Retry Device Registration",
       "retryingDeviceRegistration": "Retrying…",
-      "deviceRegistrationFailedHint": "Your device hasn't been registered with the push fallback yet. Try again."
+      "deviceRegistrationFailedHint": "Your device hasn't been registered with the push fallback yet. Try again.",
+      "notificationReliability": "Notification reliability",
+      "batteryHint": "Turn off battery optimization so prayer notifications still arrive when the app is closed.",
+      "batteryButton": "Disable battery restriction"
     },
     "qibla": {
       "tabLabel": "Qibla",
