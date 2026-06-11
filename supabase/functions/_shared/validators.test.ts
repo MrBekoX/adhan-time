@@ -196,6 +196,36 @@ describe('validateRegisterPayload', () => {
       .toEqual({ ok: false, code: 'invalid_battery_exempt' });
   });
 
+  it('accepts a valid Android deviceId (16-hex)', () => {
+    const r = validateRegisterPayload({ ...validPayload, deviceId: 'a1b2c3d4e5f60718' });
+    expect(r.ok && r.data.deviceId).toBe('a1b2c3d4e5f60718');
+  });
+
+  it('accepts a valid iOS IDFV deviceId (uuid)', () => {
+    const r = validateRegisterPayload({ ...validPayload, deviceId: 'E621E1F8-C36C-495A-93FC-0C247A3E6E5F' });
+    expect(r.ok).toBe(true);
+  });
+
+  it('leaves deviceId undefined when absent (old-client compatibility)', () => {
+    const r = validateRegisterPayload(validPayload);
+    expect(r.ok && r.data.deviceId).toBeUndefined();
+  });
+
+  it('rejects a too-short deviceId', () => {
+    expect(validateRegisterPayload({ ...validPayload, deviceId: 'short' }))
+      .toEqual({ ok: false, code: 'invalid_device_id' });
+  });
+
+  it('rejects a deviceId with forbidden characters', () => {
+    expect(validateRegisterPayload({ ...validPayload, deviceId: 'bad id*with spaces' }))
+      .toEqual({ ok: false, code: 'invalid_device_id' });
+  });
+
+  it('rejects an overlong deviceId (>64)', () => {
+    expect(validateRegisterPayload({ ...validPayload, deviceId: 'a'.repeat(65) }))
+      .toEqual({ ok: false, code: 'invalid_device_id' });
+  });
+
   it('rejects payload with empty districtName', () => {
     expect(validateRegisterPayload({ ...validPayload, districtName: '' }))
       .toEqual({ ok: false, code: 'invalid_district_name' });

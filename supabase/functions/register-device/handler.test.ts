@@ -113,6 +113,25 @@ describe('handleRegisterDevice', () => {
     });
   });
 
+  it('passes optional deviceId/platform/batteryExempt through to upsertDevice', async () => {
+    const deps = makeDeps({ hmacSecret: 'topsecret' });
+    const r = await handleRegisterDevice(
+      await signedJsonRequest({
+        ...validBody,
+        deviceId: 'a1b2c3d4e5f60718',
+        platform: 'android',
+        batteryExempt: false,
+      }),
+      deps,
+    );
+    expect(r.status).toBe(200);
+    expect(deps.upsertCalls[0]).toMatchObject({
+      deviceId: 'a1b2c3d4e5f60718',
+      platform: 'android',
+      batteryExempt: false,
+    });
+  });
+
   it('returns 400 invalid_token on a malformed token', async () => {
     const deps = makeDeps({ hmacSecret: 'topsecret' });
     const r = await handleRegisterDevice(await signedJsonRequest({ ...validBody, expoPushToken: 'hack' }), deps);

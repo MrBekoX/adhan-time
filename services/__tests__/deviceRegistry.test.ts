@@ -1,6 +1,8 @@
 import { computeBodyHmac } from '../../supabase/functions/_shared/hmac';
+import { isBatteryExempt } from '../batteryOptimization';
 import { registerDevice, registerDeviceDetailed } from '../deviceRegistry';
 import { signRegisterBody } from '../deviceRegistry.signing';
+import { getDeviceId } from '../deviceIdentity';
 import { getExpoPushToken } from '../pushService';
 
 jest.mock('../supabaseClient', () => ({
@@ -11,6 +13,13 @@ jest.mock('../supabaseClient', () => ({
 
 jest.mock('../pushService', () => ({
   getExpoPushToken: jest.fn(),
+}));
+
+jest.mock('../deviceIdentity', () => ({
+  getDeviceId: jest.fn(async () => 'a1b2c3d4e5f60718'),
+}));
+jest.mock('../batteryOptimization', () => ({
+  isBatteryExempt: jest.fn(async () => false),
 }));
 
 const getTokenMock = getExpoPushToken as jest.Mock;
@@ -74,6 +83,35 @@ describe('registerDeviceDetailed — V16 retry + UI reason surface', () => {
 
     expect(result.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('enriches the register body with deviceId, platform, and batteryExempt', async () => {
+    (getDeviceId as jest.Mock).mockResolvedValueOnce('a1b2c3d4e5f60718');
+    (isBatteryExempt as jest.Mock).mockResolvedValueOnce(false);
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+    await registerDeviceDetailed(VALID_INPUT);
+
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(sent).toMatchObject({
+      deviceId: 'a1b2c3d4e5f60718',
+      platform: expect.stringMatching(/^(android|ios)$/),
+      batteryExempt: false,
+      expoPushToken: 'ExponentPushToken[abc123]',
+    });
+  });
+
+  it('omits deviceId when unavailable and batteryExempt when undefined', async () => {
+    (getDeviceId as jest.Mock).mockResolvedValueOnce(null);
+    (isBatteryExempt as jest.Mock).mockResolvedValueOnce(undefined);
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+    await registerDeviceDetailed(VALID_INPUT);
+
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(sent.deviceId).toBeUndefined();
+    expect(sent.batteryExempt).toBeUndefined();
+    expect(sent.platform).toMatch(/^(android|ios)$/); // platform always sent
   });
 
   it('retries up to 3 times on transient 5xx, then succeeds', async () => {

@@ -23,3 +23,8 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
+
+jest.mock('expo-application', () => ({
+  getAndroidId: jest.fn(() => 'jest-android-id-0001'),
+  getIosIdForVendorAsync: jest.fn(async () => 'JEST-IDFV-0000-0000'),
+}));

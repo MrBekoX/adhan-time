@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { Linking, Platform } from 'react-native';
 
+import { isIgnoringBatteryOptimizations } from '@/modules/battery-optimization';
 import { logger } from '@/utils/logger';
 
 // Whether to prompt for a battery-optimization exemption. Android only: iOS has no
@@ -52,5 +53,19 @@ export async function requestBatteryExemption(): Promise<void> {
   } catch (error) {
     logger.warn('battery-exemption-settings-failed', { error: String(error) });
     await Linking.openSettings().catch(() => undefined);
+  }
+}
+
+// OS battery-optimization exemption state — Android only. Returns undefined on
+// iOS (no such concept) and on a native read failure; the caller then OMITS
+// batteryExempt from the register payload so the server keeps the conservative
+// 5-day gate. Never a FALSE exempt/non-exempt claim (rules/11 accuracy). Never throws.
+export async function isBatteryExempt(): Promise<boolean | undefined> {
+  if (Platform.OS !== 'android') return undefined;
+  try {
+    return isIgnoringBatteryOptimizations();
+  } catch (e) {
+    logger.warn('battery-exempt-read-failed', { error: String(e) });
+    return undefined;
   }
 }

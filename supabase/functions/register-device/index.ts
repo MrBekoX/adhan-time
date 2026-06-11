@@ -16,8 +16,9 @@ const HMAC_SECRET = Deno.env.get('REGISTER_HMAC_KEY') ?? null;
 const rateLimit = createSupabaseRateLimitClient(supabase);
 
 async function upsertDevice(payload: ValidPayload): Promise<UpsertResult> {
-  const row: Record<string, unknown> = {
+  const p = {
     expo_push_token: payload.expoPushToken,
+    device_id: payload.deviceId ?? null,
     district_id: payload.districtId,
     district_name: payload.districtName,
     country_name: payload.countryName,
@@ -26,23 +27,13 @@ async function upsertDevice(payload: ValidPayload): Promise<UpsertResult> {
     sound: payload.sound,
     enabled_prayers: payload.enabledPrayers,
     reminder_minutes: payload.reminderMinutes,
-    last_seen_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    platform: payload.platform ?? null,
+    battery_exempt: payload.batteryExempt ?? null,
   };
-  // Only write the gating signals when the client actually reported them, so a
-  // re-register from an older build (which omits them) can't clobber a value a
-  // newer build already set.
-  if (payload.platform !== undefined) row.platform = payload.platform;
-  if (payload.batteryExempt !== undefined) row.battery_exempt = payload.batteryExempt;
 
-  const { data, error } = await supabase
-    .from('devices')
-    .upsert(row, { onConflict: 'expo_push_token' })
-    .select('id')
-    .single();
-
+  const { data, error } = await supabase.rpc('upsert_device', { p });
   if (error || !data) return { error: error?.message ?? 'unknown' };
-  return { id: data.id };
+  return { id: data as string };
 }
 
 Deno.serve((req) =>

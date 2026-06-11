@@ -9,6 +9,7 @@ const ALLOWED_PRAYERS = new Set(['imsak', 'gunes', 'ogle', 'ikindi', 'aksam', 'y
 const ALLOWED_SOUNDS = new Set(['default', 'adhanShort', 'adhanLong', 'notification']);
 const TOKEN_RE = /^ExponentPushToken\[[A-Za-z0-9_-]{20,40}\]$/;
 const DISTRICT_RE = /^\d{1,7}$/;
+const DEVICE_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
 const MAX_STRING_LEN = 128;
 const MAX_TZ_LEN = 64;
 
@@ -34,6 +35,10 @@ export type ValidPayload = {
   // conservative 5-day gate (no behavior change).
   platform?: Platform;
   batteryExempt?: boolean;
+  // Stable per-install id (Android ID / iOS IDFV). Optional: older clients omit
+  // it → server upserts on expo_push_token. Bounded charset = defense-in-depth,
+  // NOT auth (it is bundled/observable).
+  deviceId?: string;
 };
 
 export type ValidationResult =
@@ -120,6 +125,14 @@ export function validateRegisterPayload(body: unknown): ValidationResult {
     batteryExempt = b.batteryExempt;
   }
 
+  let deviceId: string | undefined;
+  if (b.deviceId !== undefined) {
+    if (typeof b.deviceId !== 'string' || !DEVICE_ID_RE.test(b.deviceId)) {
+      return { ok: false, code: 'invalid_device_id' };
+    }
+    deviceId = b.deviceId;
+  }
+
   return {
     ok: true,
     data: {
@@ -134,6 +147,7 @@ export function validateRegisterPayload(body: unknown): ValidationResult {
       reminderMinutes,
       platform,
       batteryExempt,
+      deviceId,
     },
   };
 }

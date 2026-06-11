@@ -1,4 +1,7 @@
+import { Platform } from 'react-native';
 
+import { isBatteryExempt } from './batteryOptimization';
+import { getDeviceId } from './deviceIdentity';
 import { signRegisterBody } from './deviceRegistry.signing';
 import { ApiServerError, NetworkError } from './errors';
 import { getExpoPushToken } from './pushService';
@@ -17,6 +20,9 @@ type RegisterPayload = {
   sound: string;
   enabledPrayers: string[];
   reminderMinutes: number;
+  deviceId?: string;
+  platform?: 'android' | 'ios';
+  batteryExempt?: boolean;
 };
 
 function getHmacSecret(): string | null {
@@ -76,7 +82,19 @@ export async function registerDeviceDetailed(
     return { ok: false, reason: 'no-token' };
   }
   const token = tokenResult.token;
-  const body: RegisterPayload = { ...input, expoPushToken: token };
+  // Device signals are best-effort: gather them here so callers (onboarding,
+  // lifecycle) stay unaware. Failures degrade gracefully (see deviceIdentity /
+  // batteryOptimization) — platform is always sent; deviceId/batteryExempt are
+  // omitted when unavailable so the server applies safe defaults.
+  const deviceId = await getDeviceId();
+  const batteryExempt = await isBatteryExempt();
+  const body: RegisterPayload = {
+    ...input,
+    expoPushToken: token,
+    platform: Platform.OS === 'ios' ? 'ios' : 'android',
+    ...(deviceId ? { deviceId } : {}),
+    ...(batteryExempt !== undefined ? { batteryExempt } : {}),
+  };
   const raw = JSON.stringify(body);
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

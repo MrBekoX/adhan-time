@@ -1,8 +1,19 @@
 import { Linking, Platform } from 'react-native';
 
-import { requestBatteryExemption, shouldAskBatteryExemption } from '../batteryOptimization';
+import {
+  isBatteryExempt,
+  requestBatteryExemption,
+  shouldAskBatteryExemption,
+} from '../batteryOptimization';
 
 import * as IntentLauncher from 'expo-intent-launcher';
+import { isIgnoringBatteryOptimizations } from '@/modules/battery-optimization';
+
+jest.mock('@/modules/battery-optimization', () => ({
+  isIgnoringBatteryOptimizations: jest.fn(),
+}));
+
+const nativeExemptMock = isIgnoringBatteryOptimizations as jest.Mock;
 
 jest.mock('expo-intent-launcher', () => ({
   startActivityAsync: jest.fn(async () => ({ resultCode: 0 })),
@@ -99,5 +110,39 @@ describe('requestBatteryExemption', () => {
       await expect(requestBatteryExemption()).resolves.toBeUndefined();
     });
     expect(Linking.openSettings).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('isBatteryExempt', () => {
+  beforeEach(() => nativeExemptMock.mockReset());
+
+  it('returns the native value on Android (true)', async () => {
+    nativeExemptMock.mockReturnValue(true);
+    await withPlatform('android', async () => {
+      await expect(isBatteryExempt()).resolves.toBe(true);
+    });
+  });
+
+  it('returns the native value on Android (false)', async () => {
+    nativeExemptMock.mockReturnValue(false);
+    await withPlatform('android', async () => {
+      await expect(isBatteryExempt()).resolves.toBe(false);
+    });
+  });
+
+  it('returns undefined on iOS without calling native', async () => {
+    await withPlatform('ios', async () => {
+      await expect(isBatteryExempt()).resolves.toBeUndefined();
+    });
+    expect(nativeExemptMock).not.toHaveBeenCalled();
+  });
+
+  it('returns undefined (never throws) when the native read throws', async () => {
+    nativeExemptMock.mockImplementation(() => {
+      throw new Error('powermanager null');
+    });
+    await withPlatform('android', async () => {
+      await expect(isBatteryExempt()).resolves.toBeUndefined();
+    });
   });
 });
