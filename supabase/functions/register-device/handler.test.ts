@@ -236,7 +236,7 @@ describe('handleRegisterDevice', () => {
     expect(deps.rateLimit.rows.size).toBe(0);
   });
 
-  it('fails closed when the server HMAC secret is not configured', async () => {
+  it('fails closed when the server proof key is not configured', async () => {
     const deps = makeDeps({ hmacSecret: null });
     const r = await handleRegisterDevice(jsonRequest(validBody), deps);
     expect(r.status).toBe(503);

@@ -20,9 +20,12 @@ npx expo install --fix    # align packages to SDK-compatible versions
 
 Copy `.env.example` to `.env` and fill it in (Supabase URL + publishable key).
 
-For an APK / EAS build, `EXPO_PUBLIC_REGISTER_HMAC_KEY` is required (it must match
-the Supabase `REGISTER_HMAC_KEY`; otherwise the device cannot sign its
-`register-device` request). Validate the environment before building:
+For an APK / EAS build, `EXPO_PUBLIC_REGISTER_HMAC_KEY` is required. It must match
+the Supabase Edge Function `REGISTER_HMAC_KEY` so the app can sign
+`register-device` and `unregister-device` request bodies. This is not a user
+authentication secret: the public value is bundled into the APK and only adds
+abuse friction around the public endpoints. Validate the environment before
+building:
 
 ```bash
 npm run validate:build-env
@@ -36,18 +39,42 @@ eas login
 eas init                  # writes projectId into app.json
 ```
 
-### 4. Supabase Vault secrets (for pg_cron)
+### 4. Supabase secrets and Vault values
+
+Edge Function secrets:
+
+```bash
+supabase secrets set REGISTER_HMAC_KEY=<same-value-as-EXPO_PUBLIC_REGISTER_HMAC_KEY>
+supabase secrets set CRON_SECRET=<random-32-byte-hex>
+supabase secrets set EXPO_ACCESS_TOKEN=<token> # optional, see step 6
+```
 
 Supabase Dashboard > Database > Vault > **New Secret**:
 
-- `supabase_url` → `https://<your-project-ref>.supabase.co`
-- `service_role_key` → copy from Dashboard > Project Settings > API > **service_role secret**
+- `supabase_url` -> `https://<your-project-ref>.supabase.co`
+- `cron_secret` -> same value as the Edge Function `CRON_SECRET`
+
+The Supabase project ref / URL is a public identifier, not a secret. The values
+that must never be committed are `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`,
+`REGISTER_HMAC_KEY`, Expo access tokens, and Firebase service-account keys.
 
 ### 5. pg_cron migration
 
-Once the Vault is populated, run the contents of
-`supabase/migrations/20260502000100_pg_cron.sql` in Dashboard > SQL Editor. The
-cron will trigger the `push-prayer` edge function every minute.
+Apply the Supabase migrations forward through the latest file. Do not run only
+the first historical cron migration in production; the final state must be the
+Vault-backed cron definitions from
+`supabase/migrations/20260601000000_pg_cron_url_from_vault.sql`, which call Edge
+Functions with an `x-cron-secret` header.
+
+After deployment, verify the active `cron.job` rows for `push-prayer-every-minute`
+and `push-receipts-every-five-minutes` read the target URL from Vault and include
+`x-cron-secret`.
+
+```sql
+select jobname, command
+from cron.job
+where jobname in ('push-prayer-every-minute', 'push-receipts-every-five-minutes');
+```
 
 ### 6. (Optional) Expo push token security
 
@@ -55,38 +82,41 @@ cron will trigger the `push-prayer` edge function every minute.
 supabase secrets set EXPO_ACCESS_TOKEN=<token>
 ```
 
-Token: https://expo.dev → Account Settings → Access Tokens → enable "Enhanced
+Token: https://expo.dev -> Account Settings -> Access Tokens -> enable "Enhanced
 Security for Push Notifications".
 
 ### 7. Assets (provided by you)
 
-`assets/images/icon.png` (1024×1024), `adaptive-icon.png`, `favicon.png`, and
-`assets/sounds/notification.wav` (≤30 s notification sound) are referenced by the
+`assets/images/icon.png` (1024x1024), `adaptive-icon.png`, `favicon.png`, and
+`assets/sounds/notification.wav` (<=30 s notification sound) are referenced by the
 corresponding keys in `app.json`.
 
-### 8. Android push (FCM v1) — required
+### 8. Android push (FCM v1) - required
 
 Without FCM, the Android push token (`Notifications.getExpoPushTokenAsync`)
 **crashes at runtime** and shows the banner "Notification ID currently
 unavailable". Two separate pieces are needed:
 
-1. **Client config** — `google-services.json` (project + app id + package-restricted
-   API key). `app.json` → `android.googleServicesFile` references it; prebuild fails
+1. **Client config** - `google-services.json` (project + app id + package-restricted
+   API key). `app.json` -> `android.googleServicesFile` references it; prebuild fails
    if the file is missing. The file is in `.gitignore` (never committed) but EAS Build
    still embeds it in the APK because `.easignore` does not exclude it. Generate it
    from a service-account key:
+
    ```bash
    node tools/scripts/fetch-google-services.mjs <firebase-service-account.json>
    ```
-2. **Server credential** — the FCM v1 service-account key is uploaded to EAS (so
+
+2. **Server credential** - the FCM v1 service-account key is uploaded to EAS (so
    Expo's push service can deliver to FCM). Without it the banner clears but delivery
    still fails:
+
    ```bash
-   eas credentials   # Android → <profile> → Google Service Account → Manage FCM V1 → upload
+   eas credentials   # Android -> <profile> -> Google Service Account -> Manage FCM V1 -> upload
    ```
 
 > `npm run validate:build-env` (and the `eas-build-pre-install` hook on EAS)
-> **rejects the build up front** if the FCM file or a required env var is missing —
+> **rejects the build up front** if the FCM file or a required env var is missing;
 > it won't ship a broken APK.
 
 ### 9. Development build
@@ -119,7 +149,7 @@ Local check before opening a PR: `npm run lint`, `npm run type-check`,
 
 ## Architecture overview
 
-```
+```text
 app/                  Expo Router (file-based)
 components/           Pure, presentational UI
 hooks/                useStore + useEffect orchestration
@@ -131,23 +161,23 @@ locales/              tr.json, en.json, i18n setup
 supabase/             migrations + edge functions
 ```
 
-Dependency direction: `app/ → store/ → services/ → utils/`; `components/` are pure
+Dependency direction: `app/ -> store/ -> services/ -> utils/`; `components/` are pure
 and presentational, receiving data via props / `useStore`.
 
 ---
 
 ## Backend status
 
-| Component                               | Status                            |
-| --------------------------------------- | --------------------------------- |
-| Supabase project (`<your-project-ref>`) | ACTIVE_HEALTHY (ap-southeast-2)   |
-| Migration `init_devices_cache_log`      | ✅ applied                        |
-| Edge function `register-device`         | ✅ deployed (v1)                  |
-| Edge function `push-prayer`             | ✅ deployed (v1)                  |
-| pg_cron job `push-prayer-every-minute`  | ⏳ manual setup (steps 4–5 above) |
+| Component                               | Status                          |
+| --------------------------------------- | ------------------------------- |
+| Supabase project (`<your-project-ref>`) | ACTIVE_HEALTHY (ap-southeast-2) |
+| Migration `init_devices_cache_log`      | applied                         |
+| Edge function `register-device`         | deployed (v1)                   |
+| Edge function `push-prayer`             | deployed (v1)                   |
+| pg_cron jobs                            | manual setup, see steps 4-5     |
 
 ---
 
 ## License
 
-[MIT](LICENSE) — this project is distributed under the MIT License.
+[MIT](LICENSE) - this project is distributed under the MIT License.

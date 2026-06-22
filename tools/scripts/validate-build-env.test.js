@@ -4,7 +4,7 @@ const {
 } = require('./validate-build-env');
 
 describe('validate-build-env', () => {
-  it('fails APK-capable builds when register HMAC is missing', () => {
+  it('fails APK-capable builds when the client proof key is missing', () => {
     const result = validateBuildEnv({
       env: {
         EXPO_PUBLIC_SUPABASE_URL: 'https://example.supabase.co',
@@ -22,7 +22,7 @@ describe('validate-build-env', () => {
       env: {
         EXPO_PUBLIC_SUPABASE_URL: 'https://example.supabase.co',
         EXPO_PUBLIC_SUPABASE_ANON_KEY: 'sb_publishable_123',
-        EXPO_PUBLIC_REGISTER_HMAC_KEY: 'same-value-as-supabase-register-hmac',
+        EXPO_PUBLIC_REGISTER_HMAC_KEY: 'same-value-as-edge-register-hmac',
       },
       fileEnv: {},
     });
@@ -34,7 +34,7 @@ describe('validate-build-env', () => {
     const fileEnv = parseDotEnv(`
 EXPO_PUBLIC_SUPABASE_URL=https://example.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_123
-EXPO_PUBLIC_REGISTER_HMAC_KEY=same-value-as-supabase-register-hmac
+EXPO_PUBLIC_REGISTER_HMAC_KEY=same-value-as-edge-register-hmac
 `);
 
     const result = validateBuildEnv({ env: {}, fileEnv });
@@ -78,7 +78,7 @@ EXPO_PUBLIC_REGISTER_HMAC_KEY=same-value-as-supabase-register-hmac
     const VALID_ENV = {
       EXPO_PUBLIC_SUPABASE_URL: 'https://example.supabase.co',
       EXPO_PUBLIC_SUPABASE_ANON_KEY: 'sb_publishable_123',
-      EXPO_PUBLIC_REGISTER_HMAC_KEY: 'shared-secret',
+      EXPO_PUBLIC_REGISTER_HMAC_KEY: 'client-proof-key',
     };
 
     it('fails Android builds when google-services.json is missing from repo root', () => {

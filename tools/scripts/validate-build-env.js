@@ -94,8 +94,10 @@ function main() {
   if (result.missing.length > 0 || result.invalid.length > 0) {
     lines.push(
       '',
-      'The installed APK must sign register-device requests. Set EXPO_PUBLIC_REGISTER_HMAC_KEY',
-      'to the same value as the Supabase REGISTER_HMAC_KEY before running an EAS build.',
+      'The installed APK must sign register/unregister device requests. Set',
+      'EXPO_PUBLIC_REGISTER_HMAC_KEY to the same value as the Edge Function',
+      'REGISTER_HMAC_KEY before running an EAS build. This key is client-bundled',
+      'abuse friction, not a user-authentication secret.',
     );
   }
 

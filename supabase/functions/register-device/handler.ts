@@ -14,7 +14,7 @@ export type UpsertResult = { id: string } | { error: string };
 export type RegisterDeps = {
   rateLimit: RateLimitClient;
   upsertDevice: (payload: ValidPayload) => Promise<UpsertResult>;
-  /** When set, requests must carry a matching `x-body-signature` HMAC. */
+  /** Client-bundled proof key. This is abuse friction, not a real user secret. */
   hmacSecret: string | null;
   now: () => Date;
 };

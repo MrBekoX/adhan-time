@@ -25,7 +25,7 @@ type RegisterPayload = {
   batteryExempt?: boolean;
 };
 
-function getHmacSecret(): string | null {
+function getClientProofKey(): string | null {
   const raw = process.env.EXPO_PUBLIC_REGISTER_HMAC_KEY;
   if (!raw || raw.trim().length === 0) return null;
   return raw.trim();
@@ -66,8 +66,8 @@ export type RegisterResult =
 export async function registerDeviceDetailed(
   input: Omit<RegisterPayload, 'expoPushToken'>,
 ): Promise<RegisterResult> {
-  const hmacSecret = getHmacSecret();
-  if (!hmacSecret) {
+  const clientProofKey = getClientProofKey();
+  if (!clientProofKey) {
     logger.warn('register-device-disabled', { reason: 'missing-client-hmac' });
     return { ok: false, reason: 'registration-disabled', code: 'missing-client-hmac' };
   }
@@ -101,7 +101,7 @@ export async function registerDeviceDetailed(
     apikey: SUPABASE_ANON_KEY,
     Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
   };
-  const signature = signRegisterBody(raw, hmacSecret);
+  const signature = signRegisterBody(raw, clientProofKey);
   if (signature) headers['x-body-signature'] = signature;
 
   try {
@@ -152,8 +152,20 @@ export async function registerDevice(
 // still proceeds with the local wipe so a server outage can't trap the
 // user inside their own data.
 export async function unregisterDevice(): Promise<boolean> {
+  const clientProofKey = getClientProofKey();
+  if (!clientProofKey) {
+    logger.warn('skip unregister: missing client proof key');
+    return true;
+  }
   const tokenResult = await getExpoPushToken();
   if (!tokenResult.ok) return true;
+  const deviceId = await getDeviceId();
+  if (!deviceId) {
+    logger.warn('skip unregister: missing device id');
+    return true;
+  }
+  const raw = JSON.stringify({ expoPushToken: tokenResult.token, deviceId });
+  const signature = signRegisterBody(raw, clientProofKey);
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/unregister-device`, {
       method: 'POST',
@@ -161,8 +173,9 @@ export async function unregisterDevice(): Promise<boolean> {
         'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        ...(signature ? { 'x-body-signature': signature } : {}),
       },
-      body: JSON.stringify({ expoPushToken: tokenResult.token }),
+      body: raw,
     });
     if (!res.ok) {
       logger.warn('unregister-device non-2xx', { status: res.status });

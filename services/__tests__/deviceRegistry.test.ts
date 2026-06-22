@@ -1,6 +1,6 @@
 import { computeBodyHmac } from '../../supabase/functions/_shared/hmac';
 import { isBatteryExempt } from '../batteryOptimization';
-import { registerDevice, registerDeviceDetailed } from '../deviceRegistry';
+import { registerDevice, registerDeviceDetailed, unregisterDevice } from '../deviceRegistry';
 import { signRegisterBody } from '../deviceRegistry.signing';
 import { getDeviceId } from '../deviceIdentity';
 import { getExpoPushToken } from '../pushService';
@@ -197,7 +197,7 @@ describe('registerDeviceDetailed — V16 retry + UI reason surface', () => {
     expect(result).toEqual({ ok: false, reason: 'incompatible', status: 401 });
   });
 
-  it('skips server registration when the client HMAC key is not configured', async () => {
+  it('skips server registration when the client proof key is not configured', async () => {
     delete process.env.EXPO_PUBLIC_REGISTER_HMAC_KEY;
 
     const result = await registerDeviceDetailed(VALID_INPUT);
@@ -259,5 +259,47 @@ describe('registerDevice — F6 boolean wrapper', () => {
   it('returns false when detailed registration fails', async () => {
     fetchMock.mockResolvedValue(new Response('still failing', { status: 500 }));
     await expect(registerDevice(VALID_INPUT)).resolves.toBe(false);
+  });
+});
+
+describe('unregisterDevice', () => {
+  let fetchMock: jest.SpyInstance;
+
+  beforeEach(() => {
+    process.env.EXPO_PUBLIC_REGISTER_HMAC_KEY = 'topsecret';
+    getTokenMock
+      .mockReset()
+      .mockResolvedValue({ ok: true, token: 'ExponentPushToken[abc123]' });
+    (getDeviceId as jest.Mock).mockResolvedValue('a1b2c3d4e5f60718');
+    fetchMock = jest.spyOn(globalThis, 'fetch');
+  });
+
+  afterEach(() => {
+    fetchMock.mockRestore();
+    delete process.env.EXPO_PUBLIC_REGISTER_HMAC_KEY;
+  });
+
+  it('sends a signed token + deviceId delete request', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+    await expect(unregisterDevice()).resolves.toBe(true);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0];
+    const headers = init.headers as Record<string, string>;
+    const body = init.body as string;
+    expect(JSON.parse(body)).toEqual({
+      expoPushToken: 'ExponentPushToken[abc123]',
+      deviceId: 'a1b2c3d4e5f60718',
+    });
+    expect(headers['x-body-signature']).toBe(signRegisterBody(body, 'topsecret'));
+  });
+
+  it('skips the server delete when deviceId is unavailable', async () => {
+    (getDeviceId as jest.Mock).mockResolvedValueOnce(null);
+
+    await expect(unregisterDevice()).resolves.toBe(true);
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

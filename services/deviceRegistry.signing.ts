@@ -1,9 +1,9 @@
 import { sha256 } from 'js-sha256';
 
 /**
- * HMAC-SHA256 over the raw register-device JSON body.
- * Returns hex; null when the secret is empty so the caller can decide whether
- * to attach the `x-body-signature` header.
+ * HMAC-SHA256 over a raw edge-function JSON body.
+ * The key is bundled into the client, so this is abuse friction rather than
+ * a user-authentication secret.
  */
 export function signRegisterBody(body: string, secret: string | null | undefined): string | null {
   if (!secret) return null;
