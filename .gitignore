@@ -58,13 +58,11 @@ google-services.json
 *~
 
 # ── AI Assistants Config ───────────────────────
-# Ignore local/secret config but keep the project knowledge base (rules/commands/skills)
-# tracked — CLAUDE.md links to these files and they must travel with the repo.
-.claude/*
-!.claude/rules/
-!.claude/commands/
-!.claude/skills/
-.claude/settings.local.json
+# Maintainer request (2026-06-22): keep the whole AI config tree out of the repo.
+# The .claude/ tree (rules/commands/skills/settings) and the CLAUDE.md project map
+# are now local-only — untracked via `git rm --cached` in the same change.
+.claude/
+CLAUDE.md
 .opencode/
 .sisyphus/
 
