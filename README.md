@@ -2,7 +2,7 @@
 
 Dünya geneli ezan vakti uygulaması (React Native + Expo + Supabase).
 
-> Mimari, kurallar ve implementasyon şablonları için **`CLAUDE.md`** ve **`.claude/`** dizinine bak.
+> Mimari özet ve komutlar için aşağıya bakın. Kod katmanları: `app/`, `components/`, `hooks/`, `services/`, `store/`, `utils/`, `constants/`, `locales/`, `supabase/`.
 
 ---
 
@@ -41,7 +41,7 @@ eas init                  # `app.json` içine projectId yazılır
 
 Supabase Dashboard > Database > Vault > **New Secret**:
 
-- `supabase_url` → `https://ckrvxajivwkifticnqom.supabase.co`
+- `supabase_url` → `https://<your-project-ref>.supabase.co`
 - `service_role_key` → Dashboard > Project Settings > API > **service_role secret** kopyala
 
 ### 5. pg_cron Migration
@@ -103,7 +103,7 @@ npm run start
 | `npm run test`               | Jest                                    |
 | `npm run validate:build-env` | Build öncesi env + FCM dosyası kontrolü |
 
-Slash komutlar: `.claude/commands/` altında. Örn `/commit`, `/supabase-deploy`, `/eas-build`, `/prayer-test`.
+PR öncesi yerel kontrol: `npm run lint`, `npm run type-check`, `npm run test` (CI bunları zorunlu kılar).
 
 ---
 
@@ -121,19 +121,19 @@ locales/              tr.json, en.json, i18n setup
 supabase/             migrations + edge functions
 ```
 
-Detay: `CLAUDE.md` ve `.claude/rules/01-architecture.md`.
+Bağımlılık yönü: `app/ → store/ → services/ → utils/`; `components/` saf ve presentational, veriyi prop / `useStore` ile alır.
 
 ---
 
 ## Backend Durumu
 
-| Bileşen                                   | Durum                                 |
-| ----------------------------------------- | ------------------------------------- |
-| Supabase project (`ckrvxajivwkifticnqom`) | ACTIVE_HEALTHY (ap-southeast-2)       |
-| Migration `init_devices_cache_log`        | ✅ uygulandı                          |
-| Edge function `register-device`           | ✅ deployed (v1)                      |
-| Edge function `push-prayer`               | ✅ deployed (v1)                      |
-| pg_cron job `push-prayer-every-minute`    | ⏳ manuel kurulum (yukarıda 4-5 adım) |
+| Bileşen                                 | Durum                                 |
+| --------------------------------------- | ------------------------------------- |
+| Supabase project (`<your-project-ref>`) | ACTIVE_HEALTHY (ap-southeast-2)       |
+| Migration `init_devices_cache_log`      | ✅ uygulandı                          |
+| Edge function `register-device`         | ✅ deployed (v1)                      |
+| Edge function `push-prayer`             | ✅ deployed (v1)                      |
+| pg_cron job `push-prayer-every-minute`  | ⏳ manuel kurulum (yukarıda 4-5 adım) |
 
 ---
 

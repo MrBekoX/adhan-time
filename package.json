@@ -2,6 +2,20 @@
   "name": "adhan-time",
   "version": "0.2.0",
   "private": true,
+  "description": "Worldwide Muslim prayer-times (adhan) app with offline-capable local + server-backed push notifications and a qibla compass. React Native + Expo (Expo Router) + Supabase.",
+  "license": "MIT",
+  "author": "Berkay Kaplan (https://github.com/MrBekoX)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MrBekoX/adhan-time.git"
+  },
+  "homepage": "https://github.com/MrBekoX/adhan-time#readme",
+  "bugs": {
+    "url": "https://github.com/MrBekoX/adhan-time/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start --dev-client",
