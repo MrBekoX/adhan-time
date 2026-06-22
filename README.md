@@ -1,142 +1,153 @@
 # Adhan Time
 
-Dünya geneli ezan vakti uygulaması (React Native + Expo + Supabase).
+Worldwide Muslim prayer-times (adhan) app (React Native + Expo + Supabase).
 
-> Mimari özet ve komutlar için aşağıya bakın. Kod katmanları: `app/`, `components/`, `hooks/`, `services/`, `store/`, `utils/`, `constants/`, `locales/`, `supabase/`.
+> See below for an architecture overview and commands. Code layers: `app/`, `components/`, `hooks/`, `services/`, `store/`, `utils/`, `constants/`, `locales/`, `supabase/`.
 
 ---
 
-## İlk Kurulum (Sırayla)
+## First-time Setup (in order)
 
-### 1. Bağımlılıklar
+### 1. Dependencies
 
 ```bash
 cd adhan-time
 npm install
-npx expo install --fix    # SDK ile uyumlu versiyonlara hizala
+npx expo install --fix    # align packages to SDK-compatible versions
 ```
 
-### 2. Env Değişkenleri
+### 2. Environment variables
 
-`.env` dosyası mevcut (Supabase URL + publishable key dolu).
-Production veya başka cihaz için: `.env.example`'ı `.env`'e kopyalayıp doldur.
+Copy `.env.example` to `.env` and fill it in (Supabase URL + publishable key).
 
-APK / EAS build için `EXPO_PUBLIC_REGISTER_HMAC_KEY` zorunludur (Supabase
-`REGISTER_HMAC_KEY` ile aynı değer; aksi halde telefon `register-device`
-isteğini imzalayamaz). Ortamı build'den önce doğrula:
+For an APK / EAS build, `EXPO_PUBLIC_REGISTER_HMAC_KEY` is required (it must match
+the Supabase `REGISTER_HMAC_KEY`; otherwise the device cannot sign its
+`register-device` request). Validate the environment before building:
 
 ```bash
 npm run validate:build-env
 ```
 
-### 3. EAS Projesi
+### 3. EAS project
 
 ```bash
 npm i -g eas-cli
 eas login
-eas init                  # `app.json` içine projectId yazılır
+eas init                  # writes projectId into app.json
 ```
 
-### 4. Supabase Vault Secret'ları (pg_cron için)
+### 4. Supabase Vault secrets (for pg_cron)
 
 Supabase Dashboard > Database > Vault > **New Secret**:
 
 - `supabase_url` → `https://<your-project-ref>.supabase.co`
-- `service_role_key` → Dashboard > Project Settings > API > **service_role secret** kopyala
+- `service_role_key` → copy from Dashboard > Project Settings > API > **service_role secret**
 
-### 5. pg_cron Migration
+### 5. pg_cron migration
 
-Vault dolduktan sonra Dashboard > SQL Editor'da `supabase/migrations/20260502000100_pg_cron.sql` içeriğini çalıştır. Cron her dakika `push-prayer` edge function'ını tetikleyecek.
+Once the Vault is populated, run the contents of
+`supabase/migrations/20260502000100_pg_cron.sql` in Dashboard > SQL Editor. The
+cron will trigger the `push-prayer` edge function every minute.
 
-### 6. (Opsiyonel) Expo Push Token Güvenliği
+### 6. (Optional) Expo push token security
 
 ```bash
 supabase secrets set EXPO_ACCESS_TOKEN=<token>
 ```
 
-Token: https://expo.dev → Account Settings → Access Tokens → "Enhanced Security for Push Notifications" aç.
+Token: https://expo.dev → Account Settings → Access Tokens → enable "Enhanced
+Security for Push Notifications".
 
-### 7. Asset'ler (kullanıcı sağlar)
+### 7. Assets (provided by you)
 
-`assets/images/icon.png` (1024×1024), `adaptive-icon.png`, `favicon.png` ve `assets/sounds/notification.wav` (≤30 sn bildirim sesi) `app.json`'daki ilgili anahtarlara bağlı.
+`assets/images/icon.png` (1024×1024), `adaptive-icon.png`, `favicon.png`, and
+`assets/sounds/notification.wav` (≤30 s notification sound) are referenced by the
+corresponding keys in `app.json`.
 
-### 8. Android Push (FCM v1) — zorunlu
+### 8. Android push (FCM v1) — required
 
-Android push token (`Notifications.getExpoPushTokenAsync`) FCM olmadan **runtime'da
-çöker** ve banner "Bildirim kimliği şu anda alınamıyor" gösterir. İki ayrı parça gerekir:
+Without FCM, the Android push token (`Notifications.getExpoPushTokenAsync`)
+**crashes at runtime** and shows the banner "Notification ID currently
+unavailable". Two separate pieces are needed:
 
-1. **İstemci config** — `google-services.json` (proje + app id + paket-kısıtlı API key).
-   `app.json` → `android.googleServicesFile` buna referans verir; dosya yoksa prebuild
-   fail eder. Dosya `.gitignore`'da (commit edilmez) ama `.easignore` onu hariç
-   tutmadığı için EAS Build APK'ya gömer. Servis hesabı anahtarından üret:
+1. **Client config** — `google-services.json` (project + app id + package-restricted
+   API key). `app.json` → `android.googleServicesFile` references it; prebuild fails
+   if the file is missing. The file is in `.gitignore` (never committed) but EAS Build
+   still embeds it in the APK because `.easignore` does not exclude it. Generate it
+   from a service-account key:
    ```bash
    node tools/scripts/fetch-google-services.mjs <firebase-service-account.json>
    ```
-2. **Sunucu kimliği** — FCM v1 servis hesabı anahtarı EAS'a yüklenir (Expo'nun push
-   servisi FCM'e gönderebilsin). Bu olmadan banner gitmez ama gönderim de olmaz:
+2. **Server credential** — the FCM v1 service-account key is uploaded to EAS (so
+   Expo's push service can deliver to FCM). Without it the banner clears but delivery
+   still fails:
    ```bash
    eas credentials   # Android → <profile> → Google Service Account → Manage FCM V1 → upload
    ```
 
-> `npm run validate:build-env` (ve EAS'ta `eas-build-pre-install` hook'u) FCM dosyası
-> veya zorunlu env eksikse build'i **baştan reddeder** — bozuk APK göndermez.
+> `npm run validate:build-env` (and the `eas-build-pre-install` hook on EAS)
+> **rejects the build up front** if the FCM file or a required env var is missing —
+> it won't ship a broken APK.
 
-### 9. Development Build
+### 9. Development build
 
 ```bash
-eas build --profile development --platform ios     # veya android
-# Cihaza yükle, ardından:
+eas build --profile development --platform ios     # or android
+# Install on the device, then:
 npm run start
 ```
 
-> **Push test simulator'da çalışmaz.** Gerçek cihaz + development build zorunlu.
+> **Push does not work on the simulator.** A physical device + development build is
+> required.
 
 ---
 
-## Komutlar
+## Commands
 
-| Komut                        | Açıklama                                |
-| ---------------------------- | --------------------------------------- |
-| `npm run start`              | Dev server                              |
-| `npm run lint`               | ESLint                                  |
-| `npm run type-check`         | `tsc --noEmit`                          |
-| `npm run test`               | Jest                                    |
-| `npm run validate:build-env` | Build öncesi env + FCM dosyası kontrolü |
+| Command                      | Description                    |
+| ---------------------------- | ------------------------------ |
+| `npm run start`              | Dev server                     |
+| `npm run lint`               | ESLint                         |
+| `npm run type-check`         | `tsc --noEmit`                 |
+| `npm run test`               | Jest                           |
+| `npm run validate:build-env` | Pre-build env + FCM file check |
 
-PR öncesi yerel kontrol: `npm run lint`, `npm run type-check`, `npm run test` (CI bunları zorunlu kılar).
+Local check before opening a PR: `npm run lint`, `npm run type-check`,
+`npm run test` (CI enforces all three).
 
 ---
 
-## Mimari Özet
+## Architecture overview
 
 ```
 app/                  Expo Router (file-based)
-components/           Saf, presentational UI
-hooks/                useStore + useEffect orkestrasyon
+components/           Pure, presentational UI
+hooks/                useStore + useEffect orchestration
 services/             Network, scheduler, push, supabase
 store/                Zustand slices (location, prayer, settings, ui)
-utils/                Saf yardımcılar (time, envelope, logger)
-constants/            Sabit veri (api paths, prayers, timezones)
+utils/                Pure helpers (time, envelope, logger)
+constants/            Static data (api paths, prayers, timezones)
 locales/              tr.json, en.json, i18n setup
 supabase/             migrations + edge functions
 ```
 
-Bağımlılık yönü: `app/ → store/ → services/ → utils/`; `components/` saf ve presentational, veriyi prop / `useStore` ile alır.
+Dependency direction: `app/ → store/ → services/ → utils/`; `components/` are pure
+and presentational, receiving data via props / `useStore`.
 
 ---
 
-## Backend Durumu
+## Backend status
 
-| Bileşen                                 | Durum                                 |
-| --------------------------------------- | ------------------------------------- |
-| Supabase project (`<your-project-ref>`) | ACTIVE_HEALTHY (ap-southeast-2)       |
-| Migration `init_devices_cache_log`      | ✅ uygulandı                          |
-| Edge function `register-device`         | ✅ deployed (v1)                      |
-| Edge function `push-prayer`             | ✅ deployed (v1)                      |
-| pg_cron job `push-prayer-every-minute`  | ⏳ manuel kurulum (yukarıda 4-5 adım) |
+| Component                               | Status                            |
+| --------------------------------------- | --------------------------------- |
+| Supabase project (`<your-project-ref>`) | ACTIVE_HEALTHY (ap-southeast-2)   |
+| Migration `init_devices_cache_log`      | ✅ applied                        |
+| Edge function `register-device`         | ✅ deployed (v1)                  |
+| Edge function `push-prayer`             | ✅ deployed (v1)                  |
+| pg_cron job `push-prayer-every-minute`  | ⏳ manual setup (steps 4–5 above) |
 
 ---
 
-## Lisans
+## License
 
-[MIT](LICENSE) — bu proje MIT lisansı altında dağıtılır.
+[MIT](LICENSE) — this project is distributed under the MIT License.
