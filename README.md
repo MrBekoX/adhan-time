@@ -11,7 +11,7 @@ Dünya geneli ezan vakti uygulaması (React Native + Expo + Supabase).
 ### 1. Bağımlılıklar
 
 ```bash
-cd D:/adhan-time
+cd adhan-time
 npm install
 npx expo install --fix    # SDK ile uyumlu versiyonlara hizala
 ```
@@ -139,4 +139,4 @@ Bağımlılık yönü: `app/ → store/ → services/ → utils/`; `components/`
 
 ## Lisans
 
-Private.
+[MIT](LICENSE) — bu proje MIT lisansı altında dağıtılır.
